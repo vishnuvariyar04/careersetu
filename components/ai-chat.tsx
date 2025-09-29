@@ -38,7 +38,6 @@ export function AIChat({
   const [isLoading, setIsLoading] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-
   function formatTime(date: Date) {
     return date
       .toLocaleTimeString("en-US", {
@@ -47,9 +46,8 @@ export function AIChat({
         hour12: true,
       })
       .replace("AM", "am")
-      .replace("PM", "pm") // 🔑 force lowercase
+      .replace("PM", "pm")
   }
-  
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -57,115 +55,68 @@ export function AIChat({
     }
   }, [messages])
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return
+const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       content: input,
       role: "user",
       timestamp: new Date(),
-    }
+    };
 
-    setMessages((prev) => [...prev, userMessage])
-    setInput("")
-    setIsLoading(true)
+    setMessages((prev) => [...prev, userMessage]);
+    const currentInput = input;
+    setInput("");
+    setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(
-      () => {
-        const aiResponse = generateAIResponse(input, agentType)
+    try {
+      const requestBody = {
+        uid: "student_1759079235395",
+        company_id: "company_1",
+        project_id: "pm3",
+        message: currentInput,
+        team_id: "team_1",
+      };
+
+      const response = await fetch("https://n8n.srv1034714.hstgr.cloud/webhook/f723e0a5-2fbf-4453-8393-153d2db4a248", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+      
+      const apiResponse:any = await response.text();  
+console.log("API Response:", apiResponse);
+      // Check if the response is an array and contains the required data
+      if (apiResponse ) {
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
-          content: aiResponse.content,
+          content: apiResponse, // Use the message from the API
           role: "assistant",
           timestamp: new Date(),
-          type: aiResponse.type,
-        }
-
-        setMessages((prev) => [...prev, assistantMessage])
-        setIsLoading(false)
-
-        // Handle special actions
-        if (aiResponse.type === "task_assignment" && onTaskAssigned) {
-          onTaskAssigned(aiResponse.task)
-        }
-        if (aiResponse.type === "learning_suggestion" && onLearningRequest) {
-          onLearningRequest(aiResponse.topic)
-        }
-      },
-      1000 + Math.random() * 2000,
-    )
-  }
-
-  const generateAIResponse = (userInput: string, type: "pm" | "learning") => {
-    const input = userInput.toLowerCase()
-
-    if (type === "pm") {
-      if (input.includes("task") || input.includes("assign")) {
-        return {
-          content:
-            "I've analyzed your request and created a new task for you: 'Implement user authentication middleware'. This task has been added to your task tracker with high priority. The estimated completion time is 3-4 hours based on your current skill level.",
-          type: "task_assignment" as const,
-          task: {
-            title: "Implement user authentication middleware",
-            priority: "high",
-            estimatedTime: "3-4 hours",
-          },
-        }
+          type: "general", // Default to general as other types are removed
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
       }
-      if (input.includes("progress") || input.includes("status")) {
-        return {
-          content:
-            "Your team is making excellent progress! You've completed 3 out of 5 sprint tasks, putting you 15% ahead of schedule. Sarah has finished the UI components, and Mike is 80% done with the database integration. Keep up the great work!",
-          type: "progress_update" as const,
-        }
-      }
-      if (input.includes("help") || input.includes("stuck")) {
-        return {
-          content:
-            "I understand you're facing a challenge. Based on your current task, I recommend breaking it down into smaller steps: 1) Set up the middleware structure, 2) Implement token validation, 3) Add error handling. Would you like me to create subtasks for these steps?",
-          type: "general" as const,
-        }
-      }
-      return {
-        content:
-          "I'm here to help manage your project efficiently. I can assign tasks, track progress, provide updates, and help resolve blockers. What would you like to work on today?",
-        type: "general" as const,
-      }
-    } else {
-      // Learning agent responses
-      if (input.includes("react") || input.includes("component")) {
-        return {
-          content:
-            "Great question about React! I've prepared a personalized learning path for React components. This includes: functional vs class components, props and state management, and lifecycle methods. Would you like me to start with a hands-on tutorial?",
-          type: "learning_suggestion" as const,
-          topic: "React Components",
-        }
-      }
-      if (input.includes("database") || input.includes("sql")) {
-        return {
-          content:
-            "Database design is crucial for your current project! I recommend starting with entity-relationship modeling, then moving to normalization principles. I can provide interactive exercises with your e-commerce database schema. Shall we begin?",
-          type: "learning_suggestion" as const,
-          topic: "Database Design",
-        }
-      }
-      if (input.includes("api") || input.includes("backend")) {
-        return {
-          content:
-            "API development is a key skill! I'll guide you through RESTful API principles, authentication patterns, and error handling. Based on your current task, we should focus on JWT implementation first. Ready to dive in?",
-          type: "learning_suggestion" as const,
-          topic: "API Development",
-        }
-      }
-      return {
-        content:
-          "I'm your personal learning assistant! I can help you understand any technology, provide tutorials, create practice exercises, and adapt to your learning style. What would you like to learn today?",
-        type: "general" as const,
-      }
+    } catch (error) {
+      console.error("Failed to get response from API:", error);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: "Sorry, there was an error processing the server's response.",
+        role: "assistant",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
-  }
+  };
 
   const getMessageIcon = (message: Message) => {
     if (message.role === "user") return <User className="w-3 h-3" />
@@ -243,9 +194,8 @@ export function AIChat({
                 )}
                 <span className="text-sm font-medium">{message.role === "assistant" ? agentName : "You"}</span>
                 <span className="text-xs text-muted-foreground">
-  {formatTime(message.timestamp)}
-</span>
-
+                  {formatTime(message.timestamp)}
+                </span>
                 {getMessageBadge(message)}
               </div>
               <div className="ml-8">

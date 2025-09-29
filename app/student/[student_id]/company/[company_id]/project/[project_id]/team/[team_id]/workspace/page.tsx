@@ -70,22 +70,22 @@ const tasks = [
   },
 ]
 
-const initialPMMessages = [
-  {
-    id: "1",
-    content:
-      "Hello! I'm your PM Agent assistant. I'm here to help you with understanding customer needs and identifying improvement opportunities. How can I assist you today?",
-    role: "assistant" as const,
-    timestamp: new Date(Date.now() - 3600000),
-    type: "general" as const,
-  },
-  {
-    id: "2",
-    content: "New task assigned: Database schema design. Check your task tracker for details.",
-    role: "assistant" as const,
-    timestamp: new Date(Date.now() - 1800000),
-    type: "task_assignment" as const,
-  },
+const initialPMMessages:any = [
+  // {
+  //   id: "1",
+  //   content:
+  //     "Hello! I'm your PM Agent assistant. I'm here to help you with understanding customer needs and identifying improvement opportunities. How can I assist you today?",
+  //   role: "assistant" as const,
+  //   timestamp: new Date(Date.now() - 3600000),
+  //   type: "general" as const,
+  // },
+  // {
+  //   id: "2",
+  //   content: "New task assigned: Database schema design. Check your task tracker for details.",
+  //   role: "assistant" as const,
+  //   timestamp: new Date(Date.now() - 1800000),
+  //   type: "task_assignment" as const,
+  // },
 ]
 
 const initialLearningMessages = [
