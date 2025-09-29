@@ -36,12 +36,14 @@ export function AIChat({
   company_id,
   project_id,
   team_id,
+  enableSlashShortcut = false,
 
 }: any) {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   function formatTime(date: Date) {
     return date
@@ -59,6 +61,27 @@ export function AIChat({
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
   }, [messages])
+
+  useEffect(() => {
+    if (!enableSlashShortcut) return
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const active = document.activeElement as HTMLElement | null
+        const isTyping = !!active && (
+          active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          active.isContentEditable === true
+        )
+        if (isTyping) return
+        e.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [enableSlashShortcut])
 
 const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -168,7 +191,7 @@ console.log("API Response:", apiResponse);
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-3">
@@ -250,6 +273,7 @@ console.log("API Response:", apiResponse);
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSend()}
             disabled={isLoading}
+            ref={inputRef}
           />
           <Button size="icon" onClick={handleSend} disabled={isLoading || !input.trim()}>
             <Send className="w-4 h-4" />

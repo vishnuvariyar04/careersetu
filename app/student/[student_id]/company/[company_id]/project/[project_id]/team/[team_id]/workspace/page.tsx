@@ -216,7 +216,7 @@ export default function TeamWorkspacePage() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex">
+        <div className="flex-1 flex min-h-0">
           {/* Content Area */}
           <div className="flex-1 flex flex-col">
             {/* Header */}
@@ -232,7 +232,7 @@ export default function TeamWorkspacePage() {
             </div>
 
             {/* Content */}
-            <div className="flex-1 p-6 overflow-auto">
+            <div className="flex-1 p-6 overflow-auto min-h-0">
               {activeTab === "tasks" && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2 space-y-4">
@@ -385,7 +385,7 @@ export default function TeamWorkspacePage() {
               )}
 
               {activeTab === "learning" && (
-                <div className="h-full">
+                <div className="h-full min-h-0 overflow-hidden">
                   <AIChat
                     agentType="learning"
                     agentName="Learning Agent"
@@ -436,7 +436,7 @@ export default function TeamWorkspacePage() {
           </div>
 
           {/* Right Sidebar - AI PM Agent */}
-          <div className="w-80 border-l border-border bg-card/50">
+          <div className="w-80 border-l border-border bg-card/50 flex flex-col min-h-0 overflow-hidden">
             <AIChat
               agentType="pm"
               agentName="PM Agent"
@@ -447,6 +447,7 @@ export default function TeamWorkspacePage() {
                     company_id={params.company_id}
                     project_id={params.project_id}
                     team_id={params.team_id}
+                    enableSlashShortcut
             />
           </div>
         </div>
