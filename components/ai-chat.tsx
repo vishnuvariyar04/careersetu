@@ -32,7 +32,12 @@ export function AIChat({
   initialMessages = [],
   onTaskAssigned,
   onLearningRequest,
-}: AIChatProps) {
+  uid,
+  company_id,
+  project_id,
+  team_id,
+
+}: any) {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -71,12 +76,14 @@ const handleSend = async () => {
     setIsLoading(true);
 
     try {
+
+      console.log("Sending request with:", { uid, company_id, project_id, team_id, message: currentInput });
       const requestBody = {
-        uid: "student_1759079235395",
-        company_id: "company_1",
-        project_id: "pm3",
+        uid: uid,
+        company_id: company_id,
+        project_id: project_id,
         message: currentInput,
-        team_id: "team_1",
+        team_id: team_id,
       };
 
       const response = await fetch("https://n8n.srv1034714.hstgr.cloud/webhook/f723e0a5-2fbf-4453-8393-153d2db4a248", {

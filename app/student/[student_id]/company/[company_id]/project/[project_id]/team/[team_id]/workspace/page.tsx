@@ -103,6 +103,9 @@ export default function TeamWorkspacePage() {
   const [activeTab, setActiveTab] = useState("tasks")
   const params = useParams()
   const teamId = Number(params.team_id)
+  const projectId = params.project_id
+  const studentId = params.student_id
+  const companyId = params.company_id
   const team = teamData[teamId as keyof typeof teamData]
 
   const handleTaskAssigned = (task: any) => {
@@ -389,6 +392,10 @@ export default function TeamWorkspacePage() {
                     agentDescription="AI-powered learning assistant"
                     initialMessages={initialLearningMessages}
                     onLearningRequest={handleLearningRequest}
+                    uid={params.student_id}
+                    company_id={params.company_id}
+                    project_id={params.project_id}
+                    team_id={params.team_id}
                   />
                 </div>
               )}
@@ -436,6 +443,10 @@ export default function TeamWorkspacePage() {
               agentDescription="Product Management Assistant"
               initialMessages={initialPMMessages}
               onTaskAssigned={handleTaskAssigned}
+               uid={params.student_id}
+                    company_id={params.company_id}
+                    project_id={params.project_id}
+                    team_id={params.team_id}
             />
           </div>
         </div>
