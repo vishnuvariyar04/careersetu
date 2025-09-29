@@ -84,8 +84,8 @@ export default function RegisterPage() {
 
       
 
-        // Redirect to dynamic onboarding
-        router.push(`/student/${studentId}/onboarding`)
+        // Redirect to chat-style onboarding survey UI (no persistence, UI only)
+        router.push(`/student/${studentId}/onboarding/survey`)
       } else {
         // For supervisors, redirect to supervisor dashboard (will implement later)
         router.push("/supervisor/dashboard")
