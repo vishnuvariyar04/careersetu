@@ -208,7 +208,7 @@ export default function StudentDashboardPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Companies Joined</p>
-                  <p className="text-3xl font-bold">{student.companies_joined.length}</p>
+                  <p className="text-3xl font-bold">{student.companies_joined ? student.companies_joined?.length : 0}</p>
                 </div>
                 <Building2 className="w-8 h-8 text-purple-500" />
               </div>
