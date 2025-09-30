@@ -1,59 +1,135 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Slider } from "@/components/ui/slider"
 import { ArrowRight, Bot, User as UserIcon } from "lucide-react"
 
 type SurveyStep =
-  | { id: string; type: "message"; content: string }
-  | { id: string; type: "text"; content: string }
-  | { id: string; type: "multiChoice"; content: string; options: string[]; maxSelect?: number }
-  | { id: string; type: "yesNo"; content: string }
+  | { id: string; type: "message"; content: string; showIf?: (answers: Answers) => boolean }
+  | { id: string; type: "text"; content: string; showIf?: (answers: Answers) => boolean }
+  | { id: string; type: "multiChoice"; content: string; options: string[]; maxSelect?: number; showIf?: (answers: Answers) => boolean }
+  | { id: string; type: "yesNo"; content: string; showIf?: (answers: Answers) => boolean }
   | {
       id: string
       type: "scale"
       content: string
       scale: { min: number; max: number; labels: [string, string] }
+      showIf?: (answers: Answers) => boolean
     }
+  | { id: string; type: "links"; content: string; showIf?: (answers: Answers) => boolean }
 
 const chatSurvey: { title: string; description: string; flow: SurveyStep[] } = {
   title: "Student Onboarding Survey",
   description:
-    "Answer a few questions to help us personalize your learning journey and career guidance.",
+    "We’ll start with your recent experience and goals to tailor a few focused questions.",
   flow: [
-    { id: "intro", type: "message", content: "👋 Hi! Let’s get to know you better. Please answer a few quick questions." },
-    { id: "projects_proud", type: "text", content: "What projects (academic, personal, or professional) are you most proud of?" },
-    { id: "meaningful_experience", type: "text", content: "Describe your most meaningful internship, volunteer, or work experience so far." },
-    { id: "roles_experienced", type: "multiChoice", content: "What technical and non-technical roles have you experienced?", options: ["Leadership", "Teamwork", "Research", "Development", "Design", "Other"] },
-    { id: "skills_confidence", type: "text", content: "What skills do you feel most confident about? Where do you want to improve?" },
-    { id: "tools_used", type: "multiChoice", content: "Which programming languages, frameworks, or tools have you used in real-world settings?", options: ["Python", "JavaScript", "React", "Node.js", "Java", "C/C++", "Other"] },
-    { id: "problem_solved", type: "text", content: "What’s one complex problem you’ve solved, and how did you approach it?" },
-    { id: "motivation_learning", type: "text", content: "What motivates you to learn new technologies or pick up new skills?" },
-    { id: "industries_excite", type: "multiChoice", content: "What types of problems or industries excite you most?", options: ["Healthcare", "Fintech", "AI", "Sustainability", "Education", "Other"] },
-    { id: "career_goal", type: "text", content: "What career goal inspires your current efforts?" },
-    { id: "role_models", type: "text", content: "Who are your professional role models, and why?" },
-    { id: "learning_style", type: "multiChoice", content: "How do you prefer to learn?", options: ["Independently", "With a mentor", "In groups", "By teaching others"] },
-    { id: "challenge_help", type: "multiChoice", content: "When faced with challenges, what’s your preferred way to get help?", options: ["Online resources", "Mentor guidance", "Peer discussion", "Trial and error"] },
-    { id: "peer_learning", type: "yesNo", content: "Have you participated in peer-to-peer learning, mentorship, or hackathons before?" },
-    { id: "collaboration_comfort", type: "scale", content: "Rate your comfort collaborating with people from diverse backgrounds.", scale: { min: 1, max: 5, labels: ["Not comfortable", "Very comfortable"] } },
-    { id: "career_5years", type: "text", content: "How do you envision your career in five years?" },
-    { id: "top_skills", type: "multiChoice", content: "What are the top 3 skills you want to develop to reach your goals?", options: ["Leadership", "Problem-solving", "Communication", "AI/ML", "Full-stack development", "UI/UX", "Other"], maxSelect: 3 },
-    { id: "impact_field", type: "text", content: "What kind of impact do you hope to make in your field?" },
-    { id: "successful_experience", type: "text", content: "What does a ‘successful’ internship or work experience look like to you?" },
-    { id: "motivation_type", type: "multiChoice", content: "What motivates you more?", options: ["Solving real-world problems", "Earning recognition", "Building expertise"] },
-    { id: "fears", type: "text", content: "What challenges or fears hold you back from taking on new projects?" },
-    { id: "values", type: "multiChoice", content: "What do you value most in a learning or work environment?", options: ["Autonomy", "Collaboration", "Feedback", "Flexibility", "Growth opportunities"] },
-    { id: "personal_needs", type: "text", content: "Are there any personal circumstances or learning needs you want your mentor to know?" },
-    { id: "influential_resources", type: "text", content: "Which resources, communities, or extracurricular activities have most impacted your journey so far (and how)?" },
-    { id: "outro", type: "message", content: "✅ Thanks for sharing! Your responses will help us tailor your journey and recommendations." },
+    { id: "intro", type: "message", content: "👋 Hi! Tell me a bit about what you’ve actually done and what you want next — I’ll keep it short." },
+    {
+      id: "experience_story",
+      type: "text",
+      content: "What was the last project or hands-on work you did? What did YOU do, what stack did you use, and what was hardest?",
+    },
+    {
+      id: "responsibilities",
+      type: "multiChoice",
+      content: "In that work, which of these did you personally handle?",
+      options: [
+        "Scoping requirements",
+        "Setting up repo & tooling",
+        "Designing schema/APIs",
+        "Implementing features end-to-end",
+        "Writing tests",
+        "CI/CD & deployments",
+        "Performance/debugging",
+      ],
+      maxSelect: 4,
+    },
+    {
+      id: "autonomy_scale",
+      type: "scale",
+      content: "When stuck on an unfamiliar task, how independently could you progress?",
+      scale: { min: 1, max: 5, labels: ["Need close guidance", "Very independent"] },
+    },
+    {
+      id: "skills_strengths",
+      type: "multiChoice",
+      content: "Which strengths describe you best? (up to 3)",
+      options: ["Frontend", "Backend", "DevOps", "Data/ML", "Mobile", "UI/UX", "Product thinking"],
+      maxSelect: 3,
+    },
+    {
+      id: "tools_used",
+      type: "multiChoice",
+      content: "Which languages/frameworks/tools have you used in real work?",
+      options: ["Python", "JavaScript/TypeScript", "React", "Node.js", "Java", "C/C++", "Go", "SQL", "Other"],
+      maxSelect: 6,
+    },
+    {
+      id: "tools_used_other",
+      type: "text",
+      content: "List any other tools or stacks you’ve used.",
+      showIf: (a) => Array.isArray(a["tools_used"]) && (a["tools_used"] as string[]).includes("Other"),
+    },
+    {
+      id: "learning_goals",
+      type: "multiChoice",
+      content: "What do you want to learn next? (up to 3)",
+      options: [
+        "System design",
+        "Data structures & algorithms",
+        "AI/ML",
+        "Cloud/DevOps",
+        "Full-stack apps",
+        "Open-source contributions",
+        "Design & UX",
+        "Other",
+      ],
+      maxSelect: 3,
+    },
+    {
+      id: "learning_goals_other",
+      type: "text",
+      content: "Tell me more about what else you’d like to learn.",
+      showIf: (a) => Array.isArray(a["learning_goals"]) && (a["learning_goals"] as string[]).includes("Other"),
+    },
+    {
+      id: "companies_interest",
+      type: "multiChoice",
+      content: "Any companies you’d be excited to work at?",
+      options: [
+        "Google",
+        "Microsoft",
+        "Amazon",
+        "OpenAI",
+        "Stripe",
+        "Atlassian",
+        "Any startup",
+        "Other",
+      ],
+      maxSelect: 4,
+    },
+    {
+      id: "companies_other",
+      type: "text",
+      content: "Name a few specific companies or teams you like.",
+      showIf: (a) => Array.isArray(a["companies_interest"]) && (a["companies_interest"] as string[]).includes("Other"),
+    },
+    {
+      id: "domains_interest",
+      type: "multiChoice",
+      content: "Which domains interest you?",
+      options: ["Healthcare", "Fintech", "AI", "Sustainability", "Education"],
+      maxSelect: 3,
+    },
+    { id: "social_links", type: "links", content: "Drop your GitHub and LinkedIn (optional)." },
+    { id: "outro", type: "message", content: "✅ Thanks! This gives us enough to infer your level and tailor a plan." },
   ],
 }
 
@@ -67,19 +143,29 @@ export default function ChatSurveyPage() {
   const [activeIndex, setActiveIndex] = useState(0)
   const [answers, setAnswers] = useState<Answers>({})
   const [textDraft, setTextDraft] = useState("")
+  const [githubDraft, setGithubDraft] = useState("")
+  const [linkedinDraft, setLinkedinDraft] = useState("")
 
-  const interactiveSteps = useMemo(() => chatSurvey.flow.filter((s) => s.type !== "message"), [])
-  const completedInteractive = useMemo(
-    () => Object.keys(answers).filter((id) => chatSurvey.flow.find((s) => s.id === id && s.type !== "message")).length,
+  const visibleFlow = useMemo(
+    () => chatSurvey.flow.filter((s) => !s.showIf || s.showIf(answers)),
     [answers],
   )
+  const interactiveSteps = useMemo(() => visibleFlow.filter((s) => s.type !== "message"), [visibleFlow])
+  const completedInteractive = useMemo(
+    () => Object.keys(answers).filter((id) => visibleFlow.find((s) => s.id === id && s.type !== "message")).length,
+    [answers, visibleFlow],
+  )
 
-  const currentStep = chatSurvey.flow[activeIndex]
-  const isLast = activeIndex >= chatSurvey.flow.length - 1
+  const currentStep = visibleFlow[activeIndex]
+  const isLast = activeIndex >= visibleFlow.length - 1
+
+  useEffect(() => {
+    setActiveIndex((i) => Math.min(i, Math.max(visibleFlow.length - 1, 0)))
+  }, [visibleFlow.length])
 
   const goNext = () => {
     if (isLast) return
-    setActiveIndex((i) => Math.min(i + 1, chatSurvey.flow.length - 1))
+    setActiveIndex((i) => Math.min(i + 1, visibleFlow.length - 1))
     setTextDraft("")
   }
 
@@ -120,12 +206,20 @@ export default function ChatSurveyPage() {
 
   const confirmScale = () => goNext()
 
+  const confirmLinks = () => {
+    const github = githubDraft.trim()
+    const linkedin = linkedinDraft.trim()
+    const summary = [github ? `GitHub: ${github}` : "", linkedin ? `LinkedIn: ${linkedin}` : ""].filter(Boolean).join(" | ") || "No links provided"
+    setAnswers((a) => ({ ...a, social_links: summary, github, linkedin }))
+    goNext()
+  }
+
   const handleFinish = () => {
     router.push(`/student/${studentId}/dashboard`)
   }
 
   const totalInteractive = interactiveSteps.length
-  const progressPct = (completedInteractive / totalInteractive) * 100
+  const progressPct = (completedInteractive / (totalInteractive || 1)) * 100
 
   return (
     <div className="min-h-screen bg-background grid-pattern">
@@ -154,7 +248,7 @@ export default function ChatSurveyPage() {
         </Card>
 
         <div className="space-y-3">
-          {chatSurvey.flow.slice(0, activeIndex + 1).map((step) => {
+          {visibleFlow.slice(0, activeIndex + 1).map((step) => {
             const value = answers[step.id]
             return (
               <div key={step.id} className="space-y-2">
@@ -189,7 +283,7 @@ export default function ChatSurveyPage() {
         {/* Composer */}
         <Card className="mt-4 sticky bottom-4">
           <CardContent className="pt-6">
-            {currentStep.type === "message" && (
+            {currentStep && currentStep.type === "message" && (
               <div className="flex items-center justify-between">
                 <Button onClick={goPrev} variant="outline" disabled={activeIndex === 0}>
                   Back
@@ -201,14 +295,14 @@ export default function ChatSurveyPage() {
                   </Button>
                 ) : (
                   <Button onClick={goNext}>
-                    Start
+                    Continue
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 )}
               </div>
             )}
 
-            {currentStep.type === "text" && (
+            {currentStep && currentStep.type === "text" && (
               <div className="space-y-3">
                 <Textarea
                   value={textDraft}
@@ -228,7 +322,7 @@ export default function ChatSurveyPage() {
               </div>
             )}
 
-            {currentStep.type === "multiChoice" && (
+            {currentStep && currentStep.type === "multiChoice" && (
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-2">
                   {currentStep.options.map((opt) => {
@@ -269,7 +363,7 @@ export default function ChatSurveyPage() {
               </div>
             )}
 
-            {currentStep.type === "yesNo" && (
+            {currentStep && currentStep.type === "yesNo" && (
               <div className="flex items-center justify-between gap-2">
                 <Button onClick={() => answerYesNo(true)} className="flex-1">
                   Yes
@@ -280,7 +374,7 @@ export default function ChatSurveyPage() {
               </div>
             )}
 
-            {currentStep.type === "scale" && (
+            {currentStep && currentStep.type === "scale" && (
               <div className="space-y-4">
                 <div className="px-1">
                   <Slider
@@ -300,6 +394,33 @@ export default function ChatSurveyPage() {
                     Back
                   </Button>
                   <Button onClick={confirmScale}>
+                    Next
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {currentStep && currentStep.type === "links" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    placeholder="GitHub profile URL"
+                    value={githubDraft}
+                    onChange={(e) => setGithubDraft(e.target.value)}
+                  />
+                  <Input
+                    placeholder="LinkedIn profile URL"
+                    value={linkedinDraft}
+                    onChange={(e) => setLinkedinDraft(e.target.value)}
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground">Optional — add either or both.</div>
+                <div className="flex items-center justify-between">
+                  <Button onClick={goPrev} variant="outline" disabled={activeIndex === 0}>
+                    Back
+                  </Button>
+                  <Button onClick={confirmLinks}>
                     Next
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
