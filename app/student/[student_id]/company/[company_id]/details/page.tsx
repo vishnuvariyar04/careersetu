@@ -4,15 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Building2, Users, Star, CheckCircle, Award, Target, BarChart3,
-  Calendar, ArrowLeft, Globe, MapPin, Briefcase, Code, Trophy,
-  Activity, Zap, Plus,
-} from "lucide-react"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Input } from "@/components/ui/input"
+import { ArrowLeft, Plus, Bot, BookOpen, ListChecks, GraduationCap, Video, Image as ImageIcon, Sparkles } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 export default function CompanyDetailsPage() {
   const params = useParams()
@@ -24,9 +21,7 @@ export default function CompanyDetailsPage() {
   const [student, setStudent] = useState<any>()
   const [isJoined, setIsJoined] = useState(false)
   const [projects, setProjects] = useState<any[]>([])
-  const [teams, setTeams] = useState<any[]>([]) // Assuming a 'teams' table exists
-  const [companyStudents, setCompanyStudents] = useState<any[]>([])
-  const [allProgress, setAllProgress] = useState<any[]>([]) // Assuming a 'progress' table exists
+  
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,11 +50,10 @@ export default function CompanyDetailsPage() {
       console.log("Projects: ",projectsData)
       setProjects(projectsData || [])
 
-      // Fetch the current student's data
-      // NOTE: Assuming 'companies_joined' array exists on students table for company membership logic.
+      // Fetch the current student's data (skills included)
       const { data: studentData, error: studentError } = await supabase
         .from("students")
-        .select("*, companies_joined, projects")
+        .select("*, companies_joined, projects, skills")
         .eq("student_id", studentId)
         .single()
       if (studentError) {
@@ -68,68 +62,41 @@ export default function CompanyDetailsPage() {
       }
       setStudent(studentData)
 
-      
-      
       const joinedCompanies = studentData?.companies_joined || []
       setIsJoined(joinedCompanies.includes(companyId))
-
-      // Fetch all students who have joined this company
-      const { data: companyStudentsData, error: companyStudentsError } = await supabase
-        .from("students")
-        .select("*")
-        .contains("companies_joined", [companyId])
-      if (companyStudentsError) console.error("Error fetching company students:", companyStudentsError)
-      else setCompanyStudents(companyStudentsData || [])
-
-      // Fetch all progress data related to this company
-      // NOTE: This assumes a 'progress' table with student_id, project_id, company_id, status, score
-      const { data: progressData, error: progressError } = await supabase
-        .from("progress")
-        .select("*")
-        .eq("company_id", companyId)
-      if (progressError) console.log(" ")
-      else setAllProgress(progressData || [])
     }
     fetchData()
   }, [companyId, studentId])
-
-  // --- Live Data Calculations ---
-  const totalStudents = companyStudents.length
-  const activeProjects = projects.filter((p) => p.status === "active").length
-  const completedProjectsCount = projects.filter((p) => p.status === "completed").length
-  
-  const completedProgress = allProgress.filter((p) => p.status === "completed")
-  const completionRate = allProgress.length > 0 ? (completedProgress.length / allProgress.length) * 100 : 0
-  
-  const scoresWithValues = completedProgress.filter((p) => typeof p.score === 'number')
-  const averageScore = scoresWithValues.length > 0
-      ? scoresWithValues.reduce((sum, p) => sum + p.score, 0) / scoresWithValues.length
-      : 0
-
-  const studentScores = companyStudents
-    .map((s) => {
-      const studentProgress = allProgress.filter((p) => p.student_id === s.student_id && typeof p.score === 'number')
-      const avgScore = studentProgress.length > 0
-          ? studentProgress.reduce((sum, p) => sum + p.score, 0) / studentProgress.length
-          : 0
-      const projectsCompleted = studentProgress.filter((p) => p.status === "completed").length
-      return { student: s, avgScore, projectsCompleted }
+  // --- Skills Derivations ---
+  const companyRequiredSkills: string[] = useMemo(() => {
+    const set = new Set<string>()
+    projects.forEach((p: any) => {
+      if (p && Array.isArray(p.required_skills)) {
+        p.required_skills.forEach((s: string) => {
+          if (s) set.add(s)
+        })
+      }
     })
-    .sort((a, b) => b.avgScore - a.avgScore)
+    return Array.from(set)
+  }, [projects])
 
-    const techCounts: Record<string, number> = {}
-      projects.forEach((project) => {
-        // ADDED: Check if the project itself is a valid object.
-        if (project && project.requiredSkills && Array.isArray(project.requiredSkills)) {
-          project.requiredSkills.forEach((skill: any) => {
-            // ADDED: Ensure the skill is not null/undefined before using it as a key.
-            if (skill) {
-              techCounts[skill] = (techCounts[skill] || 0) + 1
-            }
-          })
-        }
-      })
-      const popularTechs = Object.entries(techCounts).sort(([, a], [, b]) => b - a).slice(0, 8)
+  const studentSkills: string[] = useMemo(() => {
+    const raw = (student?.skills || []) as any
+    return Array.isArray(raw) ? raw.filter(Boolean) : []
+  }, [student])
+
+  const missingSkills: string[] = useMemo(() => {
+    const set = new Set(studentSkills)
+    return companyRequiredSkills.filter((s) => !set.has(s))
+  }, [companyRequiredSkills, studentSkills])
+
+  const skillCoveragePercent = useMemo(() => {
+    if (companyRequiredSkills.length === 0) return 0
+    const covered = companyRequiredSkills.filter((s) => studentSkills.includes(s)).length
+    return Math.round((covered / companyRequiredSkills.length) * 100)
+  }, [companyRequiredSkills, studentSkills])
+
+  const [activeView, setActiveView] = useState<'teacher' | 'skills' | 'projects'>('teacher')
 
   // --- Event Handlers ---
   const handleJoinCompany = async (companyId: string) => {
@@ -238,7 +205,7 @@ export default function CompanyDetailsPage() {
   }
 
   const handleGoToWorkspace = (projectId: string) => {
-    router.push(`/student/${studentId}/company/${companyId}/project/${projectId}/teams/workspace`)
+    router.push(`/student/${studentId}/company/${companyId}/project/${projectId}/teams/team_3/workspace`)
   }
 
   if (!company || !student) {
@@ -246,254 +213,303 @@ export default function CompanyDetailsPage() {
   }
   
   return (
-    <div className="min-h-screen bg-background grid-pattern">
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-center gap-4 mb-6">
           <Button variant="outline" size="sm" onClick={() => router.push(`/student/${studentId}/dashboard`)}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
-          <div className="w-16 h-16 bg-secondary rounded-xl flex items-center justify-center">
-            <span className="text-2xl font-bold">{company.logo || company.name.substring(0, 2)}</span>
+          <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
+            <span className="text-lg font-bold">{company.logo || company.name.substring(0, 2)}</span>
           </div>
           <div className="flex-1">
-            <h1 className="text-3xl font-bold">{company.name}</h1>
-            <p className="text-muted-foreground text-lg">{company.description}</p>
-            <div className="flex items-center gap-6 mt-3">
-              {isJoined ? (
-                <>
-                  <div className="text-sm bg-green-100 text-green-700 rounded-md px-3 py-1 font-medium">✓ You're a member</div>
-                  <div className="text-sm bg-red-100 text-red-600 rounded-md px-3 py-1 cursor-pointer hover:bg-red-200" onClick={handleLeaveCompany}>Leave company</div>
-                </>
-              ) : (
-                <Button onClick={() => handleJoinCompany(companyId)}><Plus className="w-4 h-4 mr-2" /> Join Company</Button>
-              )}
-              {/* Other header info */}
-            </div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              {company.name}
+              <Badge variant="secondary" className="ml-1">Company</Badge>
+            </h1>
+            <p className="text-muted-foreground text-sm">{company.description}</p>
           </div>
+          {isJoined ? (
+            <Button variant="secondary" onClick={handleLeaveCompany}>Leave company</Button>
+          ) : (
+            <Button onClick={() => handleJoinCompany(companyId)}><Plus className="w-4 h-4 mr-2" /> Join Company</Button>
+          )}
         </div>
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Students</p>
-                  <p className="text-3xl font-bold">{totalStudents}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Active learners</p>
-                </div>
-                <Users className="w-8 h-8 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Active Projects</p>
-                  <p className="text-3xl font-bold">{activeProjects}</p>
-                  <p className="text-xs text-muted-foreground mt-1">of {projects.length} total</p>
-                </div>
-                <Briefcase className="w-8 h-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Completion Rate</p>
-                  <p className="text-3xl font-bold">{Math.round(completionRate)}%</p>
-                  <p className="text-xs text-muted-foreground mt-1">Project success</p>
-                </div>
-                <CheckCircle className="w-8 h-8 text-purple-500" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Average Score</p>
-                  <p className="text-3xl font-bold">{averageScore.toFixed(1)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">out of 5.0</p>
-                </div>
-                <Trophy className="w-8 h-8 text-orange-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Main Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Sidebar */}
+          <aside className="lg:col-span-3">
+            <div className="lg:sticky lg:top-4">
+              <ScrollArea className="h-[calc(100vh-8rem)] pr-2">
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Learning Navigator</CardTitle>
+                      <CardDescription>Quickly jump between sections</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <Button
+                        variant={activeView === 'teacher' ? 'default' : 'ghost'}
+                        size="sm"
+                        className={`w-full justify-start gap-2 ${activeView === 'teacher' ? '' : 'hover:bg-muted'}`}
+                        onClick={() => setActiveView('teacher')}
+                      >
+                        <Bot className="w-4 h-4" /> Teacher Agent
+                      </Button>
+                      <Button
+                        variant={activeView === 'skills' ? 'default' : 'ghost'}
+                        size="sm"
+                        className={`w-full justify-start gap-2 ${activeView === 'skills' ? '' : 'hover:bg-muted'}`}
+                        onClick={() => setActiveView('skills')}
+                      >
+                        <ListChecks className="w-4 h-4" /> Skills
+                      </Button>
+                      <Button
+                        variant={activeView === 'projects' ? 'default' : 'ghost'}
+                        size="sm"
+                        className={`w-full justify-start gap-2 ${activeView === 'projects' ? '' : 'hover:bg-muted'}`}
+                        onClick={() => setActiveView('projects')}
+                      >
+                        <BookOpen className="w-4 h-4" /> Projects
+                      </Button>
+                    </CardContent>
+                  </Card>
 
-        <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="projects">Projects</TabsTrigger>
-                <TabsTrigger value="students">Students</TabsTrigger>
-                <TabsTrigger value="required_skills">Required Skills</TabsTrigger>
-                <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            </TabsList>
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Skill Coverage</CardTitle>
+                      <CardDescription>Progress towards company requirements</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-muted-foreground">Coverage</span>
+                        <span className="text-sm font-medium">{skillCoveragePercent}%</span>
+                      </div>
+                      <Progress value={skillCoveragePercent} />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {studentSkills.filter((s) => companyRequiredSkills.includes(s)).length} of {companyRequiredSkills.length} required skills covered
+                      </p>
+                    </CardContent>
+                  </Card>
 
-            {/* --- PROJECTS TAB --- */}
-            <TabsContent value="projects" className="space-y-6">
-            {isJoined ? (
-                // VIEW FOR STUDENTS WHO HAVE JOINED THE COMPANY
-                <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-4">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <h3 className="text-lg font-semibold">Your Available Projects</h3>
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Required Skills</CardTitle>
+                      <CardDescription>For all projects in this company</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      {companyRequiredSkills.length > 0 ? (
+                        companyRequiredSkills.map((skill) => (
+                          <Badge key={skill} variant="outline" className="text-xs">{skill}</Badge>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No skills listed yet.</p>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {projects.length > 0 ? projects.map((project) => {
-                    const hasJoinedProject = student.projects?.includes(project.project_id)
-                    return (
-                        <Card key={project.project_id} className="border-green-200 bg-green-50/30 flex flex-col justify-between">
-                        <CardHeader>
-                            <div className="flex items-start justify-between">
-                            <div>
-                                <CardTitle>{project.name}</CardTitle>
-                                <CardDescription>{project.description}</CardDescription>
-                            </div>
-                            <Badge variant={project.status === "active" ? "default" : "secondary"}>{project.status}</Badge>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {/* Other project details */}
-                            {Array.isArray(project.required_skills) && project.required_skills.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-2">
-                            {project.required_skills.map((skill: string) => (
-                              <span
-                                key={skill}
-                                className="inline-block rounded-full bg-blue-100 text-blue-800 px-3 py-1 text-xs font-medium"
-                              >
-                                {skill}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                            {hasJoinedProject ? (
-                            <Button className="w-full" onClick={() => handleGoToWorkspace(project.project_id)}>
-                                <Zap className="w-4 h-4 mr-2" /> Go to Workspace
-                            </Button>
-                            ) : (
-                            <Button className="w-full" variant="outline" onClick={() => handleJoinProject(project.project_id)}>
-                                <Plus className="w-4 h-4 mr-2" /> Join Project
-                            </Button>
-                            )}
-                        </CardContent>
-                        </Card>
-                    )
-                    }) : (
-                    <p>No projects available in this company yet.</p>
-                    )}
-                </div>
-                </div>
-            ) : (
-                // VIEW FOR STUDENTS WHO HAVE NOT JOINED THE COMPANY
-                <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-4">
-                    <Target className="w-5 h-5 text-blue-600" />
-                    <h3 className="text-lg font-semibold">Available Projects (Previews)</h3>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {projects.length > 0 ? projects.map((project) => (
-                    <Card key={project.project_id} className="border-blue-200 bg-blue-50/30">
-                        <CardHeader>
-                        <div className="flex items-start justify-between">
-                            <div>
-                            <CardTitle>{project.name}</CardTitle>
-                            <CardDescription>{project.description}</CardDescription>
-                            </div>
-                            <Badge variant="outline">{project.status}</Badge>
+              </ScrollArea>
+            </div>
+          </aside>
+
+          {/* Main content */}
+          <main className="lg:col-span-9 space-y-6">
+            {activeView === 'teacher' && (
+            <section>
+              <Card className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bot className="w-5 h-5 text-primary" />
+                      <CardTitle className="text-lg">Teacher Agent</CardTitle>
+                    </div>
+                    <Badge className="gap-1" variant="secondary"><Sparkles className="w-3 h-3" /> Personalized</Badge>
+                  </div>
+                  <CardDescription>Teaches missing skills with text, images, and video</CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  {/* Lesson Media Panel */}
+                  <div className="rounded-lg border bg-muted/30 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 bg-muted/50">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Video className="w-4 h-4" /> Lesson Preview
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="secondary" size="sm"><ImageIcon className="w-4 h-4 mr-1" /> Image</Button>
+                        <Button size="sm"><Video className="w-4 h-4 mr-1" /> Video</Button>
+                      </div>
+                    </div>
+                    <div className="aspect-video bg-black/5 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="mx-auto mb-2 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                          <PlayIcon />
                         </div>
-                        </CardHeader>
-                        <CardContent>
-                        {/* Preview details, NO button is shown */}
-                        {Array.isArray(project.required_skills) && project.required_skills.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-2">
-                            {project.required_skills.map((skill: string) => (
-                              <span
-                                key={skill}
-                                className="inline-block rounded-full bg-blue-100 text-blue-800 px-3 py-1 text-xs font-medium"
-                              >
-                                {skill}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <p className="text-sm text-muted-foreground">Join the company to participate in this project.</p>
-                        </CardContent>
-                    </Card>
-                    )) : (
-                    <p>No projects available in this company yet.</p>
-                    )}
-                </div>
-                </div>
+                        <p className="text-sm text-muted-foreground">Your lesson will appear here</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Chat Panel */}
+                  <div className="rounded-lg border bg-background">
+                    <div className="px-4 py-2 border-b bg-muted/50 flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4" />
+                      <p className="text-sm font-medium">Live Tutoring</p>
+                    </div>
+                    <ScrollArea className="h-64 p-4">
+                      <div className="space-y-4">
+                        {/* Sample messages (UI only) */}
+                        <AgentMessage>Hi {student.name?.split(" ")[0] || "there"}, I see you’re missing <strong>{missingSkills[0] || "some skills"}</strong>. Shall we start?</AgentMessage>
+                        <UserMessage>Yes, teach me with examples.</UserMessage>
+                        <AgentMessage>Great. Here’s a quick visual and a short video overview. Ask questions anytime!</AgentMessage>
+                      </div>
+                    </ScrollArea>
+                    <div className="p-3 border-t bg-muted/30">
+                      <div className="flex items-center gap-2">
+                        <Input placeholder={`Ask to learn ${missingSkills[0] || "a skill"}...`} className="flex-1" />
+                        <Button className="gap-1"><Sparkles className="w-4 h-4" /> Teach</Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
             )}
-            </TabsContent>
 
-            {/* --- STUDENTS TAB --- */}
-            <TabsContent value="students" className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {companyStudents.map((s) => {
-                    const studentProgress = allProgress.filter((p) => p.student_id === s.student_id)
-                    const activeProjectsCount = studentProgress.filter((p) => p.status === "active").length
-                    const completedProjectsCount = studentProgress.filter((p) => p.status === "completed").length
-                    const studentAvgScore = studentScores.find(scoreItem => scoreItem.student.student_id === s.student_id)?.avgScore || 0
+            {activeView === 'skills' && (
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <ListChecks className="w-5 h-5 text-primary" />
+                <h2 className="text-lg font-semibold">Skills</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Missing Skills</CardTitle>
+                    <CardDescription>What the agent will teach next</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {missingSkills.length > 0 ? missingSkills.map((skill) => (
+                      <div key={skill} className="flex items-center justify-between rounded-md border px-3 py-2 bg-background">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">{skill}</Badge>
+                        </div>
+                        <Button size="sm" variant="secondary">Start module</Button>
+                      </div>
+                    )) : (
+                      <p className="text-sm text-muted-foreground">You’re all set. No missing skills!</p>
+                    )}
+                  </CardContent>
+                </Card>
 
-                    return (
-                    <Card key={s.student_id}>
-                        <CardContent className="pt-6">
-                        <div className="flex items-center gap-3 mb-4">
-                            <Avatar>
-                            <AvatarFallback>{s.name.substring(0, 2)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                            <p className="font-semibold">{s.name}</p>
-                            <p className="text-sm text-muted-foreground">{s.email}</p>
-                            </div>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Your Skills</CardTitle>
+                    <CardDescription>Already mastered by you</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-wrap gap-2">
+                    {studentSkills.length > 0 ? (
+                      studentSkills.map((skill) => (
+                        <Badge key={skill} className="text-xs" variant="secondary">{skill}</Badge>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No skills added yet.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+            )}
+
+            {activeView === 'projects' && (
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-primary" />
+                <h2 className="text-lg font-semibold">Projects in this company</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {projects.length > 0 ? projects.map((project) => {
+                  const hasJoinedProject = student.projects?.includes(project.project_id)
+                  return (
+                    <Card key={project.project_id} className="flex flex-col">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <CardTitle className="text-base">{project.name}</CardTitle>
+                            <CardDescription>{project.description}</CardDescription>
+                          </div>
+                          <Badge variant={project.status === "active" ? "default" : "secondary"}>{project.status}</Badge>
                         </div>
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between text-sm">
-                                <span className="text-muted-foreground">Average Score</span>
-                                <div className="flex items-center gap-1">
-                                    <Star className="w-3 h-3 fill-primary text-primary" />
-                                    <span className="font-semibold">{studentAvgScore.toFixed(1)}</span>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div><p className="text-muted-foreground">Active</p><p className="font-semibold">{activeProjectsCount}</p></div>
-                                <div><p className="text-muted-foreground">Completed</p><p className="font-semibold">{completedProjectsCount}</p></div>
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium mb-2">Skills:</p>
-                                <div className="flex flex-wrap gap-1">
-                                    {s.skills?.slice(0, 3).map((skill: string) => <Badge key={skill} variant="outline" className="text-xs">{skill}</Badge>)}
-                                    {s.skills?.length > 3 && <Badge variant="outline" className="text-xs">+{s.skills.length - 3}</Badge>}
-                                </div>
-                            </div>
+                      </CardHeader>
+                      <CardContent className="mt-1 space-y-3">
+                        {Array.isArray(project.required_skills) && project.required_skills.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {project.required_skills.map((skill: string) => (
+                              <span key={skill} className="inline-block rounded-full bg-blue-100 text-blue-800 px-2.5 py-0.5 text-xs font-medium">
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="secondary" size="sm">Learn skills</Button>
+                          {hasJoinedProject ? (
+                            <Button size="sm" onClick={() => handleGoToWorkspace(project.project_id)}>Open</Button>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => handleJoinProject(project.project_id)}>Join</Button>
+                          )}
                         </div>
-                        </CardContent>
+                      </CardContent>
                     </Card>
-                    )
-                })}
-                </div>
-            </TabsContent>
-            
-            {/* Other Tabs can be filled similarly using live data */}
-            <TabsContent value="overview">
-                {/* Build out Overview tab using 'company', 'studentScores', etc. */}
-            </TabsContent>
-            <TabsContent value="technologies">
-                 {/* Build out Technologies tab using 'popularTechs' */}
-            </TabsContent>
-            <TabsContent value="analytics">
-                {/* Build out Analytics tab using calculated rates and scores */}
-            </TabsContent>
-
-        </Tabs>
+                  )
+                }) : (
+                  <Card>
+                    <CardContent className="py-8 text-center text-muted-foreground">No projects available yet.</CardContent>
+                  </Card>
+                )}
+              </div>
+            </section>
+            )}
+          </main>
+        </div>
       </div>
     </div>
+  )
+}
+
+// --- UI-only helper components for chat bubbles ---
+function AgentMessage({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2">
+      <Avatar className="h-7 w-7">
+        <AvatarFallback>TA</AvatarFallback>
+      </Avatar>
+      <div className="rounded-lg bg-muted px-3 py-2 text-sm max-w-[36rem]">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function UserMessage({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2 justify-end">
+      <div className="rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm max-w-[36rem]">
+        {children}
+      </div>
+      <Avatar className="h-7 w-7">
+        <AvatarFallback>YOU</AvatarFallback>
+      </Avatar>
+    </div>
+  )
+}
+
+function PlayIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-primary">
+      <path d="M8 5v14l11-7z"></path>
+    </svg>
   )
 }
