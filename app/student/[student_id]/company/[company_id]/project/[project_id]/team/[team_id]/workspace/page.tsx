@@ -7,14 +7,15 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { AIChat } from "@/components/ai-chat"
-import { RealTimeNotifications } from "@/components/real-time-notifications"
-import { LiveActivityFeed } from "@/components/live-activity-feed"
-import { RealTimeStatus } from "@/components/real-time-status"
-import { Users, CheckSquare, BarChart3, BookOpen, User, Clock, AlertCircle, CheckCircle, Circle } from "lucide-react"
+import { Users, CheckSquare, BarChart3, BookOpen, User, Clock, AlertCircle, CheckCircle, Circle, LayoutPanelTop, PanelRightClose, PanelRightOpen, LayoutGrid, GraduationCap } from "lucide-react"
 import { useParams } from "next/navigation"
 import { TeammatesList } from "@/components/teammates-list"
 import { supabase } from "@/lib/supabase"
-import { set } from "date-fns"
+// import { set } from "date-fns"
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
+import { AspectRatio } from "@/components/ui/aspect-ratio"
+// import { Input } from "@/components/ui/input"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 const teamData = {
   1: {
@@ -60,6 +61,11 @@ const initialLearningMessages = [
 
 export default function TeamWorkspacePage() {
   const [activeTab, setActiveTab] = useState("tasks")
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [focusMode, setFocusMode] = useState(false)
+  const [selectionBar, setSelectionBar] = useState<{ visible: boolean; text: string; taskId: string | null; x: number; y: number }>({ visible: false, text: "", taskId: null, x: 0, y: 0 })
+  const [learningPrefill, setLearningPrefill] = useState<string>("")
+  const [learningPaneKey, setLearningPaneKey] = useState<number>(0)
   const params = useParams()
   const teamId = Number(params.team_id)
   const projectId = params.project_id
@@ -119,6 +125,8 @@ useEffect(() => {
   }, []); // Make sure to re-run if the team_id changes
 
   const [tasks, setTask] = useState<any>([])
+  const personalTasks = tasks.filter((t: any) => t.assignee === params.student_id)
+  const selectedTask = selectedTaskId ? tasks.find((t: any) => String(t.id) === String(selectedTaskId)) : null
 
   useEffect(() => {
     const fetchTask = async () => {
@@ -188,85 +196,122 @@ useEffect(() => {
     }
   }
 
+  const openLearnForTask = (taskId: string, prefill: string) => {
+    setSelectedTaskId(taskId)
+    setLearningPrefill(prefill)
+    setLearningPaneKey((k) => k + 1)
+    setActiveTab('learning')
+  }
+
+  const openLearningTab = () => {
+    setLearningPaneKey((k) => k + 1)
+    setActiveTab('learning')
+  }
+
+  useEffect(() => {
+    const onMouseUp = () => {
+      const sel = window.getSelection()
+      const text = sel ? sel.toString().trim() : ""
+      const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null
+      if (!text || !range) {
+        setSelectionBar((s) => ({ ...s, visible: false, text: "", taskId: null }))
+        return
+      }
+      const rect = range.getBoundingClientRect()
+      // find closest card with data-task-id
+      let node: any = sel?.anchorNode as HTMLElement | null
+      while (node && node.nodeType !== 1) node = node.parentElement
+      const cardEl = node ? (node as HTMLElement).closest('[data-task-id]') as HTMLElement | null : null
+      const taskId = cardEl?.getAttribute('data-task-id') || null
+      if (!taskId) {
+        setSelectionBar((s) => ({ ...s, visible: false, text: "", taskId: null }))
+        return
+      }
+      setSelectionBar({ visible: true, text, taskId, x: rect.left + rect.width / 2, y: Math.max(8, rect.top - 8) })
+    }
+    document.addEventListener('mouseup', onMouseUp)
+    return () => document.removeEventListener('mouseup', onMouseUp)
+  }, [])
+
+  
+
   return (
+    <>
     <div className="min-h-screen bg-background grid-pattern">
       <div className="flex h-screen">
-        {/* Left Sidebar */}
-        <div className="w-64 border-r border-border bg-card/50 flex flex-col">
-          {/* Team Header */}
-          <div className="p-4 border-b border-border">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="font-semibold">{team?.name}</h2>
-              {/* < RealTimeNotifications userId="current-user" userRole="student" /> */}
-            </div>
-            <p className="text-sm text-muted-foreground">{team?.project}</p>
-            <div className="mt-3">
-              {}
-              <div className="flex items-center justify-between text-sm mb-1">
-                <span>Progress</span>
-                <span>{team?.progress}%</span>
+        {/* Left Icon Rail Sidebar */}
+        {!focusMode && (
+        <div className="w-16 border-r border-border bg-card/50 flex flex-col items-center py-3 gap-3">
+          <Avatar className="w-10 h-10">
+            <AvatarFallback className="text-xs">{(team?.name || 'T')[0]}</AvatarFallback>
+          </Avatar>
+          <div className="h-px w-8 bg-border my-1" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button onClick={() => setActiveTab('tasks')} className={`rounded-md p-2 ${activeTab==='tasks'?'bg-primary text-primary-foreground':'hover:bg-muted'}`}>
+                <CheckSquare className="w-5 h-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Tasks</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button onClick={() => setActiveTab('teammates')} className={`rounded-md p-2 ${activeTab==='teammates'?'bg-primary text-primary-foreground':'hover:bg-muted'}`}>
+                <Users className="w-5 h-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Teammates</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button onClick={() => setActiveTab('tracker')} className={`rounded-md p-2 ${activeTab==='tracker'?'bg-primary text-primary-foreground':'hover:bg-muted'}`}>
+                <LayoutGrid className="w-5 h-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Task Tracker</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button onClick={openLearningTab} className={`rounded-md p-2 ${activeTab==='learning'?'bg-primary text-primary-foreground':'hover:bg-muted'}`}>
+                <GraduationCap className="w-5 h-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Learning</TooltipContent>
+          </Tooltip>
+          <div className="mt-auto flex flex-col items-center gap-3">
+            <div className="w-10 text-center">
+              <div className="text-[10px] text-muted-foreground">{team?.progress}%</div>
+              <div className="h-1 bg-muted rounded-full mt-1">
+                <div className="h-1 bg-primary rounded-full" style={{width: `${team?.progress || 0}%`}} />
               </div>
-              <Progress value={team?.progress} className="h-2" />
             </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button onClick={() => setFocusMode(true)} className="rounded-md p-2 hover:bg-muted">
+                  <LayoutPanelTop className="w-5 h-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Focus Mode</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button onClick={() => setActiveTab('profile')} className={`rounded-md p-2 ${activeTab==='profile'?'bg-primary text-primary-foreground':'hover:bg-muted'}`}>
+                  <User className="w-5 h-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Profile</TooltipContent>
+            </Tooltip>
           </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 p-4">
-            <div className="space-y-2">
-              <Button
-                variant={activeTab === "tasks" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("tasks")}
-              >
-                <CheckSquare className="w-4 h-4 mr-2" />
-                Tasks
-              </Button>
-              <Button
-                variant={activeTab === "teammates" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("teammates")}
-              >
-                <Users className="w-4 h-4 mr-2" />
-                Teammates
-              </Button>
-              <Button
-                variant={activeTab === "tracker" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("tracker")}
-              >
-                <BarChart3 className="w-4 h-4 mr-2" />
-                Task Tracker
-              </Button>
-              <Button
-                variant={activeTab === "learning" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("learning")}
-              >
-                <BookOpen className="w-4 h-4 mr-2" />
-                Learning Agent
-              </Button>
-              <Button
-                variant={activeTab === "profile" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveTab("profile")}
-              >
-                <User className="w-4 h-4 mr-2" />
-                Profile
-              </Button>
-            </div>
-          </nav>
-
-          {/* <div className="p-4 border-t border-border">
-            <RealTimeStatus teamId={teamId.toString()} />
-          </div> */}
         </div>
+        )}
 
-        {/* Main Content */}
+        {/* Main Content with resizable panels */}
         <div className="flex-1 flex min-h-0">
-          {/* Content Area */}
           <div className="flex-1 flex flex-col">
             {/* Header */}
             <div className="p-6 border-b border-border">
+              <div className="flex items-center justify-between gap-4">
+                <div>
               <h1 className="text-2xl font-bold capitalize">{activeTab}</h1>
               <p className="text-muted-foreground">
                 {activeTab === "tasks" && "Manage your assigned tasks and track progress"}
@@ -275,24 +320,45 @@ useEffect(() => {
                 {activeTab === "learning" && "Get help and learn new skills with AI"}
                 {activeTab === "profile" && "Manage your profile and preferences"}
               </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {focusMode && (
+                    <Button variant="outline" size="sm" onClick={() => setFocusMode(false)}>
+                      <PanelRightOpen className="w-4 h-4 mr-2" /> Exit Focus
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Content */}
-            <div className="flex-1 p-6 overflow-auto min-h-0">
+            <div className="flex-1 p-0 min-h-0">
               {activeTab === "tasks" && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 space-y-4">
-                    {tasks
-                      .filter((task: any) => task.assignee === params.student_id)
-                      .map((task: any) => (
-                        <Card key={task.id}>
+                <ResizablePanelGroup direction="horizontal">
+                  {/* Personal tasks list */}
+                  <ResizablePanel defaultSize={42} minSize={30} className="min-w-[280px] max-w-[560px]">
+                    <div className="h-full overflow-auto p-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold">Your Tasks</h3>
+                        <Badge variant="secondary">{personalTasks.length}</Badge>
+                      </div>
+                      {personalTasks.length === 0 && (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-base">No tasks yet</CardTitle>
+                            <CardDescription>Ask the PM Agent to assign tasks.</CardDescription>
+                          </CardHeader>
+                        </Card>
+                      )}
+                      {personalTasks.map((task: any) => (
+                        <Card key={task.id} data-task-id={String(task.id)} className={`${String(selectedTaskId)===String(task.id)?'ring-2 ring-primary':''}`}>
                           <CardHeader>
                             <div className="flex items-start justify-between">
                               <div className="flex items-start gap-3">
                                 {getStatusIcon(task.status)}
                                 <div>
-                                  <CardTitle className="text-lg">{task.title}</CardTitle>
-                                  <CardDescription className="mt-1">{task.description}</CardDescription>
+                                  <CardTitle className="text-base">{task.title}</CardTitle>
+                                  <CardDescription className="mt-1 line-clamp-2">{task.description}</CardDescription>
                                 </div>
                               </div>
                               <Badge variant={getPriorityColor(task.priority) as any}>{task.priority}</Badge>
@@ -309,27 +375,54 @@ useEffect(() => {
                               </div>
                               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                 <Clock className="w-4 h-4" />
-                                Due {task.dueDate}
+                                {task.dueDate}
                               </div>
                             </div>
-                            {task.status === "pending" && (
-                              <Button className="mt-4" size="sm">
-                                Start Task
+                            <div className="mt-4 flex gap-2">
+                              <Button size="sm" onClick={() => setSelectedTaskId(String(task.id))}>Select</Button>
+                              <Button size="sm" variant="outline" onClick={() => {
+                                const prefill = `Teach me this task with project context.\n\nTask: ${task.title}\n\nDescription:\n${task.description || ''}`
+                                openLearnForTask(String(task.id), prefill)
+                              }}>
+                                <GraduationCap className="w-4 h-4 mr-1" /> Learn
                               </Button>
-                            )}
-                            {task.status === "in-progress" && (
-                              <Button className="mt-4 bg-transparent" size="sm" variant="outline">
-                                Mark Complete
-                              </Button>
-                            )}
+                            </div>
                           </CardContent>
                         </Card>
                       ))}
                   </div>
-                  {/* <div>
-                    <LiveActivityFeed teamId={teamId.toString()} maxItems={15} />
-                  </div> */}
+                  </ResizablePanel>
+                  <ResizableHandle withHandle />
+                  {/* PM Agent chat center stage + context editor */}
+                  <ResizablePanel defaultSize={58} minSize={40}>
+                    <div className="h-full flex flex-col min-h-0">
+                      {/* Context bar */}
+                      <div className="px-6 py-3 border-b border-border flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Chat with PM Agent</span>
+                        <div className="ml-auto hidden sm:flex items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => setFocusMode((v)=>!v)}>
+                            {focusMode ? <PanelRightOpen className="w-4 h-4 mr-2"/> : <PanelRightClose className="w-4 h-4 mr-2"/>}
+                            {focusMode ? 'Exit Focus' : 'Focus'}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex-1 min-h-0">
+                        <AIChat
+                          agentType="pm"
+                          agentName="PM Agent"
+                          agentDescription={selectedTask ? `Helping with: ${selectedTask.title}` : "Product Management Assistant"}
+                          initialMessages={initialPMMessages}
+                          onTaskAssigned={handleTaskAssigned}
+                          uid={params.student_id}
+                          company_id={params.company_id}
+                          project_id={params.project_id}
+                          team_id={params.team_id}
+                          enableSlashShortcut
+                        />
+                      </div>
                 </div>
+                  </ResizablePanel>
+                </ResizablePanelGroup>
               )}
 
               {activeTab === "teammates" && <TeammatesList teamId={params.team_id} />}
@@ -368,7 +461,7 @@ useEffect(() => {
                     </div>
                   </div> */}
 
-                  {/* <div>
+                  <div>
                     <h3 className="font-semibold mb-4 flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 text-yellow-500" />
                       In Progress
@@ -392,7 +485,7 @@ useEffect(() => {
                           </Card>
                         ))}
                     </div>
-                  </div> */}
+                  </div>
 
                   <div>
                     <h3 className="font-semibold mb-4 flex items-center gap-2">
@@ -444,18 +537,64 @@ useEffect(() => {
               )}
 
               {activeTab === "learning" && (
-                <div className="h-full min-h-0 overflow-hidden">
-                  <AIChat
-                    agentType="learning"
-                    agentName="Learning Agent"
-                    agentDescription="AI-powered learning assistant"
-                    initialMessages={initialLearningMessages}
-                    onLearningRequest={handleLearningRequest}
-                    uid={params.student_id}
-                    company_id={params.company_id}
-                    project_id={params.project_id}
-                    team_id={params.team_id}
-                  />
+                <div key={learningPaneKey} className="h-full min-h-0 overflow-hidden will-change-transform transition-transform duration-500 ease-out translate-x-0 animate-[slideIn_0.5s_ease-out]">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-0 h-full">
+                    {/* Lesson Canvas */}
+                    <div className="p-6 overflow-auto space-y-6">
+                      <div>
+                        <h2 className="text-xl font-semibold">{selectedTask ? `Learning: ${selectedTask.title}` : 'Learning'}</h2>
+                        <p className="text-sm text-muted-foreground">Rich lesson with video, images, code and text tailored to your task and project.</p>
+                      </div>
+                      {/* Video Section */}
+                      <div>
+                        <h3 className="text-sm font-medium mb-2">Video Walkthrough</h3>
+                        <AspectRatio ratio={16/9}>
+                          <div className="w-full h-full bg-muted rounded-md flex items-center justify-center">
+                            <span className="text-muted-foreground text-sm">Video will appear here</span>
+                          </div>
+                        </AspectRatio>
+                      </div>
+                      {/* Image Gallery */}
+                      <div>
+                        <h3 className="text-sm font-medium mb-2">Image References</h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          <div className="aspect-video bg-muted rounded-md"></div>
+                          <div className="aspect-video bg-muted rounded-md"></div>
+                          <div className="aspect-video bg-muted rounded-md"></div>
+                        </div>
+                      </div>
+                      {/* Code Snippets */}
+                      <div>
+                        <h3 className="text-sm font-medium mb-2">Code Snippet</h3>
+                        <div className="rounded-md border bg-background">
+                          <pre className="p-3 overflow-auto text-xs">
+{`${learningPrefill ? learningPrefill.slice(0, 400) : '// Code examples and steps will be generated here based on your selection and task context.'}`}
+                          </pre>
+                        </div>
+                      </div>
+                      {/* Text Explanation */}
+                      <div>
+                        <h3 className="text-sm font-medium mb-2">Explanation</h3>
+                        <p className="text-sm text-muted-foreground">The assistant will explain concepts and guide you step-by-step, referencing your project context and the selected task.</p>
+                      </div>
+                    </div>
+                    {/* Learning Agent Chat */}
+                    <div className="min-h-0 border-l border-border">
+                      <AIChat
+                        agentType="learning"
+                        agentName="Learning Agent"
+                        agentDescription={selectedTask ? `Teach: ${selectedTask.title}` : "AI-powered learning assistant"}
+                        initialMessages={initialLearningMessages}
+                        onLearningRequest={handleLearningRequest}
+                        uid={params.student_id}
+                        company_id={params.company_id}
+                        project_id={params.project_id}
+                        team_id={params.team_id}
+                        prefillInput={learningPrefill}
+                        autoFocusInput
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -494,23 +633,56 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* Right Sidebar - AI PM Agent */}
-          <div className="w-80 border-l border-border bg-card/50 flex flex-col min-h-0 overflow-hidden">
-            <AIChat
-              agentType="pm"
-              agentName="PM Agent"
-              agentDescription="Product Management Assistant"
-              initialMessages={initialPMMessages}
-              onTaskAssigned={handleTaskAssigned}
-               uid={params.student_id}
-                    company_id={params.company_id}
-                    project_id={params.project_id}
-                    team_id={params.team_id}
-                    enableSlashShortcut
-            />
-          </div>
+          {/* Contextual Help Drawer removed; Learn is now the full Learning tab */}
         </div>
       </div>
     </div>
+    {/* Floating Selection Bar */}
+    {selectionBar.visible && selectionBar.taskId && (
+      <div
+        className="fixed z-50 -translate-x-1/2 -translate-y-full"
+        style={{ left: selectionBar.x, top: selectionBar.y }}
+      >
+        <div className="bg-popover text-popover-foreground border rounded-md shadow-lg p-1 flex items-center gap-1">
+          <Button size="sm" onClick={() => {
+            const task = tasks.find((t:any)=> String(t.id)===String(selectionBar.taskId))
+            const prefill = `Teach me this task with project context.\n\nTask: ${task?.title || ''}\n\nSelected:\n${selectionBar.text}`
+            openLearnForTask(String(selectionBar.taskId!), prefill)
+            setSelectionBar({ visible: false, text: '', taskId: null, x: 0, y: 0 })
+          }}>
+            <GraduationCap className="w-3.5 h-3.5 mr-1" /> Learn
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelectionBar({ visible: false, text: '', taskId: null, x: 0, y: 0 })}>Dismiss</Button>
+        </div>
+      </div>
+    )}
+    </>
+  )
+}
+
+function LearningChatWrapper({ description, uid, company_id, project_id, team_id }: any) {
+  const [prefill, setPrefill] = useState<string>("")
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      if (e?.detail) setPrefill(e.detail as string)
+    }
+    window.addEventListener('learning-prefill', handler as any)
+    return () => window.removeEventListener('learning-prefill', handler as any)
+  }, [])
+
+  return (
+    <AIChat
+      agentType="learning"
+      agentName="Learning Coach"
+      agentDescription={description}
+      initialMessages={initialLearningMessages}
+      uid={uid}
+      company_id={company_id}
+      project_id={project_id}
+      team_id={team_id}
+      prefillInput={prefill}
+      autoFocusInput
+    />
   )
 }

@@ -123,3 +123,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes slideIn {
+  from {
+    transform: translateX(32px);
+    opacity: 0.01;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
