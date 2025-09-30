@@ -13,6 +13,8 @@ import { RealTimeStatus } from "@/components/real-time-status"
 import { Users, CheckSquare, BarChart3, BookOpen, User, Clock, AlertCircle, CheckCircle, Circle } from "lucide-react"
 import { useParams } from "next/navigation"
 import { TeammatesList } from "@/components/teammates-list"
+import { supabase } from "@/lib/supabase"
+import { set } from "date-fns"
 
 const teamData = {
   1: {
@@ -27,50 +29,7 @@ const teamData = {
   },
 }
 
-const tasks = [
-  {
-    id: 1,
-    title: "Setup authentication system",
-    description: "Implement user login and registration with JWT tokens",
-    status: "completed",
-    assignee: "You",
-    priority: "high",
-    dueDate: "2025-01-15",
-    tags: ["backend", "auth"],
-  },
-  {
-    id: 2,
-    title: "Design product catalog UI",
-    description: "Create responsive product grid with filters and search",
-    status: "in-progress",
-    assignee: "Sarah Chen",
-    priority: "high",
-    dueDate: "2025-01-20",
-    tags: ["frontend", "ui"],
-  },
-  {
-    id: 3,
-    title: "Database schema design",
-    description: "Design tables for products, users, orders, and inventory",
-    status: "pending",
-    assignee: "You",
-    priority: "medium",
-    dueDate: "2025-01-25",
-    tags: ["backend", "database"],
-  },
-  {
-    id: 4,
-    title: "Payment integration",
-    description: "Integrate Stripe payment processing",
-    status: "pending",
-    assignee: "Unassigned",
-    priority: "high",
-    dueDate: "2025-02-01",
-    tags: ["backend", "payments"],
-  },
-]
-
-const initialPMMessages:any = [
+const initialPMMessages: any = [
   // {
   //   id: "1",
   //   content:
@@ -108,6 +67,95 @@ export default function TeamWorkspacePage() {
   const companyId = params.company_id
   const team = teamData[teamId as keyof typeof teamData]
 
+  // Change from `[]` to `{}`
+const [teammateDetails, setTeammateDetails] = useState<{ [key: string]: any }>({});
+
+useEffect(() => {
+    const fetchTeammateDetails = async () => {
+      // Step 1: Fetch all member records from `team_members`
+      const { data: membersData, error: membersError } = await supabase
+        .from("team_members")
+        .select("student_id") // We only need the student_id from this table
+        .eq("team_id", params.team_id);
+
+      if (membersError) {
+        console.error("Error fetching team members:", membersError);
+        return;
+      }
+
+      if (!membersData || membersData.length === 0) {
+        return; // No members in this team
+      }
+
+      // Extract the student IDs into a simple array
+      const studentIds = membersData.map((member) => member.student_id);
+
+      // Step 2: Fetch the details for those students from the `students` table
+      const { data: studentsData, error: studentsError } = await supabase
+        .from("students")
+        .select("*") // Get all details for each student
+        .in("student_id", studentIds); // Use the `.in()` filter to get all of them in one query
+
+      if (studentsError) {
+        console.error("Error fetching student details:", studentsError);
+        return;
+      }
+
+      // Create the final lookup map: { student_id_1: {details}, student_id_2: {details} }
+      if (studentsData) {
+        const detailsMap = studentsData.reduce((acc, student) => {
+          acc[student.student_id] = student;
+          return acc;
+        }, {});
+        
+        // Set the final object to your state
+
+        console.log("Teammate Details Map:", detailsMap);
+        setTeammateDetails(detailsMap);
+      }
+    };
+
+    fetchTeammateDetails();
+  }, []); // Make sure to re-run if the team_id changes
+
+  const [tasks, setTask] = useState<any>([])
+
+  useEffect(() => {
+    const fetchTask = async () => {
+      const { data, error } = await supabase
+        .from("tasks-duo-1")
+        .select("*")
+        .eq("team_id", params.team_id)
+
+      if (error) {
+        console.error("Error fetching tasks:", error)
+        setTask([]) // Set to empty array on error
+        return
+      }
+
+      if (data) {
+        // Transform the data from Supabase to match the component's expected format
+        const transformedTasks = data.map((task: any) => ({
+          id: task.id,
+          title: task.task, // Map 'task' to 'title'
+          description: task["task-description"], // Map 'task-description' to 'description'
+          status: task.status,
+          assignee: task["assigned-to"], // Map 'assigned-to' to 'assignee'
+          priority: task.priority || "medium", // Provide a default priority to prevent errors
+          // Format created_at as a fallback for dueDate
+          dueDate: task.dueDate || new Date(task.created_at).toISOString().split("T")[0],
+          // Provide default empty array for tags to prevent .map() from crashing
+          tags: task.tags || [],
+        }))
+        setTask(transformedTasks)
+        console.log("Fetched and transformed task data:", transformedTasks)
+      } else {
+        setTask([]) // Set to empty array if no data is returned
+      }
+    }
+    fetchTask()
+  }, [params.team_id]) // Dependency array ensures this runs again if team_id changes
+
   const handleTaskAssigned = (task: any) => {
     console.log("[v0] New task assigned:", task)
     // In a real app, this would update the task list
@@ -128,8 +176,6 @@ export default function TeamWorkspacePage() {
         return <Circle className="w-4 h-4 text-muted-foreground" />
     }
   }
-
-
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -237,8 +283,8 @@ export default function TeamWorkspacePage() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2 space-y-4">
                     {tasks
-                      .filter((task) => task.assignee === "You")
-                      .map((task) => (
+                      .filter((task: any) => task.assignee === params.student_id)
+                      .map((task: any) => (
                         <Card key={task.id}>
                           <CardHeader>
                             <div className="flex items-start justify-between">
@@ -255,7 +301,7 @@ export default function TeamWorkspacePage() {
                           <CardContent>
                             <div className="flex items-center justify-between">
                               <div className="flex gap-2">
-                                {task.tags.map((tag) => (
+                                {task.tags.map((tag: any) => (
                                   <Badge key={tag} variant="outline" className="text-xs">
                                     {tag}
                                   </Badge>
@@ -286,44 +332,32 @@ export default function TeamWorkspacePage() {
                 </div>
               )}
 
-              {activeTab === "teammates" && (
-                // <div className="space-y-4">
-                //   {team?.members.map((member) => (
-                //     <Card key={member.id}>
-                //       <CardContent className="pt-6">
-                //         <div className="flex items-center gap-4">
-                //           <Avatar className="w-12 h-12">
-                //             <AvatarFallback>{member.avatar}</AvatarFallback>
-                //           </Avatar>
-                //           <div className="flex-1">
-                //             <h3 className="font-semibold">{member.name}</h3>
-                //             <p className="text-sm text-muted-foreground">{member.role}</p>
-                //           </div>
-                //           <Badge variant={member.status === "online" ? "default" : "secondary"}>{member.status}</Badge>
-                //         </div>
-                //       </CardContent>
-                //     </Card>
-                //   ))}
-                // </div>
-                <TeammatesList teamId={params.team_id} />
-              )}
+              {activeTab === "teammates" && <TeammatesList teamId={params.team_id} />}
 
               {activeTab === "tracker" && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
                     <h3 className="font-semibold mb-4 flex items-center gap-2">
                       <Circle className="w-4 h-4 text-muted-foreground" />
-                      To Do
+                      In-Progress
                     </h3>
                     <div className="space-y-3">
                       {tasks
-                        .filter((task) => task.status === "pending")
-                        .map((task) => (
+                        .filter((task: any) => task.status === "not-assigned")
+                        .map((task: any) => (
                           <Card key={task.id} className="p-3">
                             <h4 className="font-medium text-sm">{task.title}</h4>
-                            <p className="text-xs text-muted-foreground mt-1">{task.assignee}</p>
+                            <p>{task.description}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{teammateDetails[task.assignee]?.name}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{teammateDetails[task.assignee]?.skills.map((skill: any) => (
+                              <span key={skill} className="inline-block mr-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {skill}
+                                </Badge>
+                              </span>
+                            ))}</p> 
                             <div className="flex gap-1 mt-2">
-                              {task.tags.map((tag) => (
+                              {task.tags.map((tag: any) => (
                                 <Badge key={tag} variant="outline" className="text-xs">
                                   {tag}
                                 </Badge>
@@ -341,13 +375,15 @@ export default function TeamWorkspacePage() {
                     </h3>
                     <div className="space-y-3">
                       {tasks
-                        .filter((task) => task.status === "in-progress")
-                        .map((task) => (
+                        .filter((task: any) => task.status === "pending")
+                        .map((task: any) => (
                           <Card key={task.id} className="p-3">
                             <h4 className="font-medium text-sm">{task.title}</h4>
-                            <p className="text-xs text-muted-foreground mt-1">{task.assignee}</p>
+                            <p>{task.description}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{teammateDetails[task.assignee]?.name}</p>
+                            
                             <div className="flex gap-1 mt-2">
-                              {task.tags.map((tag) => (
+                              {task.tags.map((tag: any) => (
                                 <Badge key={tag} variant="outline" className="text-xs">
                                   {tag}
                                 </Badge>
@@ -365,13 +401,13 @@ export default function TeamWorkspacePage() {
                     </h3>
                     <div className="space-y-3">
                       {tasks
-                        .filter((task) => task.status === "completed")
-                        .map((task) => (
+                        .filter((task: any) => task.status === "completed")
+                        .map((task: any) => (
                           <Card key={task.id} className="p-3">
                             <h4 className="font-medium text-sm">{task.title}</h4>
                             <p className="text-xs text-muted-foreground mt-1">{task.assignee}</p>
                             <div className="flex gap-1 mt-2">
-                              {task.tags.map((tag) => (
+                              {task.tags.map((tag: any) => (
                                 <Badge key={tag} variant="outline" className="text-xs">
                                   {tag}
                                 </Badge>
@@ -443,10 +479,10 @@ export default function TeamWorkspacePage() {
               agentDescription="Product Management Assistant"
               initialMessages={initialPMMessages}
               onTaskAssigned={handleTaskAssigned}
-               uid={params.student_id}
-                    company_id={params.company_id}
-                    project_id={params.project_id}
-                    team_id={params.team_id}
+              uid={params.student_id}
+              company_id={params.company_id}
+              project_id={params.project_id}
+              team_id={params.team_id}
             />
           </div>
         </div>
@@ -454,5 +490,3 @@ export default function TeamWorkspacePage() {
     </div>
   )
 }
-
-
