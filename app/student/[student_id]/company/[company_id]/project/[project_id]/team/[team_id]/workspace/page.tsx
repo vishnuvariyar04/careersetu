@@ -336,14 +336,14 @@ useEffect(() => {
 
               {activeTab === "tracker" && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div>
+                  {/* <div>
                     <h3 className="font-semibold mb-4 flex items-center gap-2">
                       <Circle className="w-4 h-4 text-muted-foreground" />
                       In-Progress
                     </h3>
                     <div className="space-y-3">
                       {tasks
-                        .filter((task: any) => task.status === "not-assigned")
+                        .filter((task: any) => task.status === "not-assigned" || task.status === "open" || task.status === "in-progress")
                         .map((task: any) => (
                           <Card key={task.id} className="p-3">
                             <h4 className="font-medium text-sm">{task.title}</h4>
@@ -366,7 +366,7 @@ useEffect(() => {
                           </Card>
                         ))}
                     </div>
-                  </div>
+                  </div> */}
 
                   <div>
                     <h3 className="font-semibold mb-4 flex items-center gap-2">
@@ -375,11 +375,11 @@ useEffect(() => {
                     </h3>
                     <div className="space-y-3">
                       {tasks
-                        .filter((task: any) => task.status === "pending")
+                        .filter((task: any) => task.status === "pending" || task.status === "in-progress")
                         .map((task: any) => (
                           <Card key={task.id} className="p-3">
                             <h4 className="font-medium text-sm">{task.title}</h4>
-                            <p>{task.description}</p>
+                            <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
                             <p className="text-xs text-muted-foreground mt-1">{teammateDetails[task.assignee]?.name}</p>
                             
                             <div className="flex gap-1 mt-2">
@@ -402,6 +402,29 @@ useEffect(() => {
                     <div className="space-y-3">
                       {tasks
                         .filter((task: any) => task.status === "completed")
+                        .map((task: any) => (
+                          <Card key={task.id} className="p-3">
+                            <h4 className="font-medium text-sm">{task.title}</h4>
+                            <p className="text-xs text-muted-foreground mt-1">{task.assignee}</p>
+                            <div className="flex gap-1 mt-2">
+                              {task.tags.map((tag: any) => (
+                                <Badge key={tag} variant="outline" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          </Card>
+                        ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-4 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-500" />
+                        Issues
+                      </h3>
+                    <div className="space-y-3">
+                      {tasks
+                        .filter((task: any) => task.status === "issues")
                         .map((task: any) => (
                           <Card key={task.id} className="p-3">
                             <h4 className="font-medium text-sm">{task.title}</h4>
