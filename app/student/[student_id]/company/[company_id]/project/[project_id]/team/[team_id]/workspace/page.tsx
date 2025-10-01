@@ -368,7 +368,7 @@ useEffect(() => {
                     </div>
                   </div> */}
 
-                  {/* <div>
+                  <div>
                     <h3 className="font-semibold mb-4 flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 text-yellow-500" />
                       In Progress
@@ -392,7 +392,7 @@ useEffect(() => {
                           </Card>
                         ))}
                     </div>
-                  </div> */}
+                  </div>
 
                   <div>
                     <h3 className="font-semibold mb-4 flex items-center gap-2">
