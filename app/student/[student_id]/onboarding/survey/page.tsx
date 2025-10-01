@@ -2,135 +2,36 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Slider } from "@/components/ui/slider"
-import { ArrowRight, Bot, User as UserIcon } from "lucide-react"
+import { ArrowRight, Bot, User, Loader2 } from "lucide-react"
 
 type SurveyStep =
-  | { id: string; type: "message"; content: string; showIf?: (answers: Answers) => boolean }
-  | { id: string; type: "text"; content: string; showIf?: (answers: Answers) => boolean }
-  | { id: string; type: "multiChoice"; content: string; options: string[]; maxSelect?: number; showIf?: (answers: Answers) => boolean }
-  | { id: string; type: "yesNo"; content: string; showIf?: (answers: Answers) => boolean }
-  | {
-      id: string
-      type: "scale"
-      content: string
-      scale: { min: number; max: number; labels: [string, string] }
-      showIf?: (answers: Answers) => boolean
-    }
-  | { id: string; type: "links"; content: string; showIf?: (answers: Answers) => boolean }
+  | { id: string; type: "message"; content: string }
+  | { id: string; type: "text"; content: string }
+  | { id: string; type: "multiChoice"; content: string; options: string[]; maxSelect?: number }
+  | { id: string; type: "buttons"; content: string; options: string[] }
+  | { id: string; type: "yesNo"; content: string }
+  | { id: string; type: "scale"; content: string; scale: { min: number; max: number; labels: [string, string] } }
+  | { id: string; type: "links"; content: string }
 
-const chatSurvey: { title: string; description: string; flow: SurveyStep[] } = {
-  title: "Student Onboarding Survey",
-  description:
-    "We’ll start with your recent experience and goals to tailor a few focused questions.",
-  flow: [
-    { id: "intro", type: "message", content: "👋 Hi! Tell me a bit about what you’ve actually done and what you want next — I’ll keep it short." },
-    {
-      id: "experience_story",
-      type: "text",
-      content: "What was the last project or hands-on work you did? What did YOU do, what stack did you use, and what was hardest?",
-    },
-    {
-      id: "responsibilities",
-      type: "multiChoice",
-      content: "In that work, which of these did you personally handle?",
-      options: [
-        "Scoping requirements",
-        "Setting up repo & tooling",
-        "Designing schema/APIs",
-        "Implementing features end-to-end",
-        "Writing tests",
-        "CI/CD & deployments",
-        "Performance/debugging",
-      ],
-      maxSelect: 4,
-    },
-    {
-      id: "autonomy_scale",
-      type: "scale",
-      content: "When stuck on an unfamiliar task, how independently could you progress?",
-      scale: { min: 1, max: 5, labels: ["Need close guidance", "Very independent"] },
-    },
-    {
-      id: "skills_strengths",
-      type: "multiChoice",
-      content: "Which strengths describe you best? (up to 3)",
-      options: ["Frontend", "Backend", "DevOps", "Data/ML", "Mobile", "UI/UX", "Product thinking"],
-      maxSelect: 3,
-    },
-    {
-      id: "tools_used",
-      type: "multiChoice",
-      content: "Which languages/frameworks/tools have you used in real work?",
-      options: ["Python", "JavaScript/TypeScript", "React", "Node.js", "Java", "C/C++", "Go", "SQL", "Other"],
-      maxSelect: 6,
-    },
-    {
-      id: "tools_used_other",
-      type: "text",
-      content: "List any other tools or stacks you’ve used.",
-      showIf: (a) => Array.isArray(a["tools_used"]) && (a["tools_used"] as string[]).includes("Other"),
-    },
-    {
-      id: "learning_goals",
-      type: "multiChoice",
-      content: "What do you want to learn next? (up to 3)",
-      options: [
-        "System design",
-        "Data structures & algorithms",
-        "AI/ML",
-        "Cloud/DevOps",
-        "Full-stack apps",
-        "Open-source contributions",
-        "Design & UX",
-        "Other",
-      ],
-      maxSelect: 3,
-    },
-    {
-      id: "learning_goals_other",
-      type: "text",
-      content: "Tell me more about what else you’d like to learn.",
-      showIf: (a) => Array.isArray(a["learning_goals"]) && (a["learning_goals"] as string[]).includes("Other"),
-    },
-    {
-      id: "companies_interest",
-      type: "multiChoice",
-      content: "Any companies you’d be excited to work at?",
-      options: [
-        "Google",
-        "Microsoft",
-        "Amazon",
-        "OpenAI",
-        "Stripe",
-        "Atlassian",
-        "Any startup",
-        "Other",
-      ],
-      maxSelect: 4,
-    },
-    {
-      id: "companies_other",
-      type: "text",
-      content: "Name a few specific companies or teams you like.",
-      showIf: (a) => Array.isArray(a["companies_interest"]) && (a["companies_interest"] as string[]).includes("Other"),
-    },
-    {
-      id: "domains_interest",
-      type: "multiChoice",
-      content: "Which domains interest you?",
-      options: ["Healthcare", "Fintech", "AI", "Sustainability", "Education"],
-      maxSelect: 3,
-    },
-    { id: "social_links", type: "links", content: "Drop your GitHub and LinkedIn (optional)." },
-    { id: "outro", type: "message", content: "✅ Thanks! This gives us enough to infer your level and tailor a plan." },
-  ],
+const WEBHOOK_URL = "https://n8n.srv1034714.hstgr.cloud/webhook/4d4f0ae7-7913-466e-8c5d-f337a9cc9907"
+const SURVEY_TITLE = "Student Onboarding Survey"
+const SURVEY_DESCRIPTION = "We'll tailor a few focused questions to your background."
+
+type RemoteStep = {
+  id: string
+  ui_type: "message" | "multi_choice" | "buttons" | "links_input" | "text" | "text_input" | "slider" | string
+  content: string
+  options?: string[]
+  max_select?: number
+  min?: number
+  max?: number
+  labels?: [string, string]
 }
 
 type Answers = Record<string, string | string[] | number | boolean>
@@ -140,44 +41,212 @@ export default function ChatSurveyPage() {
   const router = useRouter()
   const studentId = params.student_id as string
 
-  const [activeIndex, setActiveIndex] = useState(0)
+  const [flow, setFlow] = useState<SurveyStep[]>([])
   const [answers, setAnswers] = useState<Answers>({})
+  const [currentIndex, setCurrentIndex] = useState(0)
   const [textDraft, setTextDraft] = useState("")
   const [githubDraft, setGithubDraft] = useState("")
   const [linkedinDraft, setLinkedinDraft] = useState("")
+  const [loading, setLoading] = useState<boolean>(true)
+  const [answering, setAnswering] = useState<boolean>(false)
+  const [error, setError] = useState<string>("")
+  const [isComplete, setIsComplete] = useState(false)
 
-  const visibleFlow = useMemo(
-    () => chatSurvey.flow.filter((s) => !s.showIf || s.showIf(answers)),
-    [answers],
-  )
-  const interactiveSteps = useMemo(() => visibleFlow.filter((s) => s.type !== "message"), [visibleFlow])
-  const completedInteractive = useMemo(
-    () => Object.keys(answers).filter((id) => visibleFlow.find((s) => s.id === id && s.type !== "message")).length,
-    [answers, visibleFlow],
-  )
+  const parseWebhookResponse = (raw: string): { steps: RemoteStep[], completed?: boolean } => {
+    try {
+      const parsed = JSON.parse(raw)
+      const steps: RemoteStep[] = []
+      let completed = false
+      
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item.completed === true) {
+            completed = true
+          }
+          if (item.output) {
+            let outputStr = item.output.trim()
+            outputStr = outputStr.replace(/^```json\s*/i, '')
+            outputStr = outputStr.replace(/^```\s*/, '')
+            outputStr = outputStr.replace(/```\s*$/, '')
+            outputStr = outputStr.trim()
+            
+            try {
+              const stepObj = JSON.parse(outputStr)
+              if (stepObj && typeof stepObj === "object") {
+                steps.push(stepObj)
+              }
+            } catch (e) {
+              console.warn("Failed to parse output field:", outputStr, e)
+            }
+          } else if (item.id && item.ui_type && item.content) {
+            steps.push(item)
+          }
+        }
+      } else if (parsed?.completed === true) {
+        completed = true
+      } else if (parsed?.steps && Array.isArray(parsed.steps)) {
+        steps.push(...parsed.steps)
+        if (parsed.completed === true) completed = true
+      } else if (parsed && typeof parsed === "object" && parsed.id) {
+        steps.push(parsed)
+      }
+      
+      const validSteps = steps.filter((s: any) => 
+        s && typeof s === "object" && typeof s.id === "string" && typeof s.ui_type === "string" && typeof s.content === "string"
+      )
+      
+      return { steps: validSteps, completed }
+    } catch (e) {
+      console.error("Parse error:", e)
+      return { steps: [], completed: false }
+    }
+  }
 
-  const currentStep = visibleFlow[activeIndex]
-  const isLast = activeIndex >= visibleFlow.length - 1
+  const mapRemoteToSurveySteps = (steps: RemoteStep[]): SurveyStep[] => {
+    return steps.map((s) => {
+      switch (s.ui_type) {
+        case "message":
+          return { id: s.id, type: "message", content: s.content }
+        case "multi_choice":
+          return { id: s.id, type: "multiChoice", content: s.content, options: s.options || [], maxSelect: s.max_select }
+        case "buttons":
+          return { id: s.id, type: "buttons", content: s.content, options: s.options || [] }
+        case "links_input":
+          return { id: s.id, type: "links", content: s.content }
+        case "text":
+        case "text_input":
+          return { id: s.id, type: "text", content: s.content }
+        case "slider":
+          return { 
+            id: s.id, 
+            type: "scale", 
+            content: s.content,
+            scale: {
+              min: s.min ?? 0,
+              max: s.max ?? 10,
+              labels: s.labels ?? ["Low", "High"]
+            }
+          }
+        default:
+          return { id: s.id, type: "message", content: s.content }
+      }
+    })
+  }
+
+  const sendAnswerAndGetNext = async (stepId: string, value: unknown) => {
+    setAnswering(true)
+    try {
+      const res = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          event: "answer", 
+          student_id: studentId, 
+          step_id: stepId, 
+          value 
+        }),
+      })
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`)
+      }
+      
+      const raw = await res.text()
+      console.log("Answer response:", raw)
+      
+      const { steps: newSteps, completed } = parseWebhookResponse(raw)
+      
+      if (completed) {
+        setIsComplete(true)
+      } else if (newSteps.length > 0) {
+        const mapped = mapRemoteToSurveySteps(newSteps)
+        setFlow(prev => {
+          const existingIds = new Set(prev.map(s => s.id))
+          const deduped = mapped.filter(s => !existingIds.has(s.id))
+          return [...prev, ...deduped]
+        })
+      } else {
+        // No more questions and no completed flag, assume complete
+        setIsComplete(true)
+      }
+      
+      setCurrentIndex(prev => prev + 1)
+    } catch (err: any) {
+      console.error("Answer error:", err)
+      setError(`Failed to submit answer: ${err.message}`)
+    } finally {
+      setAnswering(false)
+    }
+  }
 
   useEffect(() => {
-    setActiveIndex((i) => Math.min(i, Math.max(visibleFlow.length - 1, 0)))
-  }, [visibleFlow.length])
+    const init = async () => {
+      setLoading(true)
+      setError("")
+      try {
+        const res = await fetch(WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ event: "init", student_id: studentId }),
+        })
+        
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`)
+        }
+        
+        const raw = await res.text()
+        console.log("Init response:", raw)
 
-  const goNext = () => {
-    if (isLast) return
-    setActiveIndex((i) => Math.min(i + 1, visibleFlow.length - 1))
-    setTextDraft("")
+        const result = parseWebhookResponse(raw)
+        console.log("Parsed result:", result)
+        
+        if (result.completed) {
+          setIsComplete(true)
+        }
+        
+        if (result.steps.length === 0 && !result.completed) {
+          setError("No valid survey questions received from server.")
+          return
+        }
+        
+        const mapped = mapRemoteToSurveySteps(result.steps)
+        setFlow(mapped)
+        setCurrentIndex(0)
+        
+      } catch (err: any) {
+        console.error("Survey init error:", err)
+        setError(`Failed to load survey: ${err.message}`)
+      } finally {
+        setLoading(false)
+      }
+    }
+    init()
+  }, [studentId])
+
+  const interactiveSteps = useMemo(() => flow.filter((s) => s.type !== "message"), [flow])
+  const completedInteractive = useMemo(() => Object.keys(answers).length, [answers])
+  const currentStep = flow[currentIndex]
+  const progressPct = (completedInteractive / (interactiveSteps.length || 1)) * 100
+
+  const handleMessageNext = async () => {
+    if (!currentStep || currentStep.type !== "message") return
+    
+    // Check if there's a next step already loaded
+    if (currentIndex + 1 < flow.length) {
+      setCurrentIndex(prev => prev + 1)
+    } else {
+      // Need to fetch next question from webhook
+      await sendAnswerAndGetNext(currentStep.id, "continue")
+    }
   }
 
-  const goPrev = () => {
-    setActiveIndex((i) => Math.max(0, i - 1))
-  }
-
-  const submitText = () => {
+  const submitText = async () => {
     if (!currentStep || currentStep.type !== "text") return
     if (!textDraft.trim()) return
-    setAnswers((a) => ({ ...a, [currentStep.id]: textDraft.trim() }))
-    goNext()
+    const value = textDraft.trim()
+    setAnswers(a => ({ ...a, [currentStep.id]: value }))
+    await sendAnswerAndGetNext(currentStep.id, value)
+    setTextDraft("")
   }
 
   const toggleMulti = (id: string, option: string, maxSelect?: number) => {
@@ -191,38 +260,88 @@ export default function ChatSurveyPage() {
     })
   }
 
-  const confirmMulti = () => goNext()
+  const confirmMulti = async () => {
+    if (!currentStep || currentStep.type !== "multiChoice") return
+    const value = answers[currentStep.id]
+    await sendAnswerAndGetNext(currentStep.id, value)
+  }
 
-  const answerYesNo = (value: boolean) => {
+  const selectButtonOption = async (option: string) => {
+    if (!currentStep || currentStep.type !== "buttons") return
+    setAnswers(a => ({ ...a, [currentStep.id]: option }))
+    await sendAnswerAndGetNext(currentStep.id, option)
+  }
+
+  const answerYesNo = async (value: boolean) => {
     if (currentStep?.type !== "yesNo") return
-    setAnswers((a) => ({ ...a, [currentStep.id]: value }))
-    goNext()
+    setAnswers(a => ({ ...a, [currentStep.id]: value }))
+    await sendAnswerAndGetNext(currentStep.id, value)
   }
 
   const setScale = (value: number[]) => {
     if (currentStep?.type !== "scale") return
-    setAnswers((a) => ({ ...a, [currentStep.id]: value[0] }))
+    setAnswers(a => ({ ...a, [currentStep.id]: value[0] }))
   }
 
-  const confirmScale = () => goNext()
+  const confirmScale = async () => {
+    if (!currentStep || currentStep.type !== "scale") return
+    const value = answers[currentStep.id]
+    await sendAnswerAndGetNext(currentStep.id, value)
+  }
 
-  const confirmLinks = () => {
+  const confirmLinks = async () => {
+    if (!currentStep || currentStep.type !== "links") return
     const github = githubDraft.trim()
     const linkedin = linkedinDraft.trim()
     const summary = [github ? `GitHub: ${github}` : "", linkedin ? `LinkedIn: ${linkedin}` : ""].filter(Boolean).join(" | ") || "No links provided"
-    setAnswers((a) => ({ ...a, social_links: summary, github, linkedin }))
-    goNext()
+    setAnswers(a => ({ ...a, [currentStep.id]: summary }))
+    await sendAnswerAndGetNext(currentStep.id, { github, linkedin })
+    setGithubDraft("")
+    setLinkedinDraft("")
   }
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
+    try {
+      await fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "complete", student_id: studentId, answers }),
+      })
+    } catch (e) {
+      console.error("Complete webhook failed", e)
+    }
     router.push(`/student/${studentId}/dashboard`)
   }
 
-  const totalInteractive = interactiveSteps.length
-  const progressPct = (completedInteractive / (totalInteractive || 1)) * 100
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto" />
+          <p className="text-sm text-muted-foreground">Loading survey...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <div className="text-destructive text-lg font-semibold">Error</div>
+              <p className="text-sm">{error}</p>
+              <Button onClick={() => window.location.reload()}>Retry</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-background grid-pattern">
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-3xl">
         <Card className="mb-4">
           <CardHeader className="flex items-start gap-4">
@@ -230,29 +349,28 @@ export default function ChatSurveyPage() {
               <Bot className="w-5 h-5 text-primary-foreground" />
             </div>
             <div>
-              <CardTitle>{chatSurvey.title}</CardTitle>
-              <CardDescription>{chatSurvey.description}</CardDescription>
+              <CardTitle>{SURVEY_TITLE}</CardTitle>
+              <CardDescription>{SURVEY_DESCRIPTION}</CardDescription>
             </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span>Setup Progress</span>
-                <span>
-                  {completedInteractive}/{totalInteractive}
-                </span>
+                <span>Progress</span>
+                <span>{completedInteractive}/{interactiveSteps.length}</span>
               </div>
               <Progress value={progressPct} className="h-2" />
             </div>
           </CardContent>
         </Card>
 
-        <div className="space-y-3">
-          {visibleFlow.slice(0, activeIndex + 1).map((step) => {
+        <div className="space-y-3 pb-64">
+          {flow.slice(0, currentIndex + 1).map((step, idx) => {
             const value = answers[step.id]
+            const isCurrentStep = idx === currentIndex
+            
             return (
               <div key={step.id} className="space-y-2">
-                {/* Assistant bubble */}
                 <div className="flex items-start gap-2">
                   <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
                     <Bot className="w-4 h-4" />
@@ -262,7 +380,6 @@ export default function ChatSurveyPage() {
                   </div>
                 </div>
 
-                {/* User answer bubble (if answered) */}
                 {typeof value !== "undefined" && (
                   <div className="flex items-start gap-2 justify-end">
                     <div className="bg-primary text-primary-foreground p-3 rounded-lg max-w-[85%]">
@@ -271,167 +388,149 @@ export default function ChatSurveyPage() {
                       </p>
                     </div>
                     <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
-                      <UserIcon className="w-4 h-4" />
+                      <User className="w-4 h-4" />
                     </div>
                   </div>
                 )}
               </div>
             )
           })}
+          
+          {answering && (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
         </div>
 
-        {/* Composer */}
-        <Card className="mt-4 sticky bottom-4">
-          <CardContent className="pt-6">
-            {currentStep && currentStep.type === "message" && (
-              <div className="flex items-center justify-between">
-                <Button onClick={goPrev} variant="outline" disabled={activeIndex === 0}>
-                  Back
-                </Button>
-                {isLast ? (
-                  <Button onClick={handleFinish}>
-                    Finish
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                ) : (
-                  <Button onClick={goNext}>
+        {currentStep && !answering && !isComplete && (
+          <Card className="fixed bottom-4 left-4 right-4 mx-auto max-w-3xl">
+            <CardContent className="pt-6">
+              {(() => {
+                console.log("Current step type:", currentStep.type, "Step:", currentStep)
+                return null
+              })()}
+              
+              {currentStep.type === "message" && (
+                <div className="flex justify-end">
+                  <Button onClick={handleMessageNext}>
                     Continue
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
-                )}
-              </div>
-            )}
-
-            {currentStep && currentStep.type === "text" && (
-              <div className="space-y-3">
-                <Textarea
-                  value={textDraft}
-                  onChange={(e) => setTextDraft(e.target.value)}
-                  placeholder="Type your response..."
-                  rows={4}
-                />
-                <div className="flex items-center justify-between">
-                  <Button onClick={goPrev} variant="outline" disabled={activeIndex === 0}>
-                    Back
-                  </Button>
-                  <Button onClick={submitText} disabled={!textDraft.trim()}>
-                    Next
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
                 </div>
-              </div>
-            )}
+              )}
 
-            {currentStep && currentStep.type === "multiChoice" && (
-              <div className="space-y-4">
+              {currentStep.type === "text" && (
+                <div className="space-y-3">
+                  <Textarea 
+                    value={textDraft} 
+                    onChange={(e) => setTextDraft(e.target.value)} 
+                    placeholder="Type your response..." 
+                    rows={4}
+                    className="w-full"
+                  />
+                  <div className="flex justify-end">
+                    <Button onClick={submitText} disabled={!textDraft.trim()}>
+                      Send
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {currentStep.type === "multiChoice" && (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    {currentStep.options.map((opt) => {
+                      const selected = Array.isArray(answers[currentStep.id]) ? (answers[currentStep.id] as string[]).includes(opt) : false
+                      const count = Array.isArray(answers[currentStep.id]) ? (answers[currentStep.id] as string[]).length : 0
+                      const atMax = currentStep.maxSelect ? count >= currentStep.maxSelect && !selected : false
+                      return (
+                        <Button key={opt} size="sm" variant={selected ? "default" : "outline"} onClick={() => toggleMulti(currentStep.id, opt, currentStep.maxSelect)} disabled={atMax}>
+                          {opt}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                  {currentStep.maxSelect && <div className="text-xs text-muted-foreground">Select up to {currentStep.maxSelect}</div>}
+                  <div className="flex justify-end">
+                    <Button onClick={confirmMulti} disabled={!answers[currentStep.id] || (Array.isArray(answers[currentStep.id]) && (answers[currentStep.id] as string[]).length === 0)}>
+                      Send
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {currentStep.type === "buttons" && (
                 <div className="flex flex-wrap gap-2">
-                  {currentStep.options.map((opt) => {
-                    const selected = Array.isArray(answers[currentStep.id])
-                      ? (answers[currentStep.id] as string[]).includes(opt)
-                      : false
-                    const count = Array.isArray(answers[currentStep.id])
-                      ? (answers[currentStep.id] as string[]).length
-                      : 0
-                    const atMax = currentStep.maxSelect ? count >= currentStep.maxSelect && !selected : false
-                    return (
-                      <Button
-                        key={opt}
-                        size="sm"
-                        variant={selected ? "default" : "outline"}
-                        onClick={() => toggleMulti(currentStep.id, opt, currentStep.maxSelect)}
-                        disabled={atMax}
-                      >
-                        {opt}
-                      </Button>
-                    )
-                  })}
+                  {currentStep.options.map((opt) => (
+                    <Button key={opt} onClick={() => selectButtonOption(opt)}>
+                      {opt}
+                    </Button>
+                  ))}
                 </div>
-                {currentStep.maxSelect && (
-                  <div className="text-xs text-muted-foreground">
-                    Select up to {currentStep.maxSelect}
+              )}
+
+              {currentStep.type === "yesNo" && (
+                <div className="flex items-center gap-2">
+                  <Button onClick={() => answerYesNo(true)} className="flex-1">Yes</Button>
+                  <Button onClick={() => answerYesNo(false)} variant="outline" className="flex-1">No</Button>
+                </div>
+              )}
+
+              {currentStep.type === "scale" && (
+                <div className="space-y-4">
+                  <div className="px-1">
+                    <Slider value={[Number(answers[currentStep.id] ?? currentStep.scale.min)]} min={currentStep.scale.min} max={currentStep.scale.max} step={1} onValueChange={setScale} />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
+                      <span>{currentStep.scale.labels[0]}</span>
+                      <span>{currentStep.scale.labels[1]}</span>
+                    </div>
                   </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <Button onClick={goPrev} variant="outline" disabled={activeIndex === 0}>
-                    Back
-                  </Button>
-                  <Button onClick={confirmMulti} disabled={!answers[currentStep.id] || (Array.isArray(answers[currentStep.id]) && (answers[currentStep.id] as string[]).length === 0)}>
-                    Next
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {currentStep && currentStep.type === "yesNo" && (
-              <div className="flex items-center justify-between gap-2">
-                <Button onClick={() => answerYesNo(true)} className="flex-1">
-                  Yes
-                </Button>
-                <Button onClick={() => answerYesNo(false)} variant="outline" className="flex-1">
-                  No
-                </Button>
-              </div>
-            )}
-
-            {currentStep && currentStep.type === "scale" && (
-              <div className="space-y-4">
-                <div className="px-1">
-                  <Slider
-                    value={[Number(answers[currentStep.id] ?? currentStep.scale.min)]}
-                    min={currentStep.scale.min}
-                    max={currentStep.scale.max}
-                    step={1}
-                    onValueChange={setScale}
-                  />
-                  <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
-                    <span>{currentStep.scale.labels[0]}</span>
-                    <span>{currentStep.scale.labels[1]}</span>
+                  <div className="flex justify-end">
+                    <Button onClick={confirmScale}>
+                      Send
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <Button onClick={goPrev} variant="outline" disabled={activeIndex === 0}>
-                    Back
-                  </Button>
-                  <Button onClick={confirmScale}>
-                    Next
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </div>
-              </div>
-            )}
+              )}
 
-            {currentStep && currentStep.type === "links" && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Input
-                    placeholder="GitHub profile URL"
-                    value={githubDraft}
-                    onChange={(e) => setGithubDraft(e.target.value)}
-                  />
-                  <Input
-                    placeholder="LinkedIn profile URL"
-                    value={linkedinDraft}
-                    onChange={(e) => setLinkedinDraft(e.target.value)}
-                  />
+              {currentStep.type === "links" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input placeholder="GitHub profile URL" value={githubDraft} onChange={(e) => setGithubDraft(e.target.value)} />
+                    <Input placeholder="LinkedIn profile URL" value={linkedinDraft} onChange={(e) => setLinkedinDraft(e.target.value)} />
+                  </div>
+                  <div className="text-xs text-muted-foreground">Optional — add either or both.</div>
+                  <div className="flex justify-end">
+                    <Button onClick={confirmLinks}>
+                      Send
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground">Optional — add either or both.</div>
-                <div className="flex items-center justify-between">
-                  <Button onClick={goPrev} variant="outline" disabled={activeIndex === 0}>
-                    Back
-                  </Button>
-                  <Button onClick={confirmLinks}>
-                    Next
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {isComplete && (
+          <Card className="fixed bottom-4 left-4 right-4 mx-auto max-w-3xl">
+            <CardContent className="pt-6">
+              <div className="text-center space-y-4">
+                <p className="text-lg font-semibold">Survey Complete! 🎉</p>
+                <p className="text-sm text-muted-foreground">Thank you for completing the onboarding survey.</p>
+                <Button onClick={handleFinish} size="lg" className="w-full">
+                  Go to Dashboard
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )
 }
-
-

@@ -37,6 +37,8 @@ export function AIChat({
   project_id,
   team_id,
   enableSlashShortcut = false,
+  prefillInput,
+  autoFocusInput = false,
 
 }: any) {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
@@ -61,6 +63,15 @@ export function AIChat({
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
   }, [messages])
+
+  useEffect(() => {
+    if (typeof prefillInput === 'string' && prefillInput.length > 0) {
+      setInput(prefillInput)
+      if (autoFocusInput) {
+        requestAnimationFrame(() => inputRef.current?.focus())
+      }
+    }
+  }, [prefillInput, autoFocusInput])
 
   useEffect(() => {
     if (!enableSlashShortcut) return
