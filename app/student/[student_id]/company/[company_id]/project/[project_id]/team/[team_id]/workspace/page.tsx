@@ -182,12 +182,12 @@ useEffect(() => {
               payload.new.dueDate || new Date(payload.new.created_at).toISOString().split("T")[0],
             tags: payload.new.tags || [],
           }
-          setTask((prev) => [...prev, newTask])
+          setTask((prev:any) => [...prev, newTask])
         }
 
         if (payload.eventType === "UPDATE") {
-          setTask((prev) =>
-            prev.map((task) =>
+          setTask((prev:any) =>
+            prev.map((task:any) =>
               task.id === payload.new.id
                 ? {
                     ...task,
@@ -207,7 +207,7 @@ useEffect(() => {
         }
 
         if (payload.eventType === "DELETE") {
-          setTask((prev) => prev.filter((task) => task.id !== payload.old.id))
+          setTask((prev:any) => prev.filter((task:any) => task.id !== payload.old.id))
         }
       }
     )
