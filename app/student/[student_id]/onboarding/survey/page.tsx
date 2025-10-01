@@ -134,6 +134,8 @@ export default function ChatSurveyPage() {
   }
 
   const sendAnswerAndGetNext = async (stepId: string, value: unknown) => {
+    if (answering) return // Prevent duplicate requests
+    
     setAnswering(true)
     try {
       const res = await fetch(WEBHOOK_URL, {
@@ -226,10 +228,10 @@ export default function ChatSurveyPage() {
   const interactiveSteps = useMemo(() => flow.filter((s) => s.type !== "message"), [flow])
   const completedInteractive = useMemo(() => Object.keys(answers).length, [answers])
   const currentStep = flow[currentIndex]
-  const progressPct = (completedInteractive / (interactiveSteps.length || 1)) * 100
+  const progressPct = interactiveSteps.length > 0 ? (completedInteractive / interactiveSteps.length) * 100 : 0
 
   const handleMessageNext = async () => {
-    if (!currentStep || currentStep.type !== "message") return
+    if (!currentStep || currentStep.type !== "message" || answering) return
     
     // Check if there's a next step already loaded
     if (currentIndex + 1 < flow.length) {
@@ -241,7 +243,7 @@ export default function ChatSurveyPage() {
   }
 
   const submitText = async () => {
-    if (!currentStep || currentStep.type !== "text") return
+    if (!currentStep || currentStep.type !== "text" || answering) return
     if (!textDraft.trim()) return
     const value = textDraft.trim()
     setAnswers(a => ({ ...a, [currentStep.id]: value }))
@@ -254,46 +256,57 @@ export default function ChatSurveyPage() {
       const existing = (prev[id] as string[]) || []
       const already = existing.includes(option)
       let next: string[]
-      if (already) next = existing.filter((o) => o !== option)
-      else next = maxSelect && existing.length >= maxSelect ? [...existing.slice(1), option] : [...existing, option]
+      if (already) {
+        next = existing.filter((o) => o !== option)
+      } else {
+        next = maxSelect && existing.length >= maxSelect 
+          ? [...existing.slice(1), option] 
+          : [...existing, option]
+      }
       return { ...prev, [id]: next }
     })
   }
 
   const confirmMulti = async () => {
-    if (!currentStep || currentStep.type !== "multiChoice") return
+    if (!currentStep || currentStep.type !== "multiChoice" || answering) return
     const value = answers[currentStep.id]
+    if (!value || (Array.isArray(value) && value.length === 0)) return
     await sendAnswerAndGetNext(currentStep.id, value)
   }
 
   const selectButtonOption = async (option: string) => {
-    if (!currentStep || currentStep.type !== "buttons") return
+    if (!currentStep || currentStep.type !== "buttons" || answering) return
     setAnswers(a => ({ ...a, [currentStep.id]: option }))
     await sendAnswerAndGetNext(currentStep.id, option)
   }
 
   const answerYesNo = async (value: boolean) => {
-    if (currentStep?.type !== "yesNo") return
+    if (!currentStep || currentStep.type !== "yesNo" || answering) return
     setAnswers(a => ({ ...a, [currentStep.id]: value }))
     await sendAnswerAndGetNext(currentStep.id, value)
   }
 
   const setScale = (value: number[]) => {
-    if (currentStep?.type !== "scale") return
+    if (!currentStep || currentStep.type !== "scale") return
     setAnswers(a => ({ ...a, [currentStep.id]: value[0] }))
   }
 
   const confirmScale = async () => {
-    if (!currentStep || currentStep.type !== "scale") return
+    if (!currentStep || currentStep.type !== "scale" || answering) return
     const value = answers[currentStep.id]
+    if (value === undefined) return
     await sendAnswerAndGetNext(currentStep.id, value)
   }
 
   const confirmLinks = async () => {
-    if (!currentStep || currentStep.type !== "links") return
+    if (!currentStep || currentStep.type !== "links" || answering) return
     const github = githubDraft.trim()
     const linkedin = linkedinDraft.trim()
-    const summary = [github ? `GitHub: ${github}` : "", linkedin ? `LinkedIn: ${linkedin}` : ""].filter(Boolean).join(" | ") || "No links provided"
+    const summary = [
+      github ? `GitHub: ${github}` : "", 
+      linkedin ? `LinkedIn: ${linkedin}` : ""
+    ].filter(Boolean).join(" | ") || "No links provided"
+    
     setAnswers(a => ({ ...a, [currentStep.id]: summary }))
     await sendAnswerAndGetNext(currentStep.id, { github, linkedin })
     setGithubDraft("")
@@ -367,7 +380,6 @@ export default function ChatSurveyPage() {
         <div className="space-y-3 pb-64">
           {flow.slice(0, currentIndex + 1).map((step, idx) => {
             const value = answers[step.id]
-            const isCurrentStep = idx === currentIndex
             
             return (
               <div key={step.id} className="space-y-2">
@@ -406,11 +418,6 @@ export default function ChatSurveyPage() {
         {currentStep && !answering && !isComplete && (
           <Card className="fixed bottom-4 left-4 right-4 mx-auto max-w-3xl">
             <CardContent className="pt-6">
-              {(() => {
-                console.log("Current step type:", currentStep.type, "Step:", currentStep)
-                return null
-              })()}
-              
               {currentStep.type === "message" && (
                 <div className="flex justify-end">
                   <Button onClick={handleMessageNext}>
@@ -442,19 +449,30 @@ export default function ChatSurveyPage() {
                 <div className="space-y-4">
                   <div className="flex flex-wrap gap-2">
                     {currentStep.options.map((opt) => {
-                      const selected = Array.isArray(answers[currentStep.id]) ? (answers[currentStep.id] as string[]).includes(opt) : false
+                      const selected = Array.isArray(answers[currentStep.id]) && (answers[currentStep.id] as string[]).includes(opt)
                       const count = Array.isArray(answers[currentStep.id]) ? (answers[currentStep.id] as string[]).length : 0
                       const atMax = currentStep.maxSelect ? count >= currentStep.maxSelect && !selected : false
                       return (
-                        <Button key={opt} size="sm" variant={selected ? "default" : "outline"} onClick={() => toggleMulti(currentStep.id, opt, currentStep.maxSelect)} disabled={atMax}>
+                        <Button 
+                          key={opt} 
+                          size="sm" 
+                          variant={selected ? "default" : "outline"} 
+                          onClick={() => toggleMulti(currentStep.id, opt, currentStep.maxSelect)} 
+                          disabled={atMax}
+                        >
                           {opt}
                         </Button>
                       )
                     })}
                   </div>
-                  {currentStep.maxSelect && <div className="text-xs text-muted-foreground">Select up to {currentStep.maxSelect}</div>}
+                  {currentStep.maxSelect && (
+                    <div className="text-xs text-muted-foreground">Select up to {currentStep.maxSelect}</div>
+                  )}
                   <div className="flex justify-end">
-                    <Button onClick={confirmMulti} disabled={!answers[currentStep.id] || (Array.isArray(answers[currentStep.id]) && (answers[currentStep.id] as string[]).length === 0)}>
+                    <Button 
+                      onClick={confirmMulti} 
+                      disabled={!answers[currentStep.id] || (Array.isArray(answers[currentStep.id]) && (answers[currentStep.id] as string[]).length === 0)}
+                    >
                       Send
                       <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
@@ -482,7 +500,13 @@ export default function ChatSurveyPage() {
               {currentStep.type === "scale" && (
                 <div className="space-y-4">
                   <div className="px-1">
-                    <Slider value={[Number(answers[currentStep.id] ?? currentStep.scale.min)]} min={currentStep.scale.min} max={currentStep.scale.max} step={1} onValueChange={setScale} />
+                    <Slider 
+                      value={[Number(answers[currentStep.id] ?? currentStep.scale.min)]} 
+                      min={currentStep.scale.min} 
+                      max={currentStep.scale.max} 
+                      step={1} 
+                      onValueChange={setScale} 
+                    />
                     <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
                       <span>{currentStep.scale.labels[0]}</span>
                       <span>{currentStep.scale.labels[1]}</span>
@@ -500,8 +524,16 @@ export default function ChatSurveyPage() {
               {currentStep.type === "links" && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <Input placeholder="GitHub profile URL" value={githubDraft} onChange={(e) => setGithubDraft(e.target.value)} />
-                    <Input placeholder="LinkedIn profile URL" value={linkedinDraft} onChange={(e) => setLinkedinDraft(e.target.value)} />
+                    <Input 
+                      placeholder="GitHub profile URL" 
+                      value={githubDraft} 
+                      onChange={(e) => setGithubDraft(e.target.value)} 
+                    />
+                    <Input 
+                      placeholder="LinkedIn profile URL" 
+                      value={linkedinDraft} 
+                      onChange={(e) => setLinkedinDraft(e.target.value)} 
+                    />
                   </div>
                   <div className="text-xs text-muted-foreground">Optional — add either or both.</div>
                   <div className="flex justify-end">
