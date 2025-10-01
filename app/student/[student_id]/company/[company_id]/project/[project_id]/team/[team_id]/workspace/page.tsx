@@ -128,41 +128,97 @@ useEffect(() => {
   const personalTasks = tasks.filter((t: any) => t.assignee === params.student_id)
   const selectedTask = selectedTaskId ? tasks.find((t: any) => String(t.id) === String(selectedTaskId)) : null
 
-  useEffect(() => {
-    const fetchTask = async () => {
-      const { data, error } = await supabase
-        .from("tasks-duo-1")
-        .select("*")
-        .eq("team_id", params.team_id)
+useEffect(() => {
+  const fetchTask = async () => {
+    const { data, error } = await supabase
+      .from("tasks-duo-1")
+      .select("*")
+      .eq("team_id", params.team_id)
 
-      if (error) {
-        console.error("Error fetching tasks:", error)
-        setTask([]) // Set to empty array on error
-        return
-      }
-
-      if (data) {
-        // Transform the data from Supabase to match the component's expected format
-        const transformedTasks = data.map((task: any) => ({
-          id: task.id,
-          title: task.task, // Map 'task' to 'title'
-          description: task["task-description"], // Map 'task-description' to 'description'
-          status: task.status,
-          assignee: task["assigned-to"], // Map 'assigned-to' to 'assignee'
-          priority: task.priority || "medium", // Provide a default priority to prevent errors
-          // Format created_at as a fallback for dueDate
-          dueDate: task.dueDate || new Date(task.created_at).toISOString().split("T")[0],
-          // Provide default empty array for tags to prevent .map() from crashing
-          tags: task.tags || [],
-        }))
-        setTask(transformedTasks)
-        console.log("Fetched and transformed task data:", transformedTasks)
-      } else {
-        setTask([]) // Set to empty array if no data is returned
-      }
+    if (error) {
+      console.error("Error fetching tasks:", error)
+      setTask([]) // Set to empty array on error
+      return
     }
-    fetchTask()
-  }, [params.team_id]) // Dependency array ensures this runs again if team_id changes
+
+    if (data) {
+      const transformedTasks = data.map((task: any) => ({
+        id: task.id,
+        title: task.task,
+        description: task["task-description"],
+        status: task.status,
+        assignee: task["assigned-to"],
+        priority: task.priority || "medium",
+        dueDate: task.dueDate || new Date(task.created_at).toISOString().split("T")[0],
+        tags: task.tags || [],
+      }))
+      setTask(transformedTasks)
+      console.log("Fetched and transformed task data:", transformedTasks)
+    } else {
+      setTask([])
+    }
+  }
+
+  fetchTask()
+
+  // ✅ Realtime subscription
+  const channel = supabase
+    .channel("tasks-duo-1-channel")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "tasks-duo-1", filter: `team_id=eq.${params.team_id}` },
+      (payload) => {
+        console.log("Realtime change received:", payload)
+
+        if (payload.eventType === "INSERT") {
+          const newTask = {
+            id: payload.new.id,
+            title: payload.new.task,
+            description: payload.new["task-description"],
+            status: payload.new.status,
+            assignee: payload.new["assigned-to"],
+            priority: payload.new.priority || "medium",
+            dueDate:
+              payload.new.dueDate || new Date(payload.new.created_at).toISOString().split("T")[0],
+            tags: payload.new.tags || [],
+          }
+          setTask((prev) => [...prev, newTask])
+        }
+
+        if (payload.eventType === "UPDATE") {
+          setTask((prev) =>
+            prev.map((task) =>
+              task.id === payload.new.id
+                ? {
+                    ...task,
+                    title: payload.new.task,
+                    description: payload.new["task-description"],
+                    status: payload.new.status,
+                    assignee: payload.new["assigned-to"],
+                    priority: payload.new.priority || "medium",
+                    dueDate:
+                      payload.new.dueDate ||
+                      new Date(payload.new.created_at).toISOString().split("T")[0],
+                    tags: payload.new.tags || [],
+                  }
+                : task
+            )
+          )
+        }
+
+        if (payload.eventType === "DELETE") {
+          setTask((prev) => prev.filter((task) => task.id !== payload.old.id))
+        }
+      }
+    )
+    .subscribe()
+
+  // Cleanup when component unmounts or team_id changes
+  return () => {
+    supabase.removeChannel(channel)
+  }
+}, [params.team_id])
+
 
   const handleTaskAssigned = (task: any) => {
     console.log("[v0] New task assigned:", task)
