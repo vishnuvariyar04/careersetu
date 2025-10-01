@@ -213,38 +213,17 @@ export default function CompanyDetailsPage() {
   }
   
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Button variant="outline" size="sm" onClick={() => router.push(`/student/${studentId}/dashboard`)}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
-          <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
-            <span className="text-lg font-bold">{company.logo || company.name.substring(0, 2)}</span>
-          </div>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              {company.name}
-              <Badge variant="secondary" className="ml-1">Company</Badge>
-            </h1>
-            <p className="text-muted-foreground text-sm">{company.description}</p>
-          </div>
-          {isJoined ? (
-            <Button variant="secondary" onClick={handleLeaveCompany}>Leave company</Button>
-          ) : (
-            <Button onClick={() => handleJoinCompany(companyId)}><Plus className="w-4 h-4 mr-2" /> Join Company</Button>
-          )}
-        </div>
+    <div className="h-screen bg-background">
+      <div className="container mx-auto h-full px-4 py-8 overflow-hidden">
+      {/* Header moved into right column */}
 
         {/* Main Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full min-h-0">
           {/* Sidebar */}
-          <aside className="lg:col-span-3">
+          <aside className="lg:col-span-3 lg:border-r lg:pr-6">
             <div className="lg:sticky lg:top-4">
-              <ScrollArea className="h-[calc(100vh-8rem)] pr-2">
-                <div className="space-y-6">
+              <div className="pr-2">
+                <div className="space-y-4">
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Learning Navigator</CardTitle>
@@ -252,25 +231,25 @@ export default function CompanyDetailsPage() {
                     </CardHeader>
                     <CardContent className="space-y-2">
                       <Button
-                        variant={activeView === 'teacher' ? 'default' : 'ghost'}
+                        variant={'ghost'}
                         size="sm"
-                        className={`w-full justify-start gap-2 ${activeView === 'teacher' ? '' : 'hover:bg-muted'}`}
+                        className={`w-full justify-start gap-2 ${activeView === 'teacher' ? 'bg-muted' : 'hover:bg-muted'}`}
                         onClick={() => setActiveView('teacher')}
                       >
                         <Bot className="w-4 h-4" /> Teacher Agent
                       </Button>
                       <Button
-                        variant={activeView === 'skills' ? 'default' : 'ghost'}
+                        variant={'ghost'}
                         size="sm"
-                        className={`w-full justify-start gap-2 ${activeView === 'skills' ? '' : 'hover:bg-muted'}`}
+                        className={`w-full justify-start gap-2 ${activeView === 'skills' ? 'bg-muted' : 'hover:bg-muted'}`}
                         onClick={() => setActiveView('skills')}
                       >
                         <ListChecks className="w-4 h-4" /> Skills
                       </Button>
                       <Button
-                        variant={activeView === 'projects' ? 'default' : 'ghost'}
+                        variant={'ghost'}
                         size="sm"
-                        className={`w-full justify-start gap-2 ${activeView === 'projects' ? '' : 'hover:bg-muted'}`}
+                        className={`w-full justify-start gap-2 ${activeView === 'projects' ? 'bg-muted' : 'hover:bg-muted'}`}
                         onClick={() => setActiveView('projects')}
                       >
                         <BookOpen className="w-4 h-4" /> Projects
@@ -279,9 +258,9 @@ export default function CompanyDetailsPage() {
                   </Card>
 
                   <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Skill Coverage</CardTitle>
-                      <CardDescription>Progress towards company requirements</CardDescription>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Skills Overview</CardTitle>
+                      <CardDescription>Coverage and requirements</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between mb-2">
@@ -289,34 +268,67 @@ export default function CompanyDetailsPage() {
                         <span className="text-sm font-medium">{skillCoveragePercent}%</span>
                       </div>
                       <Progress value={skillCoveragePercent} />
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {studentSkills.filter((s) => companyRequiredSkills.includes(s)).length} of {companyRequiredSkills.length} required skills covered
-                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {companyRequiredSkills.length > 0 ? (
+                          companyRequiredSkills.map((skill) => (
+                            <Badge key={skill} variant="outline" className="text-xs">{skill}</Badge>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No skills listed yet.</p>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Required Skills</CardTitle>
-                      <CardDescription>For all projects in this company</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-wrap gap-2">
-                      {companyRequiredSkills.length > 0 ? (
-                        companyRequiredSkills.map((skill) => (
-                          <Badge key={skill} variant="outline" className="text-xs">{skill}</Badge>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No skills listed yet.</p>
-                      )}
-                    </CardContent>
-                  </Card>
+                  <div className="mt-2 border-t pt-2">
+                    {isJoined && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="w-full justify-start px-0 text-muted-foreground"
+                        onClick={handleLeaveCompany}
+                      >
+                        Leave company
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           </aside>
 
           {/* Main content */}
-          <main className="lg:col-span-9 space-y-6">
+          <main className="lg:col-span-9 lg:pl-6 h-full flex flex-col min-h-0">
+            <ScrollArea className="flex-1 min-h-0 pr-2">
+              <div className="space-y-6">
+            {/* Back */}
+            <div>
+              <Button variant="outline" size="sm" onClick={() => router.push(`/student/${studentId}/dashboard`)}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+            </div>
+            {/* Company Header (right column) */}
+            <div className="rounded-lg border bg-muted/30 p-4 flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
+                  <span className="text-lg font-bold">{company.logo || company.name.substring(0, 2)}</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-2xl font-bold">{company.name}</h1>
+                    <Badge variant="secondary">Company</Badge>
+                    {isJoined && <Badge variant="outline">Joined</Badge>}
+                  </div>
+                  <p className="text-muted-foreground text-sm">{company.description}</p>
+                </div>
+              </div>
+              {!isJoined && (
+                <Button onClick={() => handleJoinCompany(companyId)}>
+                  <Plus className="w-4 h-4 mr-2" /> Join Company
+                </Button>
+              )}
+            </div>
             {activeView === 'teacher' && (
             <section>
               <Card className="overflow-hidden">
@@ -358,14 +370,14 @@ export default function CompanyDetailsPage() {
                       <GraduationCap className="w-4 h-4" />
                       <p className="text-sm font-medium">Live Tutoring</p>
                     </div>
-                    <ScrollArea className="h-64 p-4">
+                    <div className="p-4">
                       <div className="space-y-4">
                         {/* Sample messages (UI only) */}
                         <AgentMessage>Hi {student.name?.split(" ")[0] || "there"}, I see you’re missing <strong>{missingSkills[0] || "some skills"}</strong>. Shall we start?</AgentMessage>
                         <UserMessage>Yes, teach me with examples.</UserMessage>
                         <AgentMessage>Great. Here’s a quick visual and a short video overview. Ask questions anytime!</AgentMessage>
                       </div>
-                    </ScrollArea>
+                    </div>
                     <div className="p-3 border-t bg-muted/30">
                       <div className="flex items-center gap-2">
                         <Input placeholder={`Ask to learn ${missingSkills[0] || "a skill"}...`} className="flex-1" />
@@ -472,6 +484,9 @@ export default function CompanyDetailsPage() {
               </div>
             </section>
             )}
+            
+            </div>
+          </ScrollArea>
           </main>
         </div>
       </div>
