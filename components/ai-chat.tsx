@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Bot, Send, Loader2, User, Lightbulb, CheckCircle, AlertTriangle } from "lucide-react"
+import { set } from "date-fns"
 
 interface Message {
   id: string
@@ -57,6 +58,85 @@ export function AIChat({
       .replace("AM", "am")
       .replace("PM", "pm")
   }
+
+  useEffect(() => {
+  // 1. Create an AbortController for this effect
+  const controller = new AbortController();
+  const signal = controller.signal;
+
+  const sendGreeting = async () => {
+    // If team_id is not yet available, don't do anything
+    if (!team_id) {
+      return;
+    }
+    
+    
+    try {
+      setIsLoading(true);
+      const requestBody = {
+        uid: uid,
+        company_id: company_id,
+        project_id: project_id,
+        message: "Hello",
+        team_id: team_id,
+      };
+
+      const response = await fetch("https://n8n.srv1034714.hstgr.cloud/webhook/f723e0a5-2fbf-4453-8393-153d2db4a248", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+        // 2. Pass the signal to the fetch request
+        signal: signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+      
+      const apiResponse: any = await response.text();  
+      console.log("API Response:", apiResponse);
+
+      if (apiResponse) {
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          content: apiResponse,
+          role: "assistant",
+          timestamp: new Date(),
+          type: "general",
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      }
+    } catch (error: any) {
+      // 3. Gracefully handle the abort error so it doesn't show up in the console
+      if (error.name === 'AbortError') {
+        console.log('Fetch aborted');
+      } else {
+        console.error("Failed to get response from API:", error);
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          content: "Sorry, there was an error processing the server's response.",
+          role: "assistant",
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      }
+    } finally {
+      setTimeout(() => {
+    setIsLoading(false);
+  }, 2800);
+    }
+  };
+
+  sendGreeting();
+
+  // 4. Return a cleanup function
+  return () => {
+    // This will be called when the component unmounts
+    controller.abort();
+  };
+}, [team_id]); // The dependency array is correct
 
   useEffect(() => {
     if (scrollAreaRef.current) {

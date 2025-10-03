@@ -342,14 +342,19 @@ export default function CompanyDetailsPage() {
                         <Button size="sm"><Video className="w-4 h-4 mr-1" /> Video</Button>
                       </div>
                     </div>
-                    <div className="aspect-video bg-black/5 flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="mx-auto mb-2 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                          <PlayIcon />
-                        </div>
-                        <p className="text-sm text-muted-foreground">Your lesson will appear here</p>
-                      </div>
-                    </div>
+                  <div className="aspect-video bg-black/5 flex items-center justify-center">
+  <video
+    controls
+    autoPlay
+    muted
+    playsInline
+    className="w-full h-full object-cover rounded"
+    poster="/lesson-preview.jpg"
+  >
+    <source src="/videos/Login vs. Auth.mp4" type="video/mp4" />
+    Your browser does not support the video tag.
+  </video>
+</div>
                   </div>
 
                   {/* Chat Panel */}
