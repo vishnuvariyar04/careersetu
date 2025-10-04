@@ -16,6 +16,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/componen
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 // import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import AiLearningChat from "@/components/ai-learning-chat"
 
 const teamData = {
   1: {
@@ -596,7 +597,27 @@ useEffect(() => {
                 <div key={learningPaneKey} className="h-full min-h-0 overflow-hidden will-change-transform transition-transform duration-500 ease-out translate-x-0 animate-[slideIn_0.5s_ease-out]">
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-0 h-full">
                     {/* Lesson Canvas */}
-                    <div className="p-6 overflow-auto space-y-6">
+                    <div
+                      className="p-6 overflow-auto space-y-6 bg-muted/40"
+                      style={{
+                      scrollbarColor: "#313233 #0000", // Tailwind gray-900
+                      scrollbarWidth: "thin",
+                      }}
+                    >
+                      <style>
+                      {`
+                      /* For Chrome, Edge, Safari */
+                      .custom-scrollbar::-webkit-scrollbar {
+                        width: 6px;
+                        background: transparent;
+                      }
+                      .custom-scrollbar::-webkit-scrollbar-thumb {
+                        background: #313233; /* Tailwind gray-300 */
+                        border-radius: 4px;
+                      }
+                      `}
+                      </style>
+                      <div className="custom-scrollbar">
                       <div>
                         <h2 className="text-xl font-semibold">{selectedTask ? `Learning: ${selectedTask.title}` : 'Learning'}</h2>
                         <p className="text-sm text-muted-foreground">Rich lesson with video, images, code and text tailored to your task and project.</p>
@@ -605,27 +626,27 @@ useEffect(() => {
                       <div>
                         <h3 className="text-sm font-medium mb-2">Video Walkthrough</h3>
                         <AspectRatio ratio={16/9}>
-                          <div className="w-full h-full bg-muted rounded-md flex items-center justify-center">
-                            <span className="text-muted-foreground text-sm">Video will appear here</span>
-                          </div>
+                        <div className="w-full h-full bg-muted rounded-md flex items-center justify-center">
+                          <span className="text-muted-foreground text-sm">Video will appear here</span>
+                        </div>
                         </AspectRatio>
                       </div>
                       {/* Image Gallery */}
                       <div>
                         <h3 className="text-sm font-medium mb-2">Image References</h3>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                          <div className="aspect-video bg-muted rounded-md"></div>
-                          <div className="aspect-video bg-muted rounded-md"></div>
-                          <div className="aspect-video bg-muted rounded-md"></div>
+                        <div className="aspect-video bg-muted rounded-md"></div>
+                        <div className="aspect-video bg-muted rounded-md"></div>
+                        <div className="aspect-video bg-muted rounded-md"></div>
                         </div>
                       </div>
                       {/* Code Snippets */}
                       <div>
                         <h3 className="text-sm font-medium mb-2">Code Snippet</h3>
                         <div className="rounded-md border bg-background">
-                          <pre className="p-3 overflow-auto text-xs">
-{`${learningPrefill ? learningPrefill.slice(0, 400) : '// Code examples and steps will be generated here based on your selection and task context.'}`}
-                          </pre>
+                        <pre className="p-3 overflow-auto text-xs">
+          {`${learningPrefill ? learningPrefill.slice(0, 400) : '// Code examples and steps will be generated here based on your selection and task context.'}`}
+                        </pre>
                         </div>
                       </div>
                       {/* Text Explanation */}
@@ -633,22 +654,11 @@ useEffect(() => {
                         <h3 className="text-sm font-medium mb-2">Explanation</h3>
                         <p className="text-sm text-muted-foreground">The assistant will explain concepts and guide you step-by-step, referencing your project context and the selected task.</p>
                       </div>
+                      </div>
                     </div>
                     {/* Learning Agent Chat */}
                     <div className="min-h-0 border-l border-border">
-                      <AIChat
-                        agentType="learning"
-                        agentName="Learning Agent"
-                        agentDescription={selectedTask ? `Teach: ${selectedTask.title}` : "AI-powered learning assistant"}
-                        initialMessages={initialLearningMessages}
-                        onLearningRequest={handleLearningRequest}
-                        uid={params.student_id}
-                        company_id={params.company_id}
-                        project_id={params.project_id}
-                        team_id={params.team_id}
-                        prefillInput={learningPrefill}
-                        autoFocusInput
-                      />
+                     <AiLearningChat uid={studentId} project_id={projectId} team_id={teamId} company_id={companyId} />
                     </div>
                   </div>
                 </div>

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Bot, Send, Loader2, User, Lightbulb, CheckCircle, AlertTriangle } from "lucide-react"
+import { Bot, Send, Loader2, User, Lightbulb, CheckCircle, AlertTriangle, Trash2 } from "lucide-react"
 import { set } from "date-fns"
 
 interface Message {
@@ -40,13 +40,70 @@ export function AIChat({
   enableSlashShortcut = false,
   prefillInput,
   autoFocusInput = false,
-
 }: any) {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // --- START: CACHING LOGIC ---
+
+  // 1. Define a unique key for localStorage
+  const cacheKey = `chatHistory_${uid}_${team_id}`
+
+  // 2. Load messages from cache ONCE on component mount (client-side only)
+  useEffect(() => {
+    try {
+      const cachedData = localStorage.getItem(cacheKey)
+      if (cachedData) {
+        const { timestamp, messages: cachedMessages } = JSON.parse(cachedData)
+        const fiveDaysInMillis = 5 * 24 * 60 * 60 * 1000
+
+        // Check if cache is expired
+        if (Date.now() - timestamp > fiveDaysInMillis) {
+          localStorage.removeItem(cacheKey)
+        } else {
+          // Restore messages, ensuring timestamps are valid Date objects
+          setMessages(
+            cachedMessages.map((msg: any) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp),
+            }))
+          )
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load chat history from cache:", error)
+      // If parsing fails, clear the corrupted cache
+      localStorage.removeItem(cacheKey)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty dependency array ensures this runs only once on mount
+
+  // 3. Save messages to localStorage whenever they change
+  useEffect(() => {
+    // We don't save the initial placeholder messages
+    if (messages.length > initialMessages.length) {
+      try {
+        const dataToCache = {
+          timestamp: Date.now(),
+          messages: messages,
+        }
+        localStorage.setItem(cacheKey, JSON.stringify(dataToCache))
+      } catch (error) {
+        console.error("Failed to save chat history to cache:", error)
+      }
+    }
+  }, [messages, cacheKey, initialMessages.length])
+
+  // 4. Function to clear history from state and cache
+  const handleClearHistory = () => {
+    localStorage.removeItem(cacheKey)
+    setMessages(initialMessages)
+  }
+
+  // --- END: CACHING LOGIC ---
 
   function formatTime(date: Date) {
     return date
@@ -60,83 +117,82 @@ export function AIChat({
   }
 
   useEffect(() => {
-  // 1. Create an AbortController for this effect
-  const controller = new AbortController();
-  const signal = controller.signal;
+    // 1. Create an AbortController for this effect
+    const controller = new AbortController()
+    const signal = controller.signal
 
-  const sendGreeting = async () => {
-    // If team_id is not yet available, don't do anything
-    if (!team_id) {
-      return;
+    const sendGreeting = async () => {
+      // If team_id is not yet available, or if messages were loaded from cache, don't send greeting.
+      if (!team_id || messages.length > initialMessages.length) {
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        const requestBody = {
+          uid: uid,
+          company_id: company_id,
+          project_id: project_id,
+          message: "Hello",
+          team_id: team_id,
+        }
+
+        const response = await fetch("https://n8n.srv1034714.hstgr.cloud/webhook/f723e0a5-2fbf-4453-8393-153d2db4a248", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+          // 2. Pass the signal to the fetch request
+          signal: signal,
+        })
+
+        if (!response.ok) {
+          throw new Error(`API request failed with status ${response.status}`)
+        }
+
+        const apiResponse: any = await response.text()
+        console.log("RequestBody:", apiResponse)
+
+        if (apiResponse) {
+          const assistantMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            content: apiResponse,
+            role: "assistant",
+            timestamp: new Date(),
+            type: "general",
+          }
+          setMessages((prev) => [...prev, assistantMessage])
+        }
+      } catch (error: any) {
+        // 3. Gracefully handle the abort error so it doesn't show up in the console
+        if (error.name === "AbortError") {
+          console.log("Fetch aborted")
+        } else {
+          console.error("Failed to get response from API:", error)
+          const errorMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            content: "Sorry, there was an error processing the server's response.",
+            role: "assistant",
+            timestamp: new Date(),
+          }
+          setMessages((prev) => [...prev, errorMessage])
+        }
+      } finally {
+        setTimeout(() => {
+          setIsLoading(false)
+        }, 2800)
+      }
     }
-    
-    
-    try {
-      setIsLoading(true);
-      const requestBody = {
-        uid: uid,
-        company_id: company_id,
-        project_id: project_id,
-        message: "Hello",
-        team_id: team_id,
-      };
 
-      const response = await fetch("https://n8n.srv1034714.hstgr.cloud/webhook/f723e0a5-2fbf-4453-8393-153d2db4a248", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-        // 2. Pass the signal to the fetch request
-        signal: signal,
-      });
+    // sendGreeting();
 
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-      
-      const apiResponse: any = await response.text();  
-      console.log("API Response:", apiResponse);
-
-      if (apiResponse) {
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          content: apiResponse,
-          role: "assistant",
-          timestamp: new Date(),
-          type: "general",
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
-      }
-    } catch (error: any) {
-      // 3. Gracefully handle the abort error so it doesn't show up in the console
-      if (error.name === 'AbortError') {
-        console.log('Fetch aborted');
-      } else {
-        console.error("Failed to get response from API:", error);
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          content: "Sorry, there was an error processing the server's response.",
-          role: "assistant",
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, errorMessage]);
-      }
-    } finally {
-      setTimeout(() => {
-    setIsLoading(false);
-  }, 2800);
+    // 4. Return a cleanup function
+    return () => {
+      // This will be called when the component unmounts
+      controller.abort()
     }
-  };
-
-  sendGreeting();
-
-  // 4. Return a cleanup function
-  return () => {
-    // This will be called when the component unmounts
-    controller.abort();
-  };
-}, [team_id]); // The dependency array is correct
+  }, [team_id, company_id, project_id, uid, initialMessages.length, messages.length]) // The dependency array is correct
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -145,7 +201,7 @@ export function AIChat({
   }, [messages])
 
   useEffect(() => {
-    if (typeof prefillInput === 'string' && prefillInput.length > 0) {
+    if (typeof prefillInput === "string" && prefillInput.length > 0) {
       setInput(prefillInput)
       if (autoFocusInput) {
         requestAnimationFrame(() => inputRef.current?.focus())
@@ -159,11 +215,9 @@ export function AIChat({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const active = document.activeElement as HTMLElement | null
-        const isTyping = !!active && (
-          active.tagName === "INPUT" ||
-          active.tagName === "TEXTAREA" ||
-          active.isContentEditable === true
-        )
+        const isTyping =
+          !!active &&
+          (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable === true)
         if (isTyping) return
         e.preventDefault()
         inputRef.current?.focus()
@@ -174,31 +228,30 @@ export function AIChat({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [enableSlashShortcut])
 
-const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
       content: input,
       role: "user",
       timestamp: new Date(),
-    };
+    }
 
-    setMessages((prev) => [...prev, userMessage]);
-    const currentInput = input;
-    setInput("");
-    setIsLoading(true);
+    setMessages((prev) => [...prev, userMessage])
+    const currentInput = input
+    setInput("")
+    setIsLoading(true)
 
     try {
-
-      console.log("Sending request with:", { uid, company_id, project_id, team_id, message: currentInput });
+      console.log("Sending request with:", { uid, company_id, project_id, team_id, message: currentInput })
       const requestBody = {
         uid: uid,
         company_id: company_id,
         project_id: project_id,
         message: currentInput,
         team_id: team_id,
-      };
+      }
 
       const response = await fetch("https://n8n.srv1034714.hstgr.cloud/webhook/f723e0a5-2fbf-4453-8393-153d2db4a248", {
         method: "POST",
@@ -206,38 +259,38 @@ const handleSend = async () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
-      });
+      })
 
       if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
+        throw new Error(`API request failed with status ${response.status}`)
       }
-      
-      const apiResponse:any = await response.text();  
-console.log("API Response:", apiResponse);
+
+      const apiResponse: any = await response.text()
+      console.log("API Response:", apiResponse)
       // Check if the response is an array and contains the required data
-      if (apiResponse ) {
+      if (apiResponse) {
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
           content: apiResponse, // Use the message from the API
           role: "assistant",
           timestamp: new Date(),
           type: "general", // Default to general as other types are removed
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
+        }
+        setMessages((prev) => [...prev, assistantMessage])
       }
     } catch (error) {
-      console.error("Failed to get response from API:", error);
+      console.error("Failed to get response from API:", error)
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: "Sorry, there was an error processing the server's response.",
         role: "assistant",
         timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      }
+      setMessages((prev) => [...prev, errorMessage])
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const getMessageIcon = (message: Message) => {
     if (message.role === "user") return <User className="w-3 h-3" />
@@ -283,7 +336,7 @@ console.log("API Response:", apiResponse);
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Header */}
+      {/* Header - UNCHANGED STRUCTURE, WITH DELETE BUTTON ADDED SAFELY */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
@@ -293,6 +346,16 @@ console.log("API Response:", apiResponse);
             <h3 className="font-semibold">{agentName}</h3>
             <p className="text-sm text-muted-foreground">{agentDescription}</p>
           </div>
+          {/* NEW: Delete button pushed to the right without breaking flow */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleClearHistory}
+            title="Clear chat history"
+            className="ml-auto"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
@@ -314,13 +377,11 @@ console.log("API Response:", apiResponse);
                   </Avatar>
                 )}
                 <span className="text-sm font-medium">{message.role === "assistant" ? agentName : "You"}</span>
-                <span className="text-xs text-muted-foreground">
-                  {formatTime(message.timestamp)}
-                </span>
+                <span className="text-xs text-muted-foreground">{formatTime(message.timestamp)}</span>
                 {getMessageBadge(message)}
               </div>
               <div className="ml-8">
-                <p className="text-sm leading-relaxed">{message.content}</p>
+                <div dangerouslySetInnerHTML={{ __html: message.content }} />
               </div>
             </div>
           ))}
