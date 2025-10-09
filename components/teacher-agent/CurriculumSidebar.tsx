@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Module } from "@/lib/teacher-progress"
 import { BookOpen, CheckCircle2, PlayCircle } from "lucide-react"
+import { motion } from "framer-motion"
 
 type Props = {
   skills: string[]
@@ -71,7 +72,7 @@ export default function CurriculumSidebar({ skills, selectedSkill, onSelectSkill
   }
 
   return (
-    <div className="space-y-4">
+    <motion.div className="space-y-4" initial="hidden" animate="show" variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }}>
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2"><BookOpen className="w-4 h-4" /> Curriculum</CardTitle>
@@ -94,6 +95,7 @@ export default function CurriculumSidebar({ skills, selectedSkill, onSelectSkill
         </CardContent>
       </Card>
 
+      <motion.div variants={{ hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0 } }}>
       <Card className="overflow-hidden">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Modules</CardTitle>
@@ -104,10 +106,11 @@ export default function CurriculumSidebar({ skills, selectedSkill, onSelectSkill
               {modules.map((m, idx) => {
                 const isActive = selectedModuleId ? selectedModuleId === m.id : idx === 0
                 return (
-                  <button
+                  <motion.button
                     key={m.id}
                     onClick={() => onSelectModule(m.id)}
                     className={`w-full text-left px-4 py-3 hover:bg-muted/50 transition flex items-center justify-between ${isActive ? "bg-muted/40" : ""}`}
+                    variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
                   >
                     <div>
                       <div className="flex items-center gap-2">
@@ -126,14 +129,15 @@ export default function CurriculumSidebar({ skills, selectedSkill, onSelectSkill
                       </div>
                     </div>
                     <div className="text-xs text-muted-foreground">{m.lessons.filter(l => l.status === "done").length}/{m.lessons.length} lessons</div>
-                  </button>
+                  </motion.button>
                 )
               })}
             </div>
           </ScrollArea>
         </CardContent>
       </Card>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
