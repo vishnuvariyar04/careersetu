@@ -4,12 +4,10 @@
 
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Bot, Send, Loader2, User, Trash2, Video, BookOpen, FileText, Code, Lightbulb, MessageSquare, ChevronRight, X } from "lucide-react"
-import { AspectRatio } from "@/components/ui/aspect-ratio"
+import { Bot, Send, Loader2, User, Trash2, Video, BookOpen, FileText, Code, Lightbulb, MessageSquare, X } from "lucide-react"
 
 interface Message {
   id: string
@@ -64,7 +62,7 @@ export default function AIChat({
   const inputRef = useRef<HTMLInputElement>(null)
   const chatAreaRef = useRef<HTMLDivElement>(null)
 
-  // Streaming Avatar (Learning Agent) integration
+  // Streaming Avatar (Learning Agent) integration – only when video panel is open
   const avatarVideoRef = useRef<HTMLVideoElement>(null)
   const avatarRef = useRef<any>(null)
   const [avatarError, setAvatarError] = useState<string | null>(null)
@@ -72,6 +70,10 @@ export default function AIChat({
   const LEARNING_AVATAR_SCRIPT = "Hello! I am your learning coach avatar. Let's get started."
   const [videoMuted, setVideoMuted] = useState(true)
   const sdkModuleRef = useRef<any>(null);
+
+  // Collapsible side video panel
+  const [showVideoPanel, setShowVideoPanel] = useState(false)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
 
   const cacheKey = `learningChat_${uid}_${team_id}`
 
@@ -148,8 +150,9 @@ export default function AIChat({
     }
   }, [messages])
 
-  // Initialize Streaming Avatar
+  // Initialize Streaming Avatar when video panel is shown and no direct videoUrl is provided
   useEffect(() => {
+    if (!showVideoPanel || videoUrl) return
     let isMounted = true
     ;(async () => {
       try {
@@ -222,7 +225,7 @@ export default function AIChat({
         avatarRef.current?.stopAvatar?.()
       } catch {}
     }
-  }, [])
+  }, [showVideoPanel, videoUrl])
 
   // Watch for "/" to show commands
   useEffect(() => {
@@ -273,6 +276,11 @@ export default function AIChat({
     const currentMessageData = { ...messageData }
     setInput("")
     setSelectedCommand("none")
+    // Open video panel immediately for /video requests
+    if (currentMessageData.command === 'video') {
+      setShowVideoPanel(true)
+      setVideoUrl(null)
+    }
     setIsLoading(true)
 
     try {
@@ -295,8 +303,12 @@ export default function AIChat({
       const apiResponse: any = await response.json()
 
       if (apiResponse && apiResponse.output) {
-        // Use the stored SDK module to make the avatar speak the new response
-        if (avatarRef.current && sdkModuleRef.current) {
+        // If API returns a concrete video URL, prefer inline player
+        if (apiResponse.video_url) {
+          setVideoUrl(apiResponse.video_url)
+        }
+        // Speak via avatar only if video panel is open and no direct video URL
+        if (showVideoPanel && !apiResponse.video_url && avatarRef.current && sdkModuleRef.current) {
           try {
             const ns = typeof sdkModuleRef.current?.default === "object" ? sdkModuleRef.current.default : sdkModuleRef.current;
             const { TaskType, TaskMode } = ns;
@@ -344,65 +356,21 @@ export default function AIChat({
     return COMMANDS.find((cmd) => cmd.name === commandName)
   }
 
+  const closeVideoPanel = () => {
+    setShowVideoPanel(false)
+    setVideoUrl(null)
+    setVideoMuted(true)
+    try { avatarRef.current?.stopAvatar?.() } catch {}
+  }
+
   return (
     <div
         key={learningPaneKey}
-        className="h-full min-h-0 overflow-hidden grid grid-cols-1 xl:grid-cols-2 gap-0"
+        className={`h-full min-h-0 overflow-hidden grid ${showVideoPanel ? 'grid-cols-[1fr_380px]' : 'grid-cols-1'}`}
     >
-        {/* --- LEFT COLUMN: LESSON CANVAS + AVATAR --- */}
-        <div
-            className="p-6 overflow-auto space-y-6 bg-muted/40 custom-scrollbar"
-            style={{ scrollbarColor: "#313233 #0000", scrollbarWidth: "thin" }}
-        >
-            <style>
-                {`
-                .custom-scrollbar::-webkit-scrollbar { width: 6px; background: transparent; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #313233; border-radius: 4px; }
-                `}
-            </style>
-            <div>
-                <h2 className="text-xl font-semibold">{selectedTask ? `Learning: ${selectedTask.title}` : 'Learning'}</h2>
-                <p className="text-sm text-muted-foreground">A rich lesson tailored to your task and project.</p>
-            </div>
-
-            <div>
-                <h3 className="text-sm font-medium mb-2">Learning Coach</h3>
-                 <div className="relative w-full max-w-[720px] mx-auto aspect-video bg-black rounded-md overflow-hidden">
-                    <video ref={avatarVideoRef} autoPlay playsInline muted={videoMuted} className="w-full h-full object-contain">
-                        <track kind="captions" />
-                    </video>
-                    {videoMuted && (
-                        <div className="absolute inset-x-0 bottom-3 flex justify-center">
-                            <Button size="sm" onClick={() => {
-                                setVideoMuted(false)
-                                try { avatarVideoRef.current?.play?.() } catch {}
-                            }}>
-                                Enable sound
-                            </Button>
-                        </div>
-                    )}
-                </div>
-                {avatarError && <div className="text-xs text-destructive mt-2">{avatarError}</div>}
-            </div>
-
-            <div>
-                <h3 className="text-sm font-medium mb-2">Code Snippet</h3>
-                <div className="rounded-md border bg-background">
-                    <pre className="p-3 overflow-auto text-xs">
-                        {`${learningPrefill ? learningPrefill.slice(0, 400) : '// Code examples will be generated here.'}`}
-                    </pre>
-                </div>
-            </div>
-            
-            <div>
-                <h3 className="text-sm font-medium mb-2">Explanation</h3>
-                <p className="text-sm text-muted-foreground">The assistant will explain concepts and guide you step-by-step.</p>
-            </div>
-        </div>
-
-        {/* --- RIGHT COLUMN: CHAT INTERFACE --- */}
-        <div className="flex flex-col h-full min-h-0 border-l border-border">
-            <div className="p-4 border-b border-border">
+        {/* --- MAIN: CHAT INTERFACE --- */}
+        <div className="flex flex-col h-full min-h-0">
+            <div className="p-4 border-b border-border bg-muted/40">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
                         <Bot className="w-5 h-5 text-primary-foreground" />
@@ -578,6 +546,45 @@ export default function AIChat({
                 <p className="text-xs text-muted-foreground mt-2">Select text in chat to use as context.</p>
             </div>
         </div>
+
+        {/* --- SIDE: COLLAPSIBLE VIDEO PANEL --- */}
+        {showVideoPanel && (
+          <aside className="h-full border-l border-border flex flex-col">
+            <div className="p-3 border-b flex items-center justify-between">
+              <div className="text-sm font-medium flex items-center gap-2"><Video className="w-4 h-4" /> Video</div>
+              <Button size="sm" variant="ghost" onClick={closeVideoPanel}>Close</Button>
+            </div>
+            <div className="p-3 flex-1 overflow-auto">
+              {videoUrl ? (
+                <div className="aspect-video bg-black/5 rounded overflow-hidden">
+                  <video controls playsInline className="w-full h-full object-contain">
+                    <source src={videoUrl} type="video/mp4" />
+                  </video>
+                </div>
+              ) : (
+                <div className="relative aspect-video bg-black rounded-md overflow-hidden">
+                  <video ref={avatarVideoRef} autoPlay playsInline muted={videoMuted} className="w-full h-full object-contain">
+                    <track kind="captions" />
+                  </video>
+                  {videoMuted && (
+                    <div className="absolute inset-x-0 bottom-3 flex justify-center">
+                      <Button size="sm" onClick={() => {
+                        setVideoMuted(false)
+                        try { avatarVideoRef.current?.play?.() } catch {}
+                      }}>
+                        Enable sound
+                      </Button>
+                    </div>
+                  )}
+                  {avatarError && <div className="text-xs text-destructive mt-2">{avatarError}</div>}
+                </div>
+              )}
+              {!videoUrl && (
+                <p className="text-xs text-muted-foreground mt-2">Generating an explanation video. This may take a moment.</p>
+              )}
+            </div>
+          </aside>
+        )}
     </div>
   )
 }

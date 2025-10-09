@@ -5,11 +5,20 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Input } from "@/components/ui/input"
-import { ArrowLeft, Plus, Bot, BookOpen, ListChecks, GraduationCap, Video, Image as ImageIcon, Sparkles } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ArrowLeft, Plus, Bot, BookOpen, ListChecks, GraduationCap, Video, Image as ImageIcon, Sparkles, CheckCircle2 } from "lucide-react"
+import LearningSidebar from "@/components/company/learning-sidebar"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { useEffect, useMemo, useState } from "react"
+import AIChat from "@/components/ai-learning-chat"
+import CurriculumSidebar from "@/components/teacher-agent/CurriculumSidebar"
+import LessonPlayer from "@/components/teacher-agent/LessonPlayer"
+import LessonContent from "@/components/teacher-agent/LessonContent"
+import QuizBlock from "@/components/teacher-agent/QuizBlock"
+// ProgressSummary intentionally not used to keep UI minimal
+import type { Module as TeacherModule } from "@/lib/teacher-progress"
+import { ensureSkillInitialized, getProgress, updateLesson, markQuiz, computeReadiness } from "@/lib/teacher-progress"
 
 export default function CompanyDetailsPage() {
   const params = useParams()
@@ -97,6 +106,58 @@ export default function CompanyDetailsPage() {
   }, [companyRequiredSkills, studentSkills])
 
   const [activeView, setActiveView] = useState<'teacher' | 'skills' | 'projects'>('teacher')
+  const [teacherTab, setTeacherTab] = useState<'lesson' | 'tutor'>('tutor')
+  const [showQuiz, setShowQuiz] = useState(false)
+
+  // --- Teacher Agent State ---
+  const [selectedSkill, setSelectedSkill] = useState<string>("")
+  const [skillModules, setSkillModules] = useState<TeacherModule[]>([])
+  const [selectedModuleId, setSelectedModuleId] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (!student || !company) return
+    // Initialize selected skill from missing skills, fallback to any company required skill
+    const initialSkill = (missingSkills[0] || companyRequiredSkills[0] || "").toString()
+    if (!initialSkill) return
+    setSelectedSkill((prev) => prev || initialSkill)
+  }, [student, company, missingSkills, companyRequiredSkills])
+
+  useEffect(() => {
+    if (!selectedSkill) return
+    const { modules } = ensureSkillInitialized(studentId, companyId, selectedSkill)
+    setSkillModules(modules)
+    setSelectedModuleId((prev) => prev || modules[0]?.id)
+  }, [selectedSkill, studentId, companyId])
+
+  const currentModule = useMemo(() => skillModules.find((m) => m.id === selectedModuleId) || skillModules[0], [skillModules, selectedModuleId])
+  const currentLesson = useMemo(() => {
+    if (!currentModule) return undefined
+    const firstTodo = currentModule.lessons.find((l) => l.status !== 'done')
+    return firstTodo || currentModule.lessons[0]
+  }, [currentModule])
+
+  const refreshModulesFromStorage = () => {
+    const progress = getProgress(studentId, companyId)
+    const sp = progress[selectedSkill]
+    if (sp) setSkillModules(sp.modules)
+  }
+
+  const handleLessonDone = () => {
+    if (!currentModule || !currentLesson) return
+    updateLesson(studentId, companyId, selectedSkill, currentModule.id, currentLesson.id, 'done')
+    refreshModulesFromStorage()
+  }
+
+  const handleQuizResult = (passed: boolean) => {
+    if (!currentModule) return
+    markQuiz(studentId, companyId, selectedSkill, currentModule.id, passed)
+    refreshModulesFromStorage()
+  }
+
+  const readinessPercent = useMemo(() => {
+    const progress = getProgress(studentId, companyId)
+    return computeReadiness(progress, companyRequiredSkills)
+  }, [studentId, companyId, companyRequiredSkills, skillModules])
 
   // --- Event Handlers ---
   const handleJoinCompany = async (companyId: string) => {
@@ -214,225 +275,224 @@ export default function CompanyDetailsPage() {
   
   return (
     <div className="h-screen bg-background">
-      <div className="container mx-auto h-full px-4 py-8 overflow-hidden">
-      {/* Header moved into right column */}
-
+      <div className="h-full overflow-hidden">
         {/* Main Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full min-h-0">
-          {/* Sidebar */}
-          <aside className="lg:col-span-3 lg:border-r lg:pr-6">
-            <div className="lg:sticky lg:top-4">
-              <div className="pr-2">
-                <div className="space-y-4">
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Learning Navigator</CardTitle>
-                      <CardDescription>Quickly jump between sections</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <Button
-                        variant={'ghost'}
-                        size="sm"
-                        className={`w-full justify-start gap-2 ${activeView === 'teacher' ? 'bg-muted' : 'hover:bg-muted'}`}
-                        onClick={() => setActiveView('teacher')}
-                      >
-                        <Bot className="w-4 h-4" /> Teacher Agent
-                      </Button>
-                      <Button
-                        variant={'ghost'}
-                        size="sm"
-                        className={`w-full justify-start gap-2 ${activeView === 'skills' ? 'bg-muted' : 'hover:bg-muted'}`}
-                        onClick={() => setActiveView('skills')}
-                      >
-                        <ListChecks className="w-4 h-4" /> Skills
-                      </Button>
-                      <Button
-                        variant={'ghost'}
-                        size="sm"
-                        className={`w-full justify-start gap-2 ${activeView === 'projects' ? 'bg-muted' : 'hover:bg-muted'}`}
-                        onClick={() => setActiveView('projects')}
-                      >
-                        <BookOpen className="w-4 h-4" /> Projects
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Skills Overview</CardTitle>
-                      <CardDescription>Coverage and requirements</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-muted-foreground">Coverage</span>
-                        <span className="text-sm font-medium">{skillCoveragePercent}%</span>
-                      </div>
-                      <Progress value={skillCoveragePercent} />
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {companyRequiredSkills.length > 0 ? (
-                          companyRequiredSkills.map((skill) => (
-                            <Badge key={skill} variant="outline" className="text-xs">{skill}</Badge>
-                          ))
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No skills listed yet.</p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <div className="mt-2 border-t pt-2">
-                    {isJoined && (
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="w-full justify-start px-0 text-muted-foreground"
-                        onClick={handleLeaveCompany}
-                      >
-                        Leave company
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </aside>
+        <div className="flex gap-0 h-full min-h-0">
+		  {/* Futuristic Collapsible Sidebar (component) */}
+		  <LearningSidebar
+			activeView={activeView}
+			onChangeView={(v) => setActiveView(v)}
+			isJoined={isJoined}
+			onLeaveCompany={handleLeaveCompany}
+			skillCoveragePercent={skillCoveragePercent}
+			companyRequiredSkills={companyRequiredSkills}
+		  />
 
           {/* Main content */}
-          <main className="lg:col-span-9 lg:pl-6 h-full flex flex-col min-h-0">
-            <ScrollArea className="flex-1 min-h-0 pr-2">
-              <div className="space-y-6">
-            {/* Back */}
-            <div>
-              <Button variant="outline" size="sm" onClick={() => router.push(`/student/${studentId}/dashboard`)}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
+          <main className="flex-1 h-full flex flex-col min-h-0">
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="px-8 py-6 space-y-6 max-w-[1800px] mx-auto w-full">
+            {/* Toolbar */}
+            <div className="flex items-center gap-2 py-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => router.push(`/student/${studentId}/dashboard`)}
+                aria-label="Back to Dashboard"
+              >
+                <ArrowLeft className="w-4 h-4" />
               </Button>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="h-5 w-px bg-border/70" />
+                <span className="truncate text-base md:text-lg font-semibold md:font-bold tracking-tight leading-5 bg-gradient-to-r from-primary via-foreground to-foreground/70 bg-clip-text text-transparent">
+                  {company.name}
+                </span>
+              </div>
             </div>
-            {/* Company Header (right column) */}
-            <div className="rounded-lg border bg-muted/30 p-4 flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
-                  <span className="text-lg font-bold">{company.logo || company.name.substring(0, 2)}</span>
+
+            {activeView === 'teacher' && (
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-primary" />
+                  <h2 className="text-xl font-semibold">Teacher Agent</h2>
+                  <Badge className="gap-1" variant="secondary"><Sparkles className="w-3 h-3" /> Personalized</Badge>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-bold">{company.name}</h1>
-                    <Badge variant="secondary">Company</Badge>
-                    {isJoined && <Badge variant="outline">Joined</Badge>}
-                  </div>
-                  <p className="text-muted-foreground text-sm">{company.description}</p>
+                <div className="text-sm text-muted-foreground">
+                  Readiness: <span className="font-semibold text-foreground">{readinessPercent}%</span>
                 </div>
               </div>
-              {!isJoined && (
-                <Button onClick={() => handleJoinCompany(companyId)}>
-                  <Plus className="w-4 h-4 mr-2" /> Join Company
-                </Button>
-              )}
-            </div>
-            {activeView === 'teacher' && (
-            <section>
-              <Card className="overflow-hidden">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Bot className="w-5 h-5 text-primary" />
-                      <CardTitle className="text-lg">Teacher Agent</CardTitle>
-                    </div>
-                    <Badge className="gap-1" variant="secondary"><Sparkles className="w-3 h-3" /> Personalized</Badge>
-                  </div>
-                  <CardDescription>Teaches missing skills with text, images, and video</CardDescription>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                  {/* Lesson Media Panel */}
-                  <div className="rounded-lg border bg-muted/30 overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2 bg-muted/50">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <Video className="w-4 h-4" /> Lesson Preview
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="secondary" size="sm"><ImageIcon className="w-4 h-4 mr-1" /> Image</Button>
-                        <Button size="sm"><Video className="w-4 h-4 mr-1" /> Video</Button>
-                      </div>
-                    </div>
-                  <div className="aspect-video bg-black/5 flex items-center justify-center">
-  <video
-    controls
-    autoPlay
-    muted
-    playsInline
-    className="w-full h-full object-cover rounded"
-    poster="/lesson-preview.jpg"
-  >
-    <source src="/videos/Login vs. Auth.mp4" type="video/mp4" />
-    Your browser does not support the video tag.
-  </video>
-</div>
-                  </div>
 
-                  {/* Chat Panel */}
-                  <div className="rounded-lg border bg-background">
-                    <div className="px-4 py-2 border-b bg-muted/50 flex items-center gap-2">
-                      <GraduationCap className="w-4 h-4" />
-                      <p className="text-sm font-medium">Live Tutoring</p>
-                    </div>
-                    <div className="p-4">
+              {/* Improved 2-column layout with expandable sidebar */}
+              <div className="flex gap-4 min-h-[600px]">
+                {/* Curriculum Sidebar - Always visible, not collapsible */}
+                <div className="w-80 flex-shrink-0">
+                  <CurriculumSidebar
+                    skills={missingSkills.length > 0 ? missingSkills : companyRequiredSkills}
+                    selectedSkill={selectedSkill}
+                    onSelectSkill={(s) => setSelectedSkill(s)}
+                    modules={skillModules}
+                    selectedModuleId={selectedModuleId}
+                    onSelectModule={(id) => setSelectedModuleId(id)}
+                    compact={false}
+                  />
+                </div>
+
+                {/* Main Content Area - Tabs for Lesson/Tutor */}
+                <div className="flex-1 min-w-0">
+                  <Tabs value={teacherTab} onValueChange={(v) => setTeacherTab(v as 'lesson' | 'tutor')} className="h-full">
+                    <TabsList className="mb-4 w-full justify-start">
+                      <TabsTrigger value="tutor" className="flex items-center gap-2">
+                        <GraduationCap className="w-4 h-4" />
+                        AI Tutor
+                      </TabsTrigger>
+                      <TabsTrigger value="lesson" className="flex items-center gap-2">
+                        <Video className="w-4 h-4" />
+                        Lesson
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="lesson" className="space-y-4 mt-0">
                       <div className="space-y-4">
-                        {/* Sample messages (UI only) */}
-                        <AgentMessage>Hi {student.name?.split(" ")[0] || "there"}, I see you’re missing <strong>{missingSkills[0] || "some skills"}</strong>. Shall we start?</AgentMessage>
-                        <UserMessage>Yes, teach me with examples.</UserMessage>
-                        <AgentMessage>Great. Here’s a quick visual and a short video overview. Ask questions anytime!</AgentMessage>
+                        <LessonPlayer title={currentLesson ? currentLesson.title : 'Select a lesson'} />
+                        <LessonContent
+                          moduleTitle={currentModule ? currentModule.title : 'Module'}
+                          lessonTitle={currentLesson ? currentLesson.title : 'Lesson'}
+                          explanationHtml={`<p>Learn <strong>${selectedSkill || 'this skill'}</strong> step-by-step. Use the AI Tutor tab for deeper, personalized help.</p>`}
+                          codeSample={`// Example code for ${selectedSkill || 'skill'}\nconsole.log('Hello ${selectedSkill || 'Skill'}');`}
+                          resources={selectedSkill?.toLowerCase() === 'react' ? [{ label: 'Official Docs', href: 'https://react.dev' }] : []}
+                        />
                       </div>
-                    </div>
-                    <div className="p-3 border-t bg-muted/30">
-                      <div className="flex items-center gap-2">
-                        <Input placeholder={`Ask to learn ${missingSkills[0] || "a skill"}...`} className="flex-1" />
-                        <Button className="gap-1"><Sparkles className="w-4 h-4" /> Teach</Button>
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="default" onClick={handleLessonDone}>
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Mark Complete
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setShowQuiz((s) => !s)}>
+                            {showQuiz ? 'Hide Quiz' : 'Take Quiz'}
+                          </Button>
+                        </div>
+                        {currentModule && (
+                          <span className="text-xs text-muted-foreground">
+                            {currentModule.lessons.filter(l => l.status === 'done').length} / {currentModule.lessons.length} lessons completed
+                          </span>
+                        )}
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                      {showQuiz && (
+                        <div className="mt-4">
+                          <QuizBlock moduleId={currentModule ? currentModule.id : 'module'} onResult={handleQuizResult} />
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="tutor" className="rounded-lg border overflow-hidden mt-0 h-[calc(100vh-300px)]">
+                      <div className="px-4 py-3 border-b bg-muted/50 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <GraduationCap className="w-4 h-4 text-primary" />
+                          <p className="text-sm font-medium">AI Tutor - {selectedSkill || 'Learning'}</p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">Interactive</Badge>
+                      </div>
+                      <div className="h-full">
+                        <AIChat
+                          agentName="Teacher Agent"
+                          agentDescription={`Helps you learn ${selectedSkill || 'skills'} with video, text, and graphics`}
+                          uid={studentId}
+                          company_id={companyId}
+                          project_id={projects?.[0]?.project_id}
+                          team_id={"learning"}
+                          learningPaneKey={`${studentId}_${companyId}_${selectedSkill}`}
+                          selectedTask={{ title: currentLesson ? currentLesson.title : 'Learning' }}
+                          learningPrefill={`Teach ${selectedSkill || 'the skill'} with examples.`}
+                        />
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </div>
             </section>
             )}
 
             {activeView === 'skills' && (
-            <section className="space-y-4">
-              <div className="flex items-center gap-2">
-                <ListChecks className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">Skills</h2>
+            <section className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ListChecks className="w-5 h-5 text-primary" />
+                  <h2 className="text-xl font-semibold">Skills Assessment</h2>
+                </div>
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Overall Coverage: </span>
+                  <span className="font-semibold text-lg text-foreground">{skillCoveragePercent}%</span>
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Missing Skills</CardTitle>
-                    <CardDescription>What the agent will teach next</CardDescription>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Missing Skills */}
+                <Card className="border-2 border-amber-200 dark:border-amber-900">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg">Skills to Learn</CardTitle>
+                        <CardDescription>Start learning these with Teacher Agent</CardDescription>
+                      </div>
+                      <Badge variant="outline" className="text-amber-700 border-amber-300">
+                        {missingSkills.length} pending
+                      </Badge>
+                    </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent className="space-y-2">
                     {missingSkills.length > 0 ? missingSkills.map((skill) => (
-                      <div key={skill} className="flex items-center justify-between rounded-md border px-3 py-2 bg-background">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">{skill}</Badge>
+                      <div key={skill} className="flex items-center justify-between rounded-lg border bg-card p-3 hover:bg-muted/50 transition">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                            <BookOpen className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                          </div>
+                          <span className="font-medium">{skill}</span>
                         </div>
-                        <Button size="sm" variant="secondary">Start module</Button>
+                        <Button size="sm" variant="default" onClick={() => setActiveView('teacher')}>
+                          Start Learning
+                        </Button>
                       </div>
                     )) : (
-                      <p className="text-sm text-muted-foreground">You’re all set. No missing skills!</p>
+                      <div className="py-8 text-center">
+                        <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-green-500" />
+                        <p className="text-sm font-medium">All caught up!</p>
+                        <p className="text-xs text-muted-foreground">You have all required skills</p>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Your Skills</CardTitle>
-                    <CardDescription>Already mastered by you</CardDescription>
+                {/* Mastered Skills */}
+                <Card className="border-2 border-green-200 dark:border-green-900">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg">Your Skills</CardTitle>
+                        <CardDescription>Skills you've already mastered</CardDescription>
+                      </div>
+                      <Badge variant="outline" className="text-green-700 border-green-300">
+                        {studentSkills.length} mastered
+                      </Badge>
+                    </div>
                   </CardHeader>
-                  <CardContent className="flex flex-wrap gap-2">
+                  <CardContent>
                     {studentSkills.length > 0 ? (
-                      studentSkills.map((skill) => (
-                        <Badge key={skill} className="text-xs" variant="secondary">{skill}</Badge>
-                      ))
+                      <div className="flex flex-wrap gap-2">
+                        {studentSkills.map((skill) => (
+                          <Badge key={skill} variant="secondary" className="px-3 py-1.5 text-sm">
+                            <CheckCircle2 className="w-3 h-3 mr-1.5 text-green-600" />
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">No skills added yet.</p>
+                      <div className="py-8 text-center text-muted-foreground">
+                        <GraduationCap className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No skills added yet.</p>
+                        <p className="text-xs mt-1">Complete lessons to build your skillset</p>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -441,49 +501,92 @@ export default function CompanyDetailsPage() {
             )}
 
             {activeView === 'projects' && (
-            <section className="space-y-4">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">Projects in this company</h2>
+            <section className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-primary" />
+                  <h2 className="text-xl font-semibold">Company Projects</h2>
+                </div>
+                <Badge variant="outline">{projects.length} {projects.length === 1 ? 'Project' : 'Projects'}</Badge>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {projects.length > 0 ? projects.map((project) => {
                   const hasJoinedProject = student.projects?.includes(project.project_id)
+                  const isActive = project.status === "active"
                   return (
-                    <Card key={project.project_id} className="flex flex-col">
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <CardTitle className="text-base">{project.name}</CardTitle>
-                            <CardDescription>{project.description}</CardDescription>
+                    <Card key={project.project_id} className={`flex flex-col hover:shadow-lg transition-all ${hasJoinedProject ? 'border-2 border-primary/30' : ''}`}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <CardTitle className="text-lg">{project.name}</CardTitle>
+                              {hasJoinedProject && (
+                                <Badge variant="default" className="text-xs">Joined</Badge>
+                              )}
+                            </div>
+                            <CardDescription className="line-clamp-2">{project.description}</CardDescription>
                           </div>
-                          <Badge variant={project.status === "active" ? "default" : "secondary"}>{project.status}</Badge>
+                          <Badge variant={isActive ? "default" : "secondary"} className="flex-shrink-0">
+                            {project.status}
+                          </Badge>
                         </div>
                       </CardHeader>
-                      <CardContent className="mt-1 space-y-3">
+                      <CardContent className="flex-1 space-y-4">
+                        {/* Required Skills */}
                         {Array.isArray(project.required_skills) && project.required_skills.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {project.required_skills.map((skill: string) => (
-                              <span key={skill} className="inline-block rounded-full bg-blue-100 text-blue-800 px-2.5 py-0.5 text-xs font-medium">
-                                {skill}
-                              </span>
-                            ))}
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground mb-2">Required Skills</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {project.required_skills.map((skill: string) => {
+                                const hasSkill = studentSkills.includes(skill)
+                                return (
+                                  <Badge 
+                                    key={skill} 
+                                    variant={hasSkill ? "secondary" : "outline"}
+                                    className={`text-xs ${hasSkill ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'border-amber-300 text-amber-700'}`}
+                                  >
+                                    {hasSkill && <CheckCircle2 className="w-3 h-3 mr-1" />}
+                                    {skill}
+                                  </Badge>
+                                )
+                              })}
+                            </div>
                           </div>
                         )}
-                        <div className="flex items-center justify-end gap-2">
-                          <Button variant="secondary" size="sm">Learn skills</Button>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setActiveView('teacher')}
+                            className="text-xs"
+                          >
+                            <GraduationCap className="w-4 h-4 mr-1.5" />
+                            Learn Skills
+                          </Button>
                           {hasJoinedProject ? (
-                            <Button size="sm" onClick={() => handleGoToWorkspace(project.project_id)}>Open</Button>
+                            <Button size="sm" onClick={() => handleGoToWorkspace(project.project_id)}>
+                              Open Workspace
+                            </Button>
                           ) : (
-                            <Button size="sm" variant="outline" onClick={() => handleJoinProject(project.project_id)}>Join</Button>
+                            <Button size="sm" variant="default" onClick={() => handleJoinProject(project.project_id)}>
+                              <Plus className="w-4 h-4 mr-1.5" />
+                              Join Project
+                            </Button>
                           )}
                         </div>
                       </CardContent>
                     </Card>
                   )
                 }) : (
-                  <Card>
-                    <CardContent className="py-8 text-center text-muted-foreground">No projects available yet.</CardContent>
+                  <Card className="lg:col-span-2">
+                    <CardContent className="py-12 text-center">
+                      <BookOpen className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
+                      <p className="text-lg font-medium text-muted-foreground mb-1">No projects available yet</p>
+                      <p className="text-sm text-muted-foreground">Check back later for new opportunities</p>
+                    </CardContent>
                   </Card>
                 )}
               </div>
