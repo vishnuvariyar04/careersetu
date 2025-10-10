@@ -666,7 +666,7 @@ export default function SupervisorDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex overflow-y-hidden">
       {/* Left Sidebar */}
       <aside className="w-18 border-r bg-card flex flex-col items-center py-6 gap-6 fixed h-screen">
         <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center mb-4">
