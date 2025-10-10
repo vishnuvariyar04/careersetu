@@ -323,8 +323,9 @@ export default function CompanyDetailsPage() {
 
           {/* Main content */}
           <main className="flex-1 h-full flex flex-col min-h-0">
-            <ScrollArea className="flex-1 min-h-0">
-              <div className="px-8 py-6 space-y-6 max-w-[1800px] mx-auto w-full">
+            {!(activeView === 'teacher' && teacherTab === 'tutor') ? (
+              <ScrollArea className="flex-1 min-h-0">
+                <div className="px-8 py-6 space-y-6 max-w-[1800px] mx-auto w-full">
             {/* Toolbar removed; moved to sidebar header */}
 
             {activeView === 'teacher' && (
@@ -403,8 +404,8 @@ export default function CompanyDetailsPage() {
                       )}
                     </TabsContent>
 
-                  <TabsContent value="tutor" className="mt-0 h-[calc(100vh-220px)]">
-                    <div className="h-full min-h-0">
+                  <TabsContent value="tutor" className="rounded-lg border overflow-hidden mt-0 flex flex-col min-h-0 h-full">
+                    <div className="h-full">
                       <AIChat
                         agentName="Learning Assistant"
                         agentDescription={"Your personal learning companion"}
@@ -416,7 +417,6 @@ export default function CompanyDetailsPage() {
                         selectedTask={{ title: currentLesson ? currentLesson.title : 'Learning' }}
                         learningPrefill={`Teach ${selectedSkill || 'the skill'} with examples.`}
                         hideHeader
-                        inputVariant="floating"
                       />
                     </div>
                   </TabsContent>
@@ -618,7 +618,123 @@ export default function CompanyDetailsPage() {
             )}
             
             </div>
-          </ScrollArea>
+              </ScrollArea>
+            ) : (
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <div className="px-8 py-6 space-y-6 max-w-[1800px] mx-auto w-full h-full">
+                  {/* Toolbar removed; moved to sidebar header */}
+                  {activeView === 'teacher' && (
+            <section className="space-y-4">
+              {/* Two-column layout with animated curriculum sidebar */}
+              <div className="flex gap-4 min-h-[600px]" style={{ perspective: 1200 }}>
+                {/* Curriculum Sidebar - Animated */}
+                <AnimatePresence initial={false} mode="popLayout">
+                  {showCurriculum && (
+                    <motion.div
+                      key="curriculum"
+                      className="w-80 flex-shrink-0"
+                      initial={{ opacity: 0, x: -40, rotateY: -24, filter: 'blur(6px)' }}
+                      animate={{ opacity: 1, x: 0, rotateY: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, x: -48, rotateY: 12, filter: 'blur(6px)' }}
+                      transition={{ type: 'spring', stiffness: 220, damping: 26 }}
+                    >
+                      <CurriculumSidebar
+                        skills={missingSkills.length > 0 ? missingSkills : companyRequiredSkills}
+                        selectedSkill={selectedSkill}
+                        onSelectSkill={(s) => setSelectedSkill(s)}
+                        modules={skillModules}
+                        selectedModuleId={selectedModuleId}
+                        onSelectModule={(id) => setSelectedModuleId(id)}
+                        compact={false}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Main Content Area - Tabs for Lesson/Tutor */}
+                <div className="flex-1 min-w-0">
+                  <Tabs value={teacherTab} onValueChange={(v) => setTeacherTab(v as 'lesson' | 'tutor')} className="h-full">
+                    <TabsList className="mb-4 w-full justify-start">
+                      <TabsTrigger value="tutor" className="flex items-center gap-2">
+                        <GraduationCap className="w-4 h-4" />
+                        AI Tutor
+                      </TabsTrigger>
+                      <TabsTrigger value="lesson" className="flex items-center gap-2">
+                        <Video className="w-4 h-4" />
+                        Lesson
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="lesson" className="space-y-4 mt-0">
+                      <div className="space-y-4">
+                        <LessonPlayer title={currentLesson ? currentLesson.title : 'Select a lesson'} />
+                        <LessonContent
+                          moduleTitle={currentModule ? currentModule.title : 'Module'}
+                          lessonTitle={currentLesson ? currentLesson.title : 'Lesson'}
+                          explanationHtml={`<p>Learn <strong>${selectedSkill || 'this skill'}</strong> step-by-step. Use the AI Tutor tab for deeper, personalized help.</p>`}
+                          codeSample={`// Example code for ${selectedSkill || 'skill'}\nconsole.log('Hello ${selectedSkill || 'Skill'}');`}
+                          resources={selectedSkill?.toLowerCase() === 'react' ? [{ label: 'Official Docs', href: 'https://react.dev' }] : []}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="default" onClick={handleLessonDone}>
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Mark Complete
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setShowQuiz((s) => !s)}>
+                            {showQuiz ? 'Hide Quiz' : 'Take Quiz'}
+                          </Button>
+                        </div>
+                        {currentModule && (
+                          <span className="text-xs text-muted-foreground">
+                            {currentModule.lessons.filter(l => l.status === 'done').length} / {currentModule.lessons.length} lessons completed
+                          </span>
+                        )}
+                      </div>
+                      {showQuiz && (
+                        <div className="mt-4">
+                          <QuizBlock moduleId={currentModule ? currentModule.id : 'module'} onResult={handleQuizResult} />
+                        </div>
+                      )}
+                    </TabsContent>
+
+                  <TabsContent value="tutor" className="rounded-lg border overflow-hidden mt-0 flex flex-col min-h-0 h-full">
+                    <div className="h-full">
+                      <AIChat
+                        agentName="Learning Assistant"
+                        agentDescription={"Your personal learning companion"}
+                        uid={studentId}
+                        company_id={companyId}
+                        project_id={projects?.[0]?.project_id}
+                        team_id={"learning"}
+                        learningPaneKey={`${studentId}_${companyId}_${selectedSkill}`}
+                        selectedTask={{ title: currentLesson ? currentLesson.title : 'Learning' }}
+                        learningPrefill={`Teach ${selectedSkill || 'the skill'} with examples.`}
+                        hideHeader
+                      />
+                    </div>
+                  </TabsContent>
+                </Tabs>
+                </div>
+              </div>
+
+              {/* Floating FAB toggle (independent of sidebar) */}
+              <motion.button
+                onClick={() => setShowCurriculum((s) => !s)}
+                className="fixed left-6 bottom-6 z-40 rounded-full p-3 shadow-xl border border-primary/30 bg-gradient-to-br from-primary/90 via-primary to-primary/70 text-primary-foreground hover:shadow-primary/40"
+                whileTap={{ scale: 0.94 }}
+                whileHover={{ rotate: showCurriculum ? 0 : 3 }}
+                aria-label="Toggle curriculum"
+                title="Toggle curriculum (C)"
+              >
+                <BookOpen className="w-5 h-5" />
+              </motion.button>
+            </section>
+            )}
+                </div>
+              </div>
+            )}
           </main>
         </div>
       </div>
