@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Plus, FolderKanban, Sparkles, Loader2, Check, Edit3, ChevronDown, ChevronRight, Trash2, GripVertical, Clock, Target, Zap, FileCode, Layers, GitBranch, Package } from 'lucide-react';
+import { Send, Plus, FolderKanban, Sparkles, Loader2, Check, Edit3, ChevronDown, ChevronRight, Trash2, GripVertical, Clock, Target, Zap, FileCode, Layers, GitBranch, Package, Upload, X, FileText, Brain, User, Code, AlertCircle } from 'lucide-react';
 
 export default function ProjectBuilderComponent() {
   const [projects, setProjects] = useState([
@@ -7,6 +7,8 @@ export default function ProjectBuilderComponent() {
     { id: 2, title: 'AI Chat Application', components: 8, progress: 45, date: '2025-10-05', tech: 'Next.js, OpenAI' },
     { id: 3, title: 'Task Management System', components: 15, progress: 20, date: '2025-10-07', tech: 'Vue, Firebase' }
   ]);
+  
+  const [showAgentTraining, setShowAgentTraining] = useState(false);
   
   const [selectedProject, setSelectedProject] = useState(null);
   const [showBuilder, setShowBuilder] = useState(false);
@@ -25,7 +27,7 @@ export default function ProjectBuilderComponent() {
     setInputValue('');
   };
 
-  const generateDummyProject = (description) => {
+  const generateDummyProject = (description:any) => {
     return {
       id: Date.now(),
       title: description.split(' ').slice(0, 4).join(' ') || 'New Project',
@@ -148,35 +150,35 @@ export default function ProjectBuilderComponent() {
 
     try {
       // Make webhook POST request
-      const response = await fetch('YOUR_WEBHOOK_URL_HERE', {
+      const response = await fetch('https://n8n.srv1034714.hstgr.cloud/webhook/afa8d787-d87c-4e91-b33d-bca15bcf5326', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           description: inputValue,
-          projectId: currentProject?.id
         })
       });
 
       const data = await response.json();
-      
+      console.log('Webhook response:', data);
       // Use dummy data for now
-      const newProject = data.project || generateDummyProject(inputValue);
+    //   const newProject = data.project || generateDummyProject(inputValue);
+      const newProject = data[0];
       setCurrentProject(newProject);
       setShowBuilder(false);
     } catch (error) {
       console.error('Error generating project:', error);
       // Fallback to dummy data
-      const newProject = generateDummyProject(inputValue);
-      setCurrentProject(newProject);
+    //   const newProject = generateDummyProject(inputValue);
+    //   setCurrentProject(newProject);
       setShowBuilder(false);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const toggleSection = (sectionId) => {
+  const toggleSection = (sectionId: any) => {
     setExpandedSections(prev => ({
       ...prev,
       [sectionId]: !prev[sectionId]
@@ -184,7 +186,7 @@ export default function ProjectBuilderComponent() {
   };
 
   return (
-    <div className="flex h-screen bg-black text-white">
+    <div className="flex h-screen bg-black text-white overflow-hidden">
       {/* Sidebar */}
       <div className="w-72 bg-zinc-950 border-r border-emerald-900/20 flex flex-col">
         <div className="p-4 border-b border-emerald-900/20">
@@ -243,7 +245,29 @@ export default function ProjectBuilderComponent() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col bg-black overflow-hidden">
-        {showBuilder ? (
+        {showAgentTraining ? (
+          <AgentTrainingWizard 
+            project={currentProject}
+            onBack={() => setShowAgentTraining(false)}
+            onComplete={(agentConfigs) => {
+              console.log('Agent configurations:', agentConfigs);
+              // Save project with agent configs
+              const newProject = {
+                id: Date.now(),
+                title: currentProject.title,
+                components: currentProject.structure.length,
+                progress: 0,
+                date: new Date().toISOString().split('T')[0],
+                tech: currentProject.techStack.slice(0, 2).join(', '),
+                agentConfigs
+              };
+              setProjects(prev => [newProject, ...prev]);
+              setCurrentProject(null);
+              setShowBuilder(false);
+              setShowAgentTraining(false);
+            }}
+          />
+        ) : showBuilder ? (
           // Project Builder Input Screen
           <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 overflow-y-auto">
             <div className="w-full max-w-4xl">
@@ -383,7 +407,7 @@ export default function ProjectBuilderComponent() {
                   Project Structure
                 </h3>
                 
-                {currentProject.structure.map((section) => (
+                {currentProject.structure?.map((section) => (
                   <div key={section.id} className="bg-zinc-900 border border-emerald-900/20 rounded-xl overflow-hidden hover:border-emerald-500/40 transition-colors">
                     <div 
                       onClick={() => toggleSection(section.id)}
@@ -489,29 +513,17 @@ export default function ProjectBuilderComponent() {
               {/* Action Buttons */}
               <div className="flex items-center justify-center gap-4 pt-4 pb-8">
                 <button
-                  onClick={() => {
-                    const newProject = {
-                      id: Date.now(),
-                      title: currentProject.title,
-                      components: currentProject.structure.length,
-                      progress: 0,
-                      date: new Date().toISOString().split('T')[0],
-                      tech: currentProject.techStack.slice(0, 2).join(', ')
-                    };
-                    setProjects(prev => [newProject, ...prev]);
-                    setCurrentProject(null);
-                    setShowBuilder(false);
-                  }}
+                  onClick={() => setShowAgentTraining(true)}
                   className="bg-emerald-500 hover:bg-emerald-600 text-black font-medium px-8 py-3 rounded-lg transition-colors flex items-center gap-2"
                 >
-                  <Check size={18} />
-                  Save Project
+                  Next: Train Agents
+                  <ChevronRight size={18} />
                 </button>
                 <button
                   onClick={handleCreateNew}
                   className="bg-zinc-800 hover:bg-zinc-700 text-white font-medium px-8 py-3 rounded-lg transition-colors"
                 >
-                  Create Another
+                  Start Over
                 </button>
               </div>
             </div>
@@ -537,6 +549,478 @@ export default function ProjectBuilderComponent() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Agent Training Wizard Component
+function AgentTrainingWizard({ project, onBack, onComplete }) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [agentConfigs, setAgentConfigs] = useState({
+    projectManager: {
+      context: '',
+      guidelines: [],
+      references: [],
+      customRules: ''
+    },
+    teacher: {
+      context: '',
+      guidelines: [],
+      references: [],
+      customRules: ''
+    },
+    codeReviewer: {
+      context: '',
+      guidelines: [],
+      references: [],
+      customRules: ''
+    }
+  });
+
+  const agents = [
+    {
+      id: 'projectManager',
+      name: 'Project Manager Agent',
+      icon: User,
+      description: 'Manages timelines, resources, and project coordination',
+      color: 'blue',
+      defaultGuidelines: [
+        'Follow Agile/Scrum methodology',
+        'Daily standup reports required',
+        'Sprint planning every 2 weeks',
+        'Track blockers and dependencies',
+        'Maintain project documentation'
+      ],
+      exampleContext: `Project Manager Agent Context:
+- Methodology: Agile/Scrum with 2-week sprints
+- Team Size: 5 developers, 1 designer, 1 QA
+- Communication: Daily standups, weekly retrospectives
+- Tools: Jira for tracking, Slack for communication
+- Risk Management: Weekly risk assessment, mitigation strategies
+- Stakeholder Updates: Bi-weekly progress reports`,
+      sampleReferences: [
+        { name: 'Project Charter', type: 'Document', size: '2.4 MB' },
+        { name: 'Team Structure', type: 'PDF', size: '856 KB' },
+        { name: 'Communication Plan', type: 'Document', size: '1.2 MB' }
+      ]
+    },
+    {
+      id: 'teacher',
+      name: 'Teacher Agent',
+      icon: Brain,
+      description: 'Provides guidance, best practices, and learning resources',
+      color: 'purple',
+      defaultGuidelines: [
+        'Provide clear explanations with examples',
+        'Reference official documentation',
+        'Suggest best practices and design patterns',
+        'Offer step-by-step tutorials',
+        'Include code snippets and demonstrations'
+      ],
+      exampleContext: `Teacher Agent Context:
+- Teaching Style: Socratic method with hands-on examples
+- Focus Areas: ${project.techStack.join(', ')}
+- Learning Path: Beginner → Intermediate → Advanced
+- Resources: Official docs, industry blogs, video tutorials
+- Code Examples: Always include working code samples
+- Follow-up: Suggest related topics and further reading`,
+      sampleReferences: [
+        { name: 'Coding Standards Guide', type: 'PDF', size: '3.1 MB' },
+        { name: 'Best Practices Doc', type: 'Document', size: '2.8 MB' },
+        { name: 'Tutorial Templates', type: 'Folder', size: '12 items' }
+      ]
+    },
+    {
+      id: 'codeReviewer',
+      name: 'Code Reviewer Agent',
+      icon: Code,
+      description: 'Reviews code quality, security, and adherence to standards',
+      color: 'green',
+      defaultGuidelines: [
+        'Check code quality and maintainability',
+        'Verify security best practices',
+        'Ensure consistent coding style',
+        'Review test coverage (minimum 80%)',
+        'Flag performance issues'
+      ],
+      exampleContext: `Code Reviewer Agent Context:
+- Review Standards: Industry best practices + company style guide
+- Focus Areas: Security, Performance, Maintainability, Testing
+- Code Style: ${project.techStack.includes('React') ? 'Airbnb JavaScript Style Guide' : 'Google Style Guide'}
+- Security: OWASP Top 10 compliance
+- Performance: Lighthouse score > 90
+- Testing: Unit tests required, 80%+ coverage
+- Documentation: JSDoc for all public APIs`,
+      sampleReferences: [
+        { name: 'Style Guide', type: 'Document', size: '4.2 MB' },
+        { name: 'Security Checklist', type: 'PDF', size: '1.5 MB' },
+        { name: 'Review Templates', type: 'Document', size: '890 KB' }
+      ]
+    }
+  ];
+
+  const currentAgent = agents[currentStep];
+
+  const handleGuidelineToggle = (guideline) => {
+    const agentId = currentAgent.id;
+    setAgentConfigs(prev => ({
+      ...prev,
+      [agentId]: {
+        ...prev[agentId],
+        guidelines: prev[agentId].guidelines.includes(guideline)
+          ? prev[agentId].guidelines.filter(g => g !== guideline)
+          : [...prev[agentId].guidelines, guideline]
+      }
+    }));
+  };
+
+  const handleContextChange = (value) => {
+    setAgentConfigs(prev => ({
+      ...prev,
+      [currentAgent.id]: {
+        ...prev[currentAgent.id],
+        context: value
+      }
+    }));
+  };
+
+  const handleCustomRulesChange = (value) => {
+    setAgentConfigs(prev => ({
+      ...prev,
+      [currentAgent.id]: {
+        ...prev[currentAgent.id],
+        customRules: value
+      }
+    }));
+  };
+
+  const handleFileUpload = (file) => {
+    const agentId = currentAgent.id;
+    setAgentConfigs(prev => ({
+      ...prev,
+      [agentId]: {
+        ...prev[agentId],
+        references: [...prev[agentId].references, {
+          name: file.name,
+          type: file.type,
+          size: `${(file.size / 1024).toFixed(1)} KB`
+        }]
+      }
+    }));
+  };
+
+  const removeReference = (index) => {
+    const agentId = currentAgent.id;
+    setAgentConfigs(prev => ({
+      ...prev,
+      [agentId]: {
+        ...prev[agentId],
+        references: prev[agentId].references.filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  const isStepComplete = () => {
+    const config = agentConfigs[currentAgent.id];
+    return config.context.trim().length > 50 && config.guidelines.length > 0;
+  };
+
+  const handleNext = () => {
+    if (currentStep < agents.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      // Generate final JSON and complete
+      const finalConfig = {
+        projectId: project.id,
+        projectName: project.title,
+        agents: Object.entries(agentConfigs).map(([agentId, config]) => {
+          const agent = agents.find(a => a.id === agentId);
+          return {
+            agentType: agentId,
+            agentName: agent.name,
+            configuration: {
+              context: config.context,
+              guidelines: config.guidelines,
+              customRules: config.customRules,
+              references: config.references.map(ref => ({
+                filename: ref.name,
+                type: ref.type,
+                size: ref.size
+              }))
+            },
+            behaviorRules: {
+              responseStyle: config.context.toLowerCase().includes('formal') ? 'formal' : 'conversational',
+              detailLevel: config.guidelines.length > 5 ? 'comprehensive' : 'concise',
+              proactiveAssistance: true
+            }
+          };
+        }),
+        timestamp: new Date().toISOString()
+      };
+      
+      onComplete(finalConfig);
+    }
+  };
+
+  const colorMap = {
+    blue: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-500' },
+    purple: { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-500' },
+    green: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-500' }
+  };
+
+  const colors = colorMap[currentAgent.color];
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="max-w-5xl mx-auto px-6 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={onBack}
+            className="text-zinc-400 hover:text-white transition-colors text-sm mb-4 flex items-center gap-2"
+          >
+            <ChevronRight size={16} className="rotate-180" />
+            Back to Project
+          </button>
+          
+          <div className="flex items-center gap-4 mb-4">
+            <div className={`w-14 h-14 ${colors.bg} border ${colors.border} rounded-xl flex items-center justify-center`}>
+              <currentAgent.icon size={28} className={colors.text} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Agent Training</h1>
+              <p className="text-zinc-400 text-sm">Configure AI agents for your project</p>
+            </div>
+          </div>
+
+          {/* Progress Steps */}
+          <div className="flex items-center gap-2 mt-6">
+            {agents.map((agent, index) => (
+              <div key={agent.id} className="flex items-center flex-1">
+                <div className="flex items-center gap-2 flex-1">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-semibold transition-colors ${
+                    index < currentStep 
+                      ? 'bg-emerald-500 text-black' 
+                      : index === currentStep
+                      ? `${colorMap[agent.color].bg} ${colorMap[agent.color].text} border ${colorMap[agent.color].border}`
+                      : 'bg-zinc-800 text-zinc-500'
+                  }`}>
+                    {index < currentStep ? <Check size={16} /> : index + 1}
+                  </div>
+                  <span className={`text-xs font-medium ${index === currentStep ? 'text-white' : 'text-zinc-500'}`}>
+                    {agent.name.split(' ')[0]}
+                  </span>
+                </div>
+                {index < agents.length - 1 && (
+                  <div className={`h-px flex-1 mx-2 ${index < currentStep ? 'bg-emerald-500' : 'bg-zinc-800'}`} />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Current Agent Configuration */}
+        <div className="space-y-6">
+          {/* Agent Info */}
+          <div className={`${colors.bg} border ${colors.border} rounded-xl p-6`}>
+            <div className="flex items-start gap-4">
+              <div className={`w-12 h-12 ${colors.bg} border ${colors.border} rounded-lg flex items-center justify-center`}>
+                <currentAgent.icon size={24} className={colors.text} />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-semibold text-white mb-2">{currentAgent.name}</h2>
+                <p className="text-zinc-400 text-sm">{currentAgent.description}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Context Configuration */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+              <FileText size={20} className="text-emerald-500" />
+              Agent Context & Behavior
+            </h3>
+            <p className="text-sm text-zinc-400 mb-4">
+              Define how this agent should operate within your project environment
+            </p>
+
+            <div className="mb-4">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2">
+                Example Context
+              </label>
+              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 text-xs text-zinc-400 font-mono whitespace-pre-line">
+                {currentAgent.exampleContext}
+              </div>
+            </div>
+
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2">
+              Your Custom Context *
+            </label>
+            <textarea
+              value={agentConfigs[currentAgent.id].context}
+              onChange={(e) => handleContextChange(e.target.value)}
+              placeholder="Describe the specific context, methodologies, and operational parameters for this agent..."
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 text-white placeholder-zinc-500 text-sm outline-none focus:border-emerald-500 transition-colors min-h-[180px] resize-none"
+            />
+            <p className="text-xs text-zinc-500 mt-2">
+              {agentConfigs[currentAgent.id].context.length} characters (minimum 50 required)
+            </p>
+          </div>
+
+          {/* Guidelines Selection */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+              <Check size={20} className="text-emerald-500" />
+              Standard Guidelines
+            </h3>
+            <p className="text-sm text-zinc-400 mb-4">
+              Select the guidelines this agent should follow
+            </p>
+
+            <div className="space-y-2">
+              {currentAgent.defaultGuidelines.map((guideline, index) => (
+                <label
+                  key={index}
+                  className="flex items-start gap-3 p-3 bg-zinc-950 border border-zinc-800 rounded-lg cursor-pointer hover:border-emerald-500/30 transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={agentConfigs[currentAgent.id].guidelines.includes(guideline)}
+                    onChange={() => handleGuidelineToggle(guideline)}
+                    className="mt-1 w-4 h-4 rounded border-zinc-700 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 bg-zinc-900"
+                  />
+                  <span className="text-sm text-zinc-300">{guideline}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Rules */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+              <AlertCircle size={20} className="text-emerald-500" />
+              Custom Rules & Constraints
+            </h3>
+            <p className="text-sm text-zinc-400 mb-4">
+              Add any specific rules or constraints unique to your organization
+            </p>
+
+            <textarea
+              value={agentConfigs[currentAgent.id].customRules}
+              onChange={(e) => handleCustomRulesChange(e.target.value)}
+              placeholder="Example: Always use TypeScript, Require code reviews from 2 team members, Deploy only during maintenance windows..."
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 text-white placeholder-zinc-500 text-sm outline-none focus:border-emerald-500 transition-colors min-h-[120px] resize-none"
+            />
+          </div>
+
+          {/* Reference Documents */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+              <Upload size={20} className="text-emerald-500" />
+              Reference Documents
+            </h3>
+            <p className="text-sm text-zinc-400 mb-4">
+              Upload relevant documents, guides, or specifications
+            </p>
+
+            {/* Sample References */}
+            <div className="mb-4">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2">
+                Suggested References
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {currentAgent.sampleReferences.map((ref, index) => (
+                  <div
+                    key={index}
+                    className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-xs"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <FileText size={14} className="text-emerald-500" />
+                      <span className="text-white font-medium truncate">{ref.name}</span>
+                    </div>
+                    <div className="text-zinc-500">{ref.type} • {ref.size}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Uploaded Files */}
+            {agentConfigs[currentAgent.id].references.length > 0 && (
+              <div className="mb-4">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2">
+                  Uploaded References
+                </label>
+                <div className="space-y-2">
+                  {agentConfigs[currentAgent.id].references.map((ref, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <FileText size={16} className="text-emerald-500" />
+                        <div>
+                          <p className="text-sm text-white font-medium">{ref.name}</p>
+                          <p className="text-xs text-zinc-400">{ref.size}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeReference(index)}
+                        className="text-zinc-400 hover:text-red-500 transition-colors"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Upload Button */}
+            <label className="block">
+              <input
+                type="file"
+                className="hidden"
+                onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0])}
+                multiple
+              />
+              <div className="bg-zinc-950 border-2 border-dashed border-zinc-800 rounded-lg p-6 text-center cursor-pointer hover:border-emerald-500/30 transition-colors">
+                <Upload size={24} className="text-zinc-500 mx-auto mb-2" />
+                <p className="text-sm text-zinc-400">Click to upload or drag and drop</p>
+                <p className="text-xs text-zinc-500 mt-1">PDF, DOC, TXT, MD (max 10MB)</p>
+              </div>
+            </label>
+          </div>
+
+          {/* Navigation Buttons */}
+          <div className="flex items-center justify-between pt-4">
+            <button
+              onClick={() => currentStep > 0 && setCurrentStep(currentStep - 1)}
+              disabled={currentStep === 0}
+              className="text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm flex items-center gap-2"
+            >
+              <ChevronRight size={16} className="rotate-180" />
+              Previous Agent
+            </button>
+
+            <div className="flex items-center gap-3">
+              {!isStepComplete() && (
+                <p className="text-xs text-amber-500 flex items-center gap-1">
+                  <AlertCircle size={14} />
+                  Complete required fields to continue
+                </p>
+              )}
+              <button
+                onClick={handleNext}
+                disabled={!isStepComplete()}
+                className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-zinc-800 disabled:cursor-not-allowed text-black font-medium px-6 py-2.5 rounded-lg transition-colors flex items-center gap-2"
+              >
+                {currentStep === agents.length - 1 ? 'Complete & Save Project' : 'Next Agent'}
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
