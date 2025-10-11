@@ -2,7 +2,7 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
-import { Bot, ListChecks, BookOpen, GraduationCap } from "lucide-react"
+import { Bot, ListChecks, BookOpen, GraduationCap, ArrowLeft } from "lucide-react"
 
 export type LearningSidebarView = 'teacher' | 'skills' | 'projects'
 
@@ -13,6 +13,10 @@ type LearningSidebarProps = {
   onLeaveCompany: () => void
   skillCoveragePercent: number
   companyRequiredSkills: string[]
+  companyName?: string
+  onBack?: () => void
+  isCurriculumVisible?: boolean
+  onToggleCurriculum?: () => void
 }
 
 export default function LearningSidebar({
@@ -22,6 +26,10 @@ export default function LearningSidebar({
   onLeaveCompany,
   skillCoveragePercent,
   companyRequiredSkills,
+  companyName,
+  onBack,
+  isCurriculumVisible,
+  onToggleCurriculum,
 }: LearningSidebarProps) {
   return (
     <aside className="group relative h-full border-r border-border/40 backdrop-blur-sm bg-gradient-to-b from-background via-background to-muted/20 transition-all duration-500 ease-out w-20 hover:w-80 shadow-2xl">
@@ -38,21 +46,24 @@ export default function LearningSidebar({
               </div>
             </div>
 
-            {/* Expanded State Header */}
+            {/* Expanded State Header: Back Icon + Company Name */}
             <div className="hidden group-hover:block pb-4 border-b border-border/30">
               <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-primary/30 rounded-full blur-md animate-pulse" />
-                  <div className="relative w-10 h-10 bg-gradient-to-br from-primary via-primary/80 to-primary/60 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 border-2 border-primary/40">
-                    <span className="text-sm font-bold text-primary-foreground">L</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onBack}
+                  className="px-2"
+                  title="Back"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate text-base md:text-lg font-semibold md:font-bold tracking-tight bg-gradient-to-r from-primary via-foreground to-foreground/70 bg-clip-text text-transparent">
+                    {companyName || 'Company'}
                   </div>
-                </div>
-                <div className="flex-1">
-                  <div className="text-sm font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                    Learning Hub
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    Your personalized journey
+                  <div className="text-[10px] text-muted-foreground truncate">
+                    Learning
                   </div>
                 </div>
               </div>
@@ -279,6 +290,7 @@ export default function LearningSidebar({
             )}
           </div>
         </ScrollArea>
+        {/* Collapsed-only round Curriculum toggle removed */}
       </div>
     </aside>
   )

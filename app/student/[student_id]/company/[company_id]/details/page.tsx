@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, Plus, Bot, BookOpen, ListChecks, GraduationCap, Video, Image as ImageIcon, Sparkles, CheckCircle2 } from "lucide-react"
+import { AnimatePresence, motion } from "framer-motion"
 import LearningSidebar from "@/components/company/learning-sidebar"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
@@ -108,6 +109,7 @@ export default function CompanyDetailsPage() {
   const [activeView, setActiveView] = useState<'teacher' | 'skills' | 'projects'>('teacher')
   const [teacherTab, setTeacherTab] = useState<'lesson' | 'tutor'>('tutor')
   const [showQuiz, setShowQuiz] = useState(false)
+  const [showCurriculum, setShowCurriculum] = useState<boolean>(false)
 
   // --- Teacher Agent State ---
   const [selectedSkill, setSelectedSkill] = useState<string>("")
@@ -128,6 +130,35 @@ export default function CompanyDetailsPage() {
     setSkillModules(modules)
     setSelectedModuleId((prev) => prev || modules[0]?.id)
   }, [selectedSkill, studentId, companyId])
+
+  // Persisted curriculum visibility
+  useEffect(() => {
+    try {
+      const persisted = localStorage.getItem('details_show_curriculum')
+      if (persisted !== null) setShowCurriculum(persisted === 'true')
+    } catch (_) {}
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('details_show_curriculum', String(showCurriculum))
+    } catch (_) {}
+  }, [showCurriculum])
+
+  // Keyboard shortcut: "C" toggles curriculum when not typing
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      const isTyping = tag === 'input' || tag === 'textarea' || (target?.getAttribute('contenteditable') === 'true')
+      if (isTyping) return
+      if (e.key?.toLowerCase() === 'c' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        setShowCurriculum((s) => !s)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   const currentModule = useMemo(() => skillModules.find((m) => m.id === selectedModuleId) || skillModules[0], [skillModules, selectedModuleId])
   const currentLesson = useMemo(() => {
@@ -278,7 +309,7 @@ export default function CompanyDetailsPage() {
       <div className="h-full overflow-hidden">
         {/* Main Layout */}
         <div className="flex gap-0 h-full min-h-0">
-		  {/* Futuristic Collapsible Sidebar (component) */}
+          {/* Sidebar with Back + Company Name */}
 		  <LearningSidebar
 			activeView={activeView}
 			onChangeView={(v) => setActiveView(v)}
@@ -286,57 +317,44 @@ export default function CompanyDetailsPage() {
 			onLeaveCompany={handleLeaveCompany}
 			skillCoveragePercent={skillCoveragePercent}
 			companyRequiredSkills={companyRequiredSkills}
+            companyName={company?.name}
+            onBack={() => router.push(`/student/${studentId}/dashboard`)}
 		  />
 
           {/* Main content */}
           <main className="flex-1 h-full flex flex-col min-h-0">
-            <ScrollArea className="flex-1 min-h-0">
-              <div className="px-8 py-6 space-y-6 max-w-[1800px] mx-auto w-full">
-            {/* Toolbar */}
-            <div className="flex items-center gap-2 py-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => router.push(`/student/${studentId}/dashboard`)}
-                aria-label="Back to Dashboard"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="h-5 w-px bg-border/70" />
-                <span className="truncate text-base md:text-lg font-semibold md:font-bold tracking-tight leading-5 bg-gradient-to-r from-primary via-foreground to-foreground/70 bg-clip-text text-transparent">
-                  {company.name}
-                </span>
-              </div>
-            </div>
+            {!(activeView === 'teacher' && teacherTab === 'tutor') ? (
+              <ScrollArea className="flex-1 min-h-0">
+                <div className="px-8 py-6 space-y-6 max-w-[1800px] mx-auto w-full">
+            {/* Toolbar removed; moved to sidebar header */}
 
             {activeView === 'teacher' && (
             <section className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Bot className="w-5 h-5 text-primary" />
-                  <h2 className="text-xl font-semibold">Teacher Agent</h2>
-                  <Badge className="gap-1" variant="secondary"><Sparkles className="w-3 h-3" /> Personalized</Badge>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Readiness: <span className="font-semibold text-foreground">{readinessPercent}%</span>
-                </div>
-              </div>
-
-              {/* Improved 2-column layout with expandable sidebar */}
-              <div className="flex gap-4 min-h-[600px]">
-                {/* Curriculum Sidebar - Always visible, not collapsible */}
-                <div className="w-80 flex-shrink-0">
-                  <CurriculumSidebar
-                    skills={missingSkills.length > 0 ? missingSkills : companyRequiredSkills}
-                    selectedSkill={selectedSkill}
-                    onSelectSkill={(s) => setSelectedSkill(s)}
-                    modules={skillModules}
-                    selectedModuleId={selectedModuleId}
-                    onSelectModule={(id) => setSelectedModuleId(id)}
-                    compact={false}
-                  />
-                </div>
+              {/* Two-column layout with animated curriculum sidebar */}
+              <div className="flex gap-4 min-h-[600px]" style={{ perspective: 1200 }}>
+                {/* Curriculum Sidebar - Animated */}
+                <AnimatePresence initial={false} mode="popLayout">
+                  {showCurriculum && (
+                    <motion.div
+                      key="curriculum"
+                      className="w-80 flex-shrink-0"
+                      initial={{ opacity: 0, x: -40, rotateY: -24, filter: 'blur(6px)' }}
+                      animate={{ opacity: 1, x: 0, rotateY: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, x: -48, rotateY: 12, filter: 'blur(6px)' }}
+                      transition={{ type: 'spring', stiffness: 220, damping: 26 }}
+                    >
+                      <CurriculumSidebar
+                        skills={missingSkills.length > 0 ? missingSkills : companyRequiredSkills}
+                        selectedSkill={selectedSkill}
+                        onSelectSkill={(s) => setSelectedSkill(s)}
+                        modules={skillModules}
+                        selectedModuleId={selectedModuleId}
+                        onSelectModule={(id) => setSelectedModuleId(id)}
+                        compact={false}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Main Content Area - Tabs for Lesson/Tutor */}
                 <div className="flex-1 min-w-0">
@@ -386,31 +404,37 @@ export default function CompanyDetailsPage() {
                       )}
                     </TabsContent>
 
-                    <TabsContent value="tutor" className="rounded-lg border overflow-hidden mt-0 h-[calc(100vh-300px)]">
-                      <div className="px-4 py-3 border-b bg-muted/50 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <GraduationCap className="w-4 h-4 text-primary" />
-                          <p className="text-sm font-medium">AI Tutor - {selectedSkill || 'Learning'}</p>
-                        </div>
-                        <Badge variant="outline" className="text-xs">Interactive</Badge>
-                      </div>
-                      <div className="h-full">
-                        <AIChat
-                          agentName="Teacher Agent"
-                          agentDescription={`Helps you learn ${selectedSkill || 'skills'} with video, text, and graphics`}
-                          uid={studentId}
-                          company_id={companyId}
-                          project_id={projects?.[0]?.project_id}
-                          team_id={"learning"}
-                          learningPaneKey={`${studentId}_${companyId}_${selectedSkill}`}
-                          selectedTask={{ title: currentLesson ? currentLesson.title : 'Learning' }}
-                          learningPrefill={`Teach ${selectedSkill || 'the skill'} with examples.`}
-                        />
-                      </div>
-                    </TabsContent>
-                  </Tabs>
+                  <TabsContent value="tutor" className="rounded-lg border overflow-hidden mt-0 flex flex-col min-h-0 h-full">
+                    <div className="h-full">
+                      <AIChat
+                        agentName="Learning Assistant"
+                        agentDescription={"Your personal learning companion"}
+                        uid={studentId}
+                        company_id={companyId}
+                        project_id={projects?.[0]?.project_id}
+                        team_id={"learning"}
+                        learningPaneKey={`${studentId}_${companyId}_${selectedSkill}`}
+                        selectedTask={{ title: currentLesson ? currentLesson.title : 'Learning' }}
+                        learningPrefill={`Teach ${selectedSkill || 'the skill'} with examples.`}
+                        hideHeader
+                      />
+                    </div>
+                  </TabsContent>
+                </Tabs>
                 </div>
               </div>
+
+              {/* Floating FAB toggle (independent of sidebar) */}
+              <motion.button
+                onClick={() => setShowCurriculum((s) => !s)}
+                className="fixed left-6 bottom-6 z-40 rounded-full p-3 shadow-xl border border-primary/30 bg-gradient-to-br from-primary/90 via-primary to-primary/70 text-primary-foreground hover:shadow-primary/40"
+                whileTap={{ scale: 0.94 }}
+                whileHover={{ rotate: showCurriculum ? 0 : 3 }}
+                aria-label="Toggle curriculum"
+                title="Toggle curriculum (C)"
+              >
+                <BookOpen className="w-5 h-5" />
+              </motion.button>
             </section>
             )}
 
@@ -594,7 +618,123 @@ export default function CompanyDetailsPage() {
             )}
             
             </div>
-          </ScrollArea>
+              </ScrollArea>
+            ) : (
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <div className="px-8 py-6 space-y-6 max-w-[1800px] mx-auto w-full h-full">
+                  {/* Toolbar removed; moved to sidebar header */}
+                  {activeView === 'teacher' && (
+            <section className="space-y-4">
+              {/* Two-column layout with animated curriculum sidebar */}
+              <div className="flex gap-4 min-h-[600px]" style={{ perspective: 1200 }}>
+                {/* Curriculum Sidebar - Animated */}
+                <AnimatePresence initial={false} mode="popLayout">
+                  {showCurriculum && (
+                    <motion.div
+                      key="curriculum"
+                      className="w-80 flex-shrink-0"
+                      initial={{ opacity: 0, x: -40, rotateY: -24, filter: 'blur(6px)' }}
+                      animate={{ opacity: 1, x: 0, rotateY: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, x: -48, rotateY: 12, filter: 'blur(6px)' }}
+                      transition={{ type: 'spring', stiffness: 220, damping: 26 }}
+                    >
+                      <CurriculumSidebar
+                        skills={missingSkills.length > 0 ? missingSkills : companyRequiredSkills}
+                        selectedSkill={selectedSkill}
+                        onSelectSkill={(s) => setSelectedSkill(s)}
+                        modules={skillModules}
+                        selectedModuleId={selectedModuleId}
+                        onSelectModule={(id) => setSelectedModuleId(id)}
+                        compact={false}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Main Content Area - Tabs for Lesson/Tutor */}
+                <div className="flex-1 min-w-0">
+                  <Tabs value={teacherTab} onValueChange={(v) => setTeacherTab(v as 'lesson' | 'tutor')} className="h-full">
+                    <TabsList className="mb-4 w-full justify-start">
+                      <TabsTrigger value="tutor" className="flex items-center gap-2">
+                        <GraduationCap className="w-4 h-4" />
+                        AI Tutor
+                      </TabsTrigger>
+                      <TabsTrigger value="lesson" className="flex items-center gap-2">
+                        <Video className="w-4 h-4" />
+                        Lesson
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="lesson" className="space-y-4 mt-0">
+                      <div className="space-y-4">
+                        <LessonPlayer title={currentLesson ? currentLesson.title : 'Select a lesson'} />
+                        <LessonContent
+                          moduleTitle={currentModule ? currentModule.title : 'Module'}
+                          lessonTitle={currentLesson ? currentLesson.title : 'Lesson'}
+                          explanationHtml={`<p>Learn <strong>${selectedSkill || 'this skill'}</strong> step-by-step. Use the AI Tutor tab for deeper, personalized help.</p>`}
+                          codeSample={`// Example code for ${selectedSkill || 'skill'}\nconsole.log('Hello ${selectedSkill || 'Skill'}');`}
+                          resources={selectedSkill?.toLowerCase() === 'react' ? [{ label: 'Official Docs', href: 'https://react.dev' }] : []}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="default" onClick={handleLessonDone}>
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Mark Complete
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setShowQuiz((s) => !s)}>
+                            {showQuiz ? 'Hide Quiz' : 'Take Quiz'}
+                          </Button>
+                        </div>
+                        {currentModule && (
+                          <span className="text-xs text-muted-foreground">
+                            {currentModule.lessons.filter(l => l.status === 'done').length} / {currentModule.lessons.length} lessons completed
+                          </span>
+                        )}
+                      </div>
+                      {showQuiz && (
+                        <div className="mt-4">
+                          <QuizBlock moduleId={currentModule ? currentModule.id : 'module'} onResult={handleQuizResult} />
+                        </div>
+                      )}
+                    </TabsContent>
+
+                  <TabsContent value="tutor" className="rounded-lg border overflow-hidden mt-0 flex flex-col min-h-0 h-full">
+                    <div className="h-full">
+                      <AIChat
+                        agentName="Learning Assistant"
+                        agentDescription={"Your personal learning companion"}
+                        uid={studentId}
+                        company_id={companyId}
+                        project_id={projects?.[0]?.project_id}
+                        team_id={"learning"}
+                        learningPaneKey={`${studentId}_${companyId}_${selectedSkill}`}
+                        selectedTask={{ title: currentLesson ? currentLesson.title : 'Learning' }}
+                        learningPrefill={`Teach ${selectedSkill || 'the skill'} with examples.`}
+                        hideHeader
+                      />
+                    </div>
+                  </TabsContent>
+                </Tabs>
+                </div>
+              </div>
+
+              {/* Floating FAB toggle (independent of sidebar) */}
+              <motion.button
+                onClick={() => setShowCurriculum((s) => !s)}
+                className="fixed left-6 bottom-6 z-40 rounded-full p-3 shadow-xl border border-primary/30 bg-gradient-to-br from-primary/90 via-primary to-primary/70 text-primary-foreground hover:shadow-primary/40"
+                whileTap={{ scale: 0.94 }}
+                whileHover={{ rotate: showCurriculum ? 0 : 3 }}
+                aria-label="Toggle curriculum"
+                title="Toggle curriculum (C)"
+              >
+                <BookOpen className="w-5 h-5" />
+              </motion.button>
+            </section>
+            )}
+                </div>
+              </div>
+            )}
           </main>
         </div>
       </div>

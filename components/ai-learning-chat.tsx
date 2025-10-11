@@ -3,11 +3,12 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Bot, Send, Loader2, User, Trash2, Video, BookOpen, FileText, Code, Lightbulb, MessageSquare, X } from "lucide-react"
+import { Bot, Send, Loader2, User, Trash2, Video, BookOpen, FileText, Code, Lightbulb, MessageSquare, X, Plus } from "lucide-react"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 
 interface Message {
   id: string
@@ -49,7 +50,9 @@ export default function AIChat({
   team_id,
   learningPaneKey,
   selectedTask,
-  learningPrefill
+  learningPrefill,
+  hideHeader = false,
+  showToolsRow = true,
 }: any) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
@@ -61,6 +64,14 @@ export default function AIChat({
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const chatAreaRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const inputContainerRef = useRef<HTMLDivElement>(null)
+  const [inputHeight, setInputHeight] = useState<number>(0)
+  const composerWrapperRef = useRef<HTMLDivElement>(null)
+  const [isClient, setIsClient] = useState(false)
+  useEffect(() => setIsClient(true), [])
+  const [composerBounds, setComposerBounds] = useState<{ left: number; width: number }>({ left: 0, width: 0 })
+  
 
   // Streaming Avatar (Learning Agent) integration – only when video panel is open
   const avatarVideoRef = useRef<HTMLVideoElement>(null)
@@ -148,6 +159,86 @@ export default function AIChat({
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
+  }, [messages])
+
+  // Auto-resize textarea like ChatGPT
+  useEffect(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    const maxHeight = 200 // ~8 lines
+    ta.style.height = Math.min(ta.scrollHeight, maxHeight) + 'px'
+  }, [input])
+
+  // Measure fixed composer height and pad messages so it isn't covered
+  useEffect(() => {
+    const el = inputContainerRef.current
+    if (!el) return
+    const updateHeight = () => {
+      setInputHeight(el.offsetHeight || 0)
+    }
+    updateHeight()
+
+    let ro: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(updateHeight)
+      ro.observe(el)
+    }
+
+    window.addEventListener('resize', updateHeight)
+    return () => {
+      window.removeEventListener('resize', updateHeight)
+      try { ro && ro.disconnect() } catch {}
+    }
+  }, [])
+
+  // Measure chat column bounds for constrained, portal-fixed composer
+  useEffect(() => {
+    const el = scrollAreaRef.current
+    if (!el) return
+    const update = () => {
+      const r = el.getBoundingClientRect()
+      setComposerBounds({ left: r.left, width: r.width })
+    }
+    update()
+    let ro: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(update)
+      ro.observe(el)
+    }
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('resize', update)
+      try { ro && ro.disconnect() } catch {}
+    }
+  }, [])
+
+  
+
+  // Enhance code blocks in assistant messages with copy buttons
+  useEffect(() => {
+    const container = chatAreaRef.current
+    if (!container) return
+    const blocks = Array.from(container.querySelectorAll('.assistant-message pre')) as HTMLElement[]
+    blocks.forEach((pre) => {
+      const wrapper = pre.parentElement as HTMLElement | null
+      if (!wrapper) return
+      wrapper.classList.add('relative', 'group')
+      if (wrapper.querySelector('.copy-btn')) return
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'copy-btn absolute top-2 right-2 rounded-md border bg-background px-2 py-1 text-xs text-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow'
+      btn.textContent = 'Copy'
+      btn.addEventListener('click', () => {
+        try {
+          const code = pre.textContent || ''
+          navigator.clipboard.writeText(code)
+          btn.textContent = 'Copied'
+          setTimeout(() => (btn.textContent = 'Copy'), 1200)
+        } catch (_) {}
+      })
+      wrapper.appendChild(btn)
+    })
   }, [messages])
 
   // Initialize Streaming Avatar when video panel is shown and no direct videoUrl is provided
@@ -366,27 +457,29 @@ export default function AIChat({
   return (
     <div
         key={learningPaneKey}
-        className={`h-full min-h-0 overflow-hidden grid ${showVideoPanel ? 'grid-cols-[1fr_380px]' : 'grid-cols-1'}`}
+        className={`h-full min-h-0 min-w-0 overflow-hidden grid ${showVideoPanel ? 'grid-cols-[1fr_380px]' : 'grid-cols-1'}`}
     >
         {/* --- MAIN: CHAT INTERFACE --- */}
         <div className="flex flex-col h-full min-h-0">
-            <div className="p-4 border-b border-border bg-muted/40">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                        <Bot className="w-5 h-5 text-primary-foreground" />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-semibold">{agentName}</h3>
-                        <p className="text-sm text-muted-foreground">{agentDescription}</p>
-                    </div>
-                    <Button variant="ghost" size="icon" onClick={handleClearHistory} title="Clear chat history">
-                        <Trash2 className="w-4 h-4" />
-                    </Button>
-                </div>
-            </div>
+            {!hideHeader && (
+              <div className="p-4 border-b border-border bg-muted/40 flex-shrink-0">
+                  <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                          <Bot className="w-5 h-5 text-primary-foreground" />
+                      </div>
+                      <div className="flex-1">
+                          <h3 className="font-semibold">{agentName}</h3>
+                          <p className="text-sm text-muted-foreground">{agentDescription}</p>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={handleClearHistory} title="Clear chat history">
+                          <Trash2 className="w-4 h-4" />
+                      </Button>
+                  </div>
+              </div>
+            )}
 
-            <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-                <div className="space-y-4" ref={chatAreaRef}>
+            <div className="flex-1 overflow-y-auto overscroll-contain min-h-0" ref={scrollAreaRef}>
+                <div className="space-y-4 mx-auto w-full max-w-4xl px-4 py-6" style={{ paddingBottom: Math.max(inputHeight + 16, 16) }} ref={chatAreaRef}>
                     {messages.length === 0 && (
                         <div className="text-center py-12">
                             <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
@@ -412,47 +505,45 @@ export default function AIChat({
                         </div>
                     )}
 
-                    {messages.map((message) => (
-                        <div key={message.id} className="space-y-2">
-                            <div className="flex items-center gap-2">
-                                {message.role === "assistant" ? (
-                                    <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                                        <Bot className="w-3 h-3 text-primary-foreground" />
-                                    </div>
-                                ) : (
-                                    <Avatar className="w-6 h-6">
-                                        <AvatarFallback className="text-xs"> <User className="w-3 h-3" /> </AvatarFallback>
-                                    </Avatar>
-                                )}
-                                <span className="text-sm font-medium">{message.role === "assistant" ? agentName : "You"}</span>
-                                <span className="text-xs text-muted-foreground">{formatTime(message.timestamp)}</span>
-                                {message.command && (
-                                    <Badge variant="outline" className="text-xs">/{message.command}</Badge>
-                                )}
-                            </div>
-
-                            {message.context && message.role === "user" && (
-                                <div className="ml-8 mb-2">
-                                    <div className="bg-amber-50 dark:bg-amber-950 border-l-4 border-amber-400 p-3 rounded-r-lg">
-                                        <div className="flex items-start gap-2">
-                                            <Lightbulb className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-xs font-medium text-amber-900 dark:text-amber-100 mb-1">Context:</div>
-                                                <div className="text-xs text-amber-800 dark:text-amber-200 italic line-clamp-2">"{message.context}"</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                    {messages.map((message) => {
+                        const isUser = message.role === 'user'
+                        return (
+                          <div key={message.id} className={`flex items-start gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
+                            {!isUser && (
+                              <div className="w-7 h-7 bg-primary rounded-full flex items-center justify-center shrink-0">
+                                <Bot className="w-3.5 h-3.5 text-primary-foreground" />
+                              </div>
                             )}
-
-                            <div className="ml-8">
+                            <div className={`max-w-[80%] ${isUser ? 'order-1' : ''}`}>
+                              {message.context && isUser && (
+                                <div className="mb-2">
+                                  <div className="bg-amber-50 dark:bg-amber-950 border-l-4 border-amber-400 p-3 rounded-r-lg">
+                                    <div className="flex items-start gap-2">
+                                      <Lightbulb className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-medium text-amber-900 dark:text-amber-100 mb-1">Context:</div>
+                                        <div className="text-xs text-amber-800 dark:text-amber-200 italic line-clamp-2">"{message.context}"</div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              <div className={`${isUser ? 'bg-primary/10 border border-primary/20' : 'assistant-message bg-muted'} rounded-2xl px-4 py-3`}> 
                                 <div
-                                    className="prose prose-sm max-w-none dark:prose-invert"
-                                    dangerouslySetInnerHTML={{ __html: message.content }}
+                                  className="prose prose-sm max-w-none dark:prose-invert whitespace-pre-wrap"
+                                  dangerouslySetInnerHTML={{ __html: message.content }}
                                 />
+                              </div>
+                              <div className={`mt-1 text-[11px] text-muted-foreground ${isUser ? 'text-right' : ''}`}>{formatTime(message.timestamp)}</div>
                             </div>
-                        </div>
-                    ))}
+                            {isUser && (
+                              <Avatar className="w-7 h-7 shrink-0 order-2">
+                                <AvatarFallback className="text-[10px]"> <User className="w-3 h-3" /> </AvatarFallback>
+                              </Avatar>
+                            )}
+                          </div>
+                        )
+                    })}
 
                     {isLoading && (
                         <div className="flex items-center gap-2">
@@ -463,89 +554,121 @@ export default function AIChat({
                         </div>
                     )}
                 </div>
-            </ScrollArea>
+            </div>
 
-            {showCommands && (
-                <div className="mx-4 mb-2 bg-background rounded-lg shadow-lg border">
-                    <div className="p-2 border-b"><div className="text-xs font-semibold px-2">COMMANDS</div></div>
-                    <div className="max-h-64 overflow-y-auto">
-                        {COMMANDS.filter((cmd) => cmd.name.includes(input.slice(1).toLowerCase())).map((cmd, index) => (
-                            <button
-                                key={cmd.name}
-                                onClick={() => handleCommandSelect(cmd.name)}
-                                className={`w-full flex items-center gap-3 p-3 text-left ${index === activeCommandIndex ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
-                            >
-                                <cmd.icon className={`w-4 h-4 ${index !== activeCommandIndex && cmd.color}`} />
-                                <div className="flex-1">
-                                    <div className="text-sm font-medium">/{cmd.name}</div>
-                                    <div className={`text-xs ${index === activeCommandIndex ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{cmd.description}</div>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
+            {hideHeader && (
+              <div className="absolute right-2 top-2 z-10 opacity-60 hover:opacity-100 transition-opacity">
+                <Button variant="ghost" size="icon" onClick={handleClearHistory} title="Clear chat history">
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             )}
 
-            {selectedText && (
-                <div className="mx-4 mb-2">
-                    <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                        <div className="flex items-start gap-2">
+            {/* Fixed composer constrained to chat column via portal */}
+            {isClient && composerBounds.width > 0 && createPortal(
+              <div ref={composerWrapperRef} className="fixed bottom-0 z-50 pointer-events-none" style={{ left: composerBounds.left, width: composerBounds.width }}>
+                <div ref={inputContainerRef} className="pointer-events-auto bg-background/95 backdrop-blur-sm border-t shadow-lg">
+                  <div className="mx-auto w-full max-w-4xl px-4 py-3">
+                    {/* Selected context chip above input */}
+                    {selectedText && (
+                      <div className="mb-3">
+                        <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                          <div className="flex items-start gap-2">
                             <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
-                                <div className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">Selected context:</div>
-                                <div className="text-xs text-blue-800 dark:text-blue-200 line-clamp-2">"{selectedText}"</div>
+                              <div className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">Selected context:</div>
+                              <div className="text-xs text-blue-800 dark:text-blue-200 line-clamp-2">"{selectedText}"</div>
                             </div>
                             <button onClick={() => setSelectedText("")} title="Remove context">
-                                <X className="w-4 h-4 text-blue-500 hover:text-blue-700" />
+                              <X className="w-4 h-4 text-blue-500 hover:text-blue-700" />
                             </button>
+                          </div>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            <div className="p-4 border-t border-border">
-                <div className="flex gap-2">
-                    <div className="flex-1 flex items-center gap-2 border border-input rounded-md px-3 bg-background">
-                        {selectedCommand !== "none" && (
-                            <Badge variant="secondary" className="flex items-center gap-1">
-                                /{selectedCommand}
-                                <button onClick={removeCommand} className="ml-1 hover:bg-secondary-foreground/10 rounded-full p-0.5">
-                                    <X className="w-3 h-3" />
-                                </button>
-                            </Badge>
+                      </div>
+                    )}
+                    {/* Minimal slash suggestions */}
+                    {showCommands && (
+                      <div className="mb-3">
+                        <div className="rounded-md border bg-popover shadow-md overflow-hidden">
+                          {COMMANDS.filter(cmd => cmd.name.includes(input.slice(1).toLowerCase())).slice(0,5).map((cmd, index) => (
+                            <button
+                              key={cmd.name}
+                              onClick={() => handleCommandSelect(cmd.name)}
+                              className={`w-full flex items-center gap-3 p-2 text-left ${index === activeCommandIndex ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
+                            >
+                              <cmd.icon className={`w-4 h-4 ${index !== activeCommandIndex ? cmd.color : ''}`} />
+                              <div className="flex-1">
+                                <div className="text-sm font-medium">/{cmd.name}</div>
+                                <div className={`text-xs ${index === activeCommandIndex ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{cmd.description}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1 flex items-center gap-2 rounded-full border border-input bg-background px-3 py-2 shadow-sm focus-within:ring-2 focus-within:ring-primary/30">
+                        {showToolsRow && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="shrink-0 rounded-full p-1.5 hover:bg-accent" title="Tools">
+                                <Plus className="w-4 h-4" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-56">
+                              {COMMANDS.map((cmd) => (
+                                <DropdownMenuItem key={cmd.name} onClick={() => handleCommandSelect(cmd.name)}>
+                                  <cmd.icon className={`mr-2 h-4 w-4 ${cmd.color}`} /> /{cmd.name} — {cmd.description}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
-                        <input
-                            placeholder={selectedCommand !== "none" ? "Type your message..." : "Type / for commands or ask anything..."}
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (showCommands) {
-                                    const filtered = COMMANDS.filter(cmd => cmd.name.includes(input.slice(1).toLowerCase()));
-                                    if (e.key === "ArrowDown") setActiveCommandIndex(i => (i + 1) % filtered.length);
-                                    else if (e.key === "ArrowUp") setActiveCommandIndex(i => (i - 1 + filtered.length) % filtered.length);
-                                    else if (e.key === "Enter") handleCommandSelect(filtered[activeCommandIndex].name);
-                                    else if (e.key === "Escape") setShowCommands(false);
-                                } else if (e.key === "Enter" && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleSend();
-                                }
-                            }}
-                            disabled={isLoading}
-                            ref={inputRef}
-                            className="flex-1 outline-none bg-transparent text-sm w-full h-10"
+                        {selectedCommand !== 'none' && (
+                          <Badge variant="secondary" className="flex items-center gap-1 shrink-0 rounded-full">
+                            /{selectedCommand}
+                            <button onClick={removeCommand} className="ml-1 hover:bg-secondary-foreground/10 rounded-full p-0.5">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </Badge>
+                        )}
+                        <textarea
+                          placeholder={selectedCommand !== 'none' ? 'Type your message...' : 'Message the tutor...'}
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (showCommands) {
+                              const filtered = COMMANDS.filter(cmd => cmd.name.includes(input.slice(1).toLowerCase()))
+                              if (e.key === 'ArrowDown') setActiveCommandIndex(i => (i + 1) % filtered.length)
+                              else if (e.key === 'ArrowUp') setActiveCommandIndex(i => (i - 1 + filtered.length) % filtered.length)
+                              else if (e.key === 'Enter') handleCommandSelect(filtered[activeCommandIndex]?.name)
+                              else if (e.key === 'Escape') setShowCommands(false)
+                            } else if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              handleSend()
+                            }
+                          }}
+                          disabled={isLoading}
+                          ref={textareaRef as any}
+                          rows={1}
+                          className="flex-1 outline-none bg-transparent text-sm w-full resize-none max-h-[200px]"
                         />
-                    </div>
-                    <Button
+                      </div>
+                      <Button
                         size="icon"
+                        className="rounded-full h-10 w-10 shadow"
                         onClick={handleSend}
-                        disabled={isLoading || (!input.trim() && selectedCommand === "none")}
-                    >
+                        disabled={isLoading || (!input.trim() && selectedCommand === 'none')}
+                      >
                         <Send className="w-4 h-4" />
-                    </Button>
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">Select text in chat to use as context.</p>
+              </div>,
+              document.body
+            )}
             </div>
-        </div>
 
         {/* --- SIDE: COLLAPSIBLE VIDEO PANEL --- */}
         {showVideoPanel && (
@@ -558,7 +681,7 @@ export default function AIChat({
               {videoUrl ? (
                 <div className="aspect-video bg-black/5 rounded overflow-hidden">
                   <video controls playsInline className="w-full h-full object-contain">
-                    <source src={videoUrl} type="video/mp4" />
+                    <source src={videoUrl ?? undefined} type="video/mp4" />
                   </video>
                 </div>
               ) : (
