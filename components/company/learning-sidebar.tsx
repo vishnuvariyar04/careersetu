@@ -32,38 +32,35 @@ export default function LearningSidebar({
   onToggleCurriculum,
 }: LearningSidebarProps) {
   return (
-    <aside className="group relative h-full border-r border-border/40 backdrop-blur-sm bg-gradient-to-b from-background via-background to-muted/20 transition-all duration-500 ease-out w-20 hover:w-80 shadow-2xl">
-      <div className="h-full overflow-hidden">
+    <aside className="group absolute left-0 top-0 h-full z-50 transition-all duration-150 ease-in-out w-16 hover:w-64">
+      <div className="h-full overflow-hidden bg-background/95 backdrop-blur-md border-r border-border/50 shadow-xl">
         <ScrollArea className="h-full">
-          <div className="px-2 py-3 space-y-6">
+          <div className="px-2 py-3 space-y-4">
             {/* Collapsed State Logo/Brand */}
-            <div className="flex justify-center pt-2 pb-4 group-hover:hidden w-20 mx-auto">
-              <div className="relative">
-                <div className="absolute inset-1 bg-primary/25 rounded-full blur-sm animate-pulse pointer-events-none" />
-                <div className="relative w-12 h-12 bg-gradient-to-br from-primary via-primary/80 to-primary/60 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 border-2 border-primary/40">
-                  <span className="text-lg font-bold text-primary-foreground">L</span>
-                </div>
+            <div className="flex justify-center pt-1 pb-3 group-hover:hidden">
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center border border-primary/20">
+                <span className="text-sm font-bold text-primary">L</span>
               </div>
             </div>
 
             {/* Expanded State Header: Back Icon + Company Name */}
-            <div className="hidden group-hover:block pb-4 border-b border-border/30">
-              <div className="flex items-center gap-3">
+            <div className="hidden group-hover:block pb-3 border-b border-border/30">
+              <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={onBack}
-                  className="px-2"
+                  className="h-8 w-8"
                   title="Back"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
                 <div className="flex-1 min-w-0">
-                  <div className="truncate text-base md:text-lg font-semibold md:font-bold tracking-tight bg-gradient-to-r from-primary via-foreground to-foreground/70 bg-clip-text text-transparent">
+                  <div className="truncate text-sm font-semibold">
                     {companyName || 'Company'}
                   </div>
                   <div className="text-[10px] text-muted-foreground truncate">
-                    Learning
+                    Learning Dashboard
                   </div>
                 </div>
               </div>
@@ -72,198 +69,157 @@ export default function LearningSidebar({
             {/* Navigation Section */}
             <div>
               {/* Collapsed: Icon-only buttons - centered with consistent highlight */}
-              <div className="group-hover:hidden w-20 mx-auto flex flex-col items-center space-y-3">
+              <div className="group-hover:hidden flex flex-col items-center space-y-2">
                 <button
                   onClick={() => onChangeView('teacher')}
-                  className={`relative w-12 h-12 rounded-xl transition-colors duration-300 flex items-center justify-center ${
+                  className={`w-10 h-10 rounded-lg transition-all duration-150 flex items-center justify-center ${
                     activeView === 'teacher'
-                      ? 'bg-gradient-to-br from-primary/20 to-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/30'
-                      : 'bg-muted/30 hover:bg-muted/60 hover:ring-1 hover:ring-primary/20'
+                      ? 'bg-primary/15 text-primary border border-primary/30'
+                      : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                   }`}
                   title="Teacher Agent"
                 >
-                  {activeView === 'teacher' && (
-                    <div className="absolute inset-1 bg-primary/25 rounded-lg blur-sm pointer-events-none" />
-                  )}
-                  <Bot className={`w-5 h-5 transition-colors relative z-10 ${activeView === 'teacher' ? 'text-primary' : 'text-muted-foreground'}`} />
-                  {activeView === 'teacher' && (
-                    <div className="absolute right-1 top-1 w-1.5 h-1.5 bg-primary rounded-full" />
-                  )}
+                  <Bot className="w-4 h-4" />
                 </button>
 
                 <button
                   onClick={() => onChangeView('skills')}
-                  className={`relative w-12 h-12 rounded-xl transition-colors duration-300 flex items-center justify-center ${
+                  className={`w-10 h-10 rounded-lg transition-all duration-150 flex items-center justify-center ${
                     activeView === 'skills'
-                      ? 'bg-gradient-to-br from-primary/20 to-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/30'
-                      : 'bg-muted/30 hover:bg-muted/60 hover:ring-1 hover:ring-primary/20'
+                      ? 'bg-primary/15 text-primary border border-primary/30'
+                      : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                   }`}
                   title="Skills Assessment"
                 >
-                  {activeView === 'skills' && (
-                    <div className="absolute inset-1 bg-primary/25 rounded-lg blur-sm pointer-events-none" />
-                  )}
-                  <ListChecks className={`w-5 h-5 transition-colors relative z-10 ${activeView === 'skills' ? 'text-primary' : 'text-muted-foreground'}`} />
-                  {activeView === 'skills' && (
-                    <div className="absolute right-1 top-1 w-1.5 h-1.5 bg-primary rounded-full" />
-                  )}
+                  <ListChecks className="w-4 h-4" />
                 </button>
 
                 <button
                   onClick={() => onChangeView('projects')}
-                  className={`relative w-12 h-12 rounded-xl transition-colors duration-300 flex items-center justify-center ${
+                  className={`w-10 h-10 rounded-lg transition-all duration-150 flex items-center justify-center ${
                     activeView === 'projects'
-                      ? 'bg-gradient-to-br from-primary/20 to-primary/10 ring-2 ring-primary/40 shadow-lg shadow-primary/30'
-                      : 'bg-muted/30 hover:bg-muted/60 hover:ring-1 hover:ring-primary/20'
+                      ? 'bg-primary/15 text-primary border border-primary/30'
+                      : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                   }`}
                   title="Company Projects"
                 >
-                  {activeView === 'projects' && (
-                    <div className="absolute inset-1 bg-primary/25 rounded-lg blur-sm pointer-events-none" />
-                  )}
-                  <BookOpen className={`w-5 h-5 transition-colors relative z-10 ${activeView === 'projects' ? 'text-primary' : 'text-muted-foreground'}`} />
-                  {activeView === 'projects' && (
-                    <div className="absolute right-1 top-1 w-1.5 h-1.5 bg-primary rounded-full" />
-                  )}
+                  <BookOpen className="w-4 h-4" />
                 </button>
               </div>
 
               {/* Expanded: Full navigation with text */}
-              <div className="hidden group-hover:block space-y-1.5">
+              <div className="hidden group-hover:block space-y-1">
                 <button
                   onClick={() => onChangeView('teacher')}
-                  className={`w-full rounded-xl transition-all duration-300 ${
+                  className={`w-full rounded-lg transition-all duration-150 ${
                     activeView === 'teacher' 
-                      ? 'bg-gradient-to-r from-primary/20 via-primary/10 to-transparent shadow-lg shadow-primary/20 border border-primary/30' 
-                      : 'hover:bg-muted/50 border border-transparent'
+                      ? 'bg-primary/10 border border-primary/30' 
+                      : 'hover:bg-muted/50'
                   }`}
                 >
-                  <div className="flex items-center gap-3 p-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+                  <div className="flex items-center gap-2.5 p-2.5">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                       activeView === 'teacher' 
-                        ? 'bg-gradient-to-br from-primary/30 to-primary/10 text-primary shadow-lg shadow-primary/30' 
-                        : 'bg-muted/50 text-muted-foreground'
+                        ? 'bg-primary/20 text-primary' 
+                        : 'bg-muted text-muted-foreground'
                     }`}>
-                      <Bot className="w-5 h-5" />
+                      <Bot className="w-4 h-4" />
                     </div>
                     <div className="flex-1 text-left">
                       <div className={`font-medium text-sm ${activeView === 'teacher' ? 'text-primary' : 'text-foreground'}`}>
                         Teacher Agent
                       </div>
-                      <div className="text-[10px] text-muted-foreground">AI-powered learning</div>
                     </div>
-                    {activeView === 'teacher' && (
-                      <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-                    )}
                   </div>
                 </button>
 
                 <button
                   onClick={() => onChangeView('skills')}
-                  className={`w-full rounded-xl transition-all duration-300 ${
+                  className={`w-full rounded-lg transition-all duration-150 ${
                     activeView === 'skills' 
-                      ? 'bg-gradient-to-r from-primary/20 via-primary/10 to-transparent shadow-lg shadow-primary/20 border border-primary/30' 
-                      : 'hover:bg-muted/50 border border-transparent'
+                      ? 'bg-primary/10 border border-primary/30' 
+                      : 'hover:bg-muted/50'
                   }`}
                 >
-                  <div className="flex items-center gap-3 p-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+                  <div className="flex items-center gap-2.5 p-2.5">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                       activeView === 'skills' 
-                        ? 'bg-gradient-to-br from-primary/30 to-primary/10 text-primary shadow-lg shadow-primary/30' 
-                        : 'bg-muted/50 text-muted-foreground'
+                        ? 'bg-primary/20 text-primary' 
+                        : 'bg-muted text-muted-foreground'
                     }`}>
-                      <ListChecks className="w-5 h-5" />
+                      <ListChecks className="w-4 h-4" />
                     </div>
                     <div className="flex-1 text-left">
                       <div className={`font-medium text-sm ${activeView === 'skills' ? 'text-primary' : 'text-foreground'}`}>
                         Skills Assessment
                       </div>
-                      <div className="text-[10px] text-muted-foreground">Track your growth</div>
                     </div>
-                    {activeView === 'skills' && (
-                      <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-                    )}
                   </div>
                 </button>
 
                 <button
                   onClick={() => onChangeView('projects')}
-                  className={`w-full rounded-xl transition-all duration-300 ${
+                  className={`w-full rounded-lg transition-all duration-150 ${
                     activeView === 'projects' 
-                      ? 'bg-gradient-to-r from-primary/20 via-primary/10 to-transparent shadow-lg shadow-primary/20 border border-primary/30' 
-                      : 'hover:bg-muted/50 border border-transparent'
+                      ? 'bg-primary/10 border border-primary/30' 
+                      : 'hover:bg-muted/50'
                   }`}
                 >
-                  <div className="flex items-center gap-3 p-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+                  <div className="flex items-center gap-2.5 p-2.5">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                       activeView === 'projects' 
-                        ? 'bg-gradient-to-br from-primary/30 to-primary/10 text-primary shadow-lg shadow-primary/30' 
-                        : 'bg-muted/50 text-muted-foreground'
+                        ? 'bg-primary/20 text-primary' 
+                        : 'bg-muted text-muted-foreground'
                     }`}>
-                      <BookOpen className="w-5 h-5" />
+                      <BookOpen className="w-4 h-4" />
                     </div>
                     <div className="flex-1 text-left">
                       <div className={`font-medium text-sm ${activeView === 'projects' ? 'text-primary' : 'text-foreground'}`}>
                         Company Projects
                       </div>
-                      <div className="text-[10px] text-muted-foreground">Explore opportunities</div>
                     </div>
-                    {activeView === 'projects' && (
-                      <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-                    )}
                   </div>
                 </button>
               </div>
             </div>
 
             {/* Skills Overview - show only on hover (no collapsed content) */}
-            <div className="relative hidden group-hover:block">
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 via-blue-500/10 to-transparent rounded-2xl blur-xl opacity-100 transition-opacity duration-500" />
-              <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-card/80 via-card to-card/60 backdrop-blur-md shadow-lg hover:shadow-violet-500/10 transition-all duration-300">
+            <div className="hidden group-hover:block">
+              <div className="rounded-lg border border-border/50 bg-card/80 overflow-hidden">
                 {/* Header */}
-                <div className="p-4 border-b border-border/30 bg-gradient-to-r from-violet-500/5 to-transparent">
-                  <div className="flex items-center gap-3 group-hover:justify-start justify-center">
-                    <div className="relative w-10 h-10 flex-shrink-0">
-                      <div className="absolute inset-0 bg-violet-500/20 rounded-xl blur-md animate-pulse" />
-                      <div className="relative w-10 h-10 bg-gradient-to-br from-violet-500/30 to-blue-500/10 rounded-xl flex items-center justify-center border border-violet-500/30">
-                        <GraduationCap className="w-5 h-5 text-violet-600 dark:text-violet-400" />
-                      </div>
+                <div className="p-3 border-b border-border/30">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+                      <GraduationCap className="w-4 h-4 text-primary" />
                     </div>
-                    <div className="overflow-hidden opacity-100 transition-all duration-500 delay-100">
-                      <div className="text-sm font-semibold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent whitespace-nowrap">
-                        Skills Overview
-                      </div>
-                      <div className="text-[10px] text-muted-foreground whitespace-nowrap mt-0.5">
-                        Track your progress
-                      </div>
-                    </div>
+                    <div className="text-sm font-semibold">Skills Overview</div>
                   </div>
                 </div>
-                {/* Expanded View - Detailed Progress */}
-                <div className="p-4 space-y-4">
-                  <div className="space-y-2">
+                {/* Progress */}
+                <div className="p-3 space-y-3">
+                  <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground font-medium">Coverage</span>
-                      <span className="text-sm font-bold bg-gradient-to-r from-primary to-violet-500 bg-clip-text text-transparent">
+                      <span className="text-xs text-muted-foreground">Coverage</span>
+                      <span className="text-xs font-bold text-primary">
                         {skillCoveragePercent}%
                       </span>
                     </div>
-                    <div className="relative h-2 bg-muted/50 rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-muted/50 rounded-full overflow-hidden">
                       <div 
-                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary via-violet-500 to-blue-500 rounded-full transition-all duration-500 shadow-lg shadow-primary/50"
+                        className="h-full bg-primary rounded-full transition-all duration-300"
                         style={{ width: `${skillCoveragePercent}%` }}
                       />
                     </div>
                   </div>
  
                   <div className="space-y-1.5">
-                    <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Required Skills</div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="text-xs text-muted-foreground font-medium">Required Skills</div>
+                    <div className="flex flex-wrap gap-1">
                       {companyRequiredSkills.length > 0 ? (
                         companyRequiredSkills.slice(0, 6).map((skill) => (
                           <div 
                             key={skill} 
-                            className="text-[10px] px-2 py-1 rounded-md bg-gradient-to-r from-muted/80 to-muted/50 border border-border/50 text-foreground/80 font-medium backdrop-blur-sm"
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-muted/80 border border-border/50 text-foreground/80"
                           >
                             {skill}
                           </div>
@@ -278,10 +234,10 @@ export default function LearningSidebar({
             </div>
             {/* Leave Company - show only on hover */}
             {isJoined && (
-              <div className="hidden group-hover:block transition-all duration-500 delay-200">
+              <div className="hidden group-hover:block">
                 <Button
                   onClick={onLeaveCompany}
-                  className="w-full p-3 rounded-xl border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 hover:border-destructive/40 transition-all duration-300 text-xs text-destructive font-medium backdrop-blur-sm"
+                  className="w-full p-2 rounded-lg border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 transition-all duration-150 text-xs text-destructive font-medium"
                   variant="ghost"
                 >
                   Leave Company

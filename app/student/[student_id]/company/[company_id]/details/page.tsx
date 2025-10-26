@@ -20,6 +20,7 @@ import QuizBlock from "@/components/teacher-agent/QuizBlock"
 // ProgressSummary intentionally not used to keep UI minimal
 import type { Module as TeacherModule } from "@/lib/teacher-progress"
 import { ensureSkillInitialized, getProgress, updateLesson, markQuiz, computeReadiness } from "@/lib/teacher-progress"
+import { useStudentAuth } from "@/hooks/use-student-auth"
 
 export default function CompanyDetailsPage() {
   const params = useParams()
@@ -32,8 +33,15 @@ export default function CompanyDetailsPage() {
   const [isJoined, setIsJoined] = useState(false)
   const [projects, setProjects] = useState<any[]>([])
   
+  // Security check: Verify the logged-in user matches the student_id in URL
+  const isAuthorized = useStudentAuth(studentId)
 
   useEffect(() => {
+    // Only fetch data if user is authorized
+    if (isAuthorized !== true) {
+      return
+    }
+
     const fetchData = async () => {
       // Fetch company data
       const { data: companyData, error: companyError } = await supabase
@@ -76,7 +84,7 @@ export default function CompanyDetailsPage() {
       setIsJoined(joinedCompanies.includes(companyId))
     }
     fetchData()
-  }, [companyId, studentId])
+  }, [companyId, studentId, isAuthorized])
   // --- Skills Derivations ---
   const companyRequiredSkills: string[] = useMemo(() => {
     const set = new Set<string>()
@@ -109,7 +117,7 @@ export default function CompanyDetailsPage() {
   const [activeView, setActiveView] = useState<'teacher' | 'skills' | 'projects'>('teacher')
   const [teacherTab, setTeacherTab] = useState<'lesson' | 'tutor'>('tutor')
   const [showQuiz, setShowQuiz] = useState(false)
-  const [showCurriculum, setShowCurriculum] = useState<boolean>(false)
+  const [showCurriculum, setShowCurriculum] = useState<boolean>(true)
 
   // --- Teacher Agent State ---
   const [selectedSkill, setSelectedSkill] = useState<string>("")
@@ -130,12 +138,25 @@ export default function CompanyDetailsPage() {
     setSkillModules(modules)
     setSelectedModuleId((prev) => prev || modules[0]?.id)
   }, [selectedSkill, studentId, companyId])
-
+const [team_id, setTeamId] = useState<string>("")
   // Persisted curriculum visibility
   useEffect(() => {
     try {
       const persisted = localStorage.getItem('details_show_curriculum')
       if (persisted !== null) setShowCurriculum(persisted === 'true')
+      const fetchTeamId = async () => {
+        const { data: teamData, error: teamError } = await supabase
+          .from('team_members')
+          .select('team_id')
+          .eq('student_id', studentId)
+          .single()
+        if (teamError) {
+          console.error("Error fetching team:", teamError)
+          return
+        }
+        setTeamId(teamData.team_id)
+      }
+      fetchTeamId()
     } catch (_) {}
   }, [])
 
@@ -297,18 +318,24 @@ export default function CompanyDetailsPage() {
   }
 
   const handleGoToWorkspace = (projectId: string) => {
-    router.push(`/student/${studentId}/company/${companyId}/project/${projectId}/teams/team_3/workspace`)
+    router.push(`/student/${studentId}/company/${companyId}/project/${projectId}/team/${team_id}/workspace`)
   }
 
-  if (!company || !student) {
+  // Show loading while checking authorization or loading data
+  if (isAuthorized === null || !company || !student) {
     return <div>Loading...</div> // Or a proper loading spinner component
+  }
+
+  // If not authorized, don't render anything (redirect is in progress)
+  if (isAuthorized === false) {
+    return null
   }
   
   return (
     <div className="h-screen bg-background">
       <div className="h-full overflow-hidden">
         {/* Main Layout */}
-        <div className="flex gap-0 h-full min-h-0">
+        <div className="h-full min-h-0 pl-16">
           {/* Sidebar with Back + Company Name */}
 		  <LearningSidebar
 			activeView={activeView}
@@ -322,7 +349,7 @@ export default function CompanyDetailsPage() {
 		  />
 
           {/* Main content */}
-          <main className="flex-1 h-full flex flex-col min-h-0">
+          <main className="h-full flex flex-col min-h-0">
             {!(activeView === 'teacher' && teacherTab === 'tutor') ? (
               <ScrollArea className="flex-1 min-h-0">
                 <div className="px-8 py-6 space-y-6 max-w-[1800px] mx-auto w-full">
@@ -357,9 +384,9 @@ export default function CompanyDetailsPage() {
                 </AnimatePresence>
 
                 {/* Main Content Area - Tabs for Lesson/Tutor */}
-                <div className="flex-1 min-w-0">
-                  <Tabs value={teacherTab} onValueChange={(v) => setTeacherTab(v as 'lesson' | 'tutor')} className="h-full">
-                    <TabsList className="mb-4 w-full justify-start">
+                <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+                  <Tabs value={teacherTab} onValueChange={(v) => setTeacherTab(v as 'lesson' | 'tutor')} className="h-full flex flex-col">
+                    <TabsList className="mb-4 w-full justify-start flex-shrink-0">
                       <TabsTrigger value="tutor" className="flex items-center gap-2">
                         <GraduationCap className="w-4 h-4" />
                         AI Tutor
@@ -404,21 +431,19 @@ export default function CompanyDetailsPage() {
                       )}
                     </TabsContent>
 
-                  <TabsContent value="tutor" className="rounded-lg border overflow-hidden mt-0 flex flex-col min-h-0 h-full">
-                    <div className="h-full">
-                      <AIChat
-                        agentName="Learning Assistant"
-                        agentDescription={"Your personal learning companion"}
-                        uid={studentId}
-                        company_id={companyId}
-                        project_id={projects?.[0]?.project_id}
-                        team_id={"learning"}
-                        learningPaneKey={`${studentId}_${companyId}_${selectedSkill}`}
-                        selectedTask={{ title: currentLesson ? currentLesson.title : 'Learning' }}
-                        learningPrefill={`Teach ${selectedSkill || 'the skill'} with examples.`}
-                        hideHeader
-                      />
-                    </div>
+                  <TabsContent value="tutor" className="rounded-lg border overflow-hidden mt-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col">
+                    <AIChat
+                      agentName="Learning Assistant"
+                      agentDescription={"Your personal learning companion"}
+                      uid={studentId}
+                      company_id={companyId}
+                      project_id={projects?.[0]?.project_id}
+                      team_id={"learning"}
+                      learningPaneKey={`${studentId}_${companyId}_${selectedSkill}`}
+                      selectedTask={{ title: currentLesson ? currentLesson.title : 'Learning' }}
+                      learningPrefill={`Teach ${selectedSkill || 'the skill'} with examples.`}
+                      hideHeader
+                    />
                   </TabsContent>
                 </Tabs>
                 </div>
@@ -620,13 +645,13 @@ export default function CompanyDetailsPage() {
             </div>
               </ScrollArea>
             ) : (
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <div className="px-8 py-6 space-y-6 max-w-[1800px] mx-auto w-full h-full">
+              <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+                <div className="flex-1 min-h-0 overflow-hidden">
                   {/* Toolbar removed; moved to sidebar header */}
                   {activeView === 'teacher' && (
-            <section className="space-y-4">
+            <section className="h-full flex flex-col">
               {/* Two-column layout with animated curriculum sidebar */}
-              <div className="flex gap-4 min-h-[600px]" style={{ perspective: 1200 }}>
+              <div className="flex gap-4 flex-1 min-h-0 p-6" style={{ perspective: 1200 }}>
                 {/* Curriculum Sidebar - Animated */}
                 <AnimatePresence initial={false} mode="popLayout">
                   {showCurriculum && (
@@ -652,9 +677,9 @@ export default function CompanyDetailsPage() {
                 </AnimatePresence>
 
                 {/* Main Content Area - Tabs for Lesson/Tutor */}
-                <div className="flex-1 min-w-0">
-                  <Tabs value={teacherTab} onValueChange={(v) => setTeacherTab(v as 'lesson' | 'tutor')} className="h-full">
-                    <TabsList className="mb-4 w-full justify-start">
+                <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+                  <Tabs value={teacherTab} onValueChange={(v) => setTeacherTab(v as 'lesson' | 'tutor')} className="h-full flex flex-col">
+                    <TabsList className="mb-4 w-full justify-start flex-shrink-0">
                       <TabsTrigger value="tutor" className="flex items-center gap-2">
                         <GraduationCap className="w-4 h-4" />
                         AI Tutor
@@ -699,21 +724,19 @@ export default function CompanyDetailsPage() {
                       )}
                     </TabsContent>
 
-                  <TabsContent value="tutor" className="rounded-lg border overflow-hidden mt-0 flex flex-col min-h-0 h-full">
-                    <div className="h-full">
-                      <AIChat
-                        agentName="Learning Assistant"
-                        agentDescription={"Your personal learning companion"}
-                        uid={studentId}
-                        company_id={companyId}
-                        project_id={projects?.[0]?.project_id}
-                        team_id={"learning"}
-                        learningPaneKey={`${studentId}_${companyId}_${selectedSkill}`}
-                        selectedTask={{ title: currentLesson ? currentLesson.title : 'Learning' }}
-                        learningPrefill={`Teach ${selectedSkill || 'the skill'} with examples.`}
-                        hideHeader
-                      />
-                    </div>
+                  <TabsContent value="tutor" className="rounded-lg border overflow-hidden mt-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col">
+                    <AIChat
+                      agentName="Learning Assistant"
+                      agentDescription={"Your personal learning companion"}
+                      uid={studentId}
+                      company_id={companyId}
+                      project_id={projects?.[0]?.project_id}
+                      team_id={"learning"}
+                      learningPaneKey={`${studentId}_${companyId}_${selectedSkill}`}
+                      selectedTask={{ title: currentLesson ? currentLesson.title : 'Learning' }}
+                      learningPrefill={`Teach ${selectedSkill || 'the skill'} with examples.`}
+                      hideHeader
+                    />
                   </TabsContent>
                 </Tabs>
                 </div>
@@ -722,7 +745,7 @@ export default function CompanyDetailsPage() {
               {/* Floating FAB toggle (independent of sidebar) */}
               <motion.button
                 onClick={() => setShowCurriculum((s) => !s)}
-                className="fixed left-6 bottom-6 z-40 rounded-full p-3 shadow-xl border border-primary/30 bg-gradient-to-br from-primary/90 via-primary to-primary/70 text-primary-foreground hover:shadow-primary/40"
+                className="fixed left-16 bottom-6 z-40 rounded-full p-3 shadow-xl border border-primary/30 bg-gradient-to-br from-primary/90 via-primary to-primary/70 text-primary-foreground hover:shadow-primary/40"
                 whileTap={{ scale: 0.94 }}
                 whileHover={{ rotate: showCurriculum ? 0 : 3 }}
                 aria-label="Toggle curriculum"

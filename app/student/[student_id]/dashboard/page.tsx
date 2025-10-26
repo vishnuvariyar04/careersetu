@@ -22,10 +22,12 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { Building2, Star, ArrowRight, Plus, Target, Search, User } from "lucide-react"
+import { Building2, Star, ArrowRight, Plus, Target, Search, User, LogOut } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
 import { storage, type Student, type Company, type StudentProgress } from "@/lib/storage"
 import { supabase } from "@/lib/supabase"
+import { signOut } from "@/lib/auth-helpers"
+import { useStudentAuth } from "@/hooks/use-student-auth"
 
 export default function StudentDashboardPage() {
   const [activeTab, setActiveTab] = useState("companies")
@@ -40,8 +42,14 @@ export default function StudentDashboardPage() {
   const router = useRouter()
   const studentId = params.student_id as string
 
+  // Security check: Verify the logged-in user matches the student_id in URL
+  const isAuthorized = useStudentAuth(studentId)
 
   useEffect(() => {
+    // Only fetch data if user is authorized
+    if (isAuthorized !== true) {
+      return
+    }
    
   
 
@@ -102,7 +110,7 @@ export default function StudentDashboardPage() {
         setStudentProgress(progress)
       })()
    
-  }, [studentId])
+  }, [studentId, isAuthorized])
 
   const handleJoinCompany = (companyId: string) => {
     (async () => {
@@ -146,7 +154,17 @@ export default function StudentDashboardPage() {
     router.push(`/student/${studentId}/company/${companyId}/details`)
   }
 
-  if (!student) {
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      router.push('/auth/login')
+    } catch (error) {
+      console.error('Sign out error:', error)
+    }
+  }
+
+  // Show loading while checking authorization or loading student data
+  if (isAuthorized === null || !student) {
     return (
       <div className="min-h-screen bg-background grid-pattern flex items-center justify-center">
         <div className="text-center">
@@ -155,6 +173,11 @@ export default function StudentDashboardPage() {
         </div>
       </div>
     )
+  }
+
+  // If not authorized, don't render anything (redirect is in progress)
+  if (isAuthorized === false) {
+    return null
   }
 
   // Focus the UI on companies; omit secondary stats
@@ -280,6 +303,15 @@ export default function StudentDashboardPage() {
                 )}
                 {/* Removed header Explore and Update Skills actions as requested */}
               </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleSignOut}
+                className="ml-2"
+              >
+                <LogOut className="w-4 h-4 mr-2 hover:text-gray-500" />
+                Sign Out
+              </Button>
             </div>
           </div>
 

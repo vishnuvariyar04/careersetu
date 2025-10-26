@@ -9,6 +9,7 @@ import { Bot, Building2, Users, ArrowRight, CheckCircle } from "lucide-react"
 import { useRouter, useParams } from "next/navigation"
 import { storage, type Student, type Company } from "@/lib/storage"
 import { supabase } from "@/lib/supabase"
+import { useStudentAuth } from "@/hooks/use-student-auth"
 
 export default function StudentOnboardingPage() {
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
@@ -20,7 +21,15 @@ export default function StudentOnboardingPage() {
   const params = useParams()
   const studentId = params.student_id as string
 
+  // Security check: Verify the logged-in user matches the student_id in URL
+  const isAuthorized = useStudentAuth(studentId)
+
   useEffect(() => {
+    // Only fetch data if user is authorized
+    if (isAuthorized !== true) {
+      return
+    }
+
     const fetchData = async () => {
 
 
@@ -52,7 +61,7 @@ export default function StudentOnboardingPage() {
     }
 
     fetchData()
-  }, [studentId])
+  }, [studentId, isAuthorized])
 
   const handleSkillToggle = async (skill: string) => {
     const newSkills = currentSkills.includes(skill) 
@@ -126,12 +135,18 @@ export default function StudentOnboardingPage() {
     "AI/ML",
   ]
 
-  if (!student) {
+  // Show loading while checking authorization or loading student data
+  if (isAuthorized === null || !student) {
     return (
       <div className="min-h-screen bg-background grid-pattern flex items-center justify-center">
         <p>Loading...</p>
       </div>
     )
+  }
+
+  // If not authorized, don't render anything (redirect is in progress)
+  if (isAuthorized === false) {
+    return null
   }
 
   return (

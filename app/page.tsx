@@ -1,4 +1,8 @@
 'use client'
+
+import { use, useEffect } from "react";
+import { useRouter } from "next/navigation";
+
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { 
@@ -16,6 +20,8 @@ import {
 } from "lucide-react";
 // import dashboardMockup from "@/assets/dashboard-mockup.png";
 import { useScrollAnimation } from "@/hooks/use-scroll-animation";
+import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
 const ScrollFadeIn = ({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) => {
   const { ref, isVisible } = useScrollAnimation();
@@ -36,6 +42,27 @@ const ScrollFadeIn = ({ children, delay = 0 }: { children: React.ReactNode; dela
 };
 
 const Index = () => {
+  const router = useRouter();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        console.log("User is logged in, redirecting to dashboard:", session);
+        // Redirect to dashboard based on role
+        const role = session.user?.user_metadata?.role || 'student';
+        if (role === 'company') {
+          router.push(`/company/${session.user.id}/dashboard`);
+        } else if (role === 'supervisor') {
+          router.push('/supervisor/dashboard');
+        } else {
+          router.push(`/student/${session.user.id}/dashboard`);
+        }
+      } else {
+        console.log("User is not logged in");
+      }
+    });
+  }, [router]);
+
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Background Effects */}
@@ -66,7 +93,9 @@ const Index = () => {
               <a href="#features" className="text-sm hover:text-primary transition-colors">Features</a>
               <a href="#benefits" className="text-sm hover:text-primary transition-colors">Benefits</a>
               <a href="#pricing" className="text-sm hover:text-primary transition-colors">Pricing</a>
-              <Button variant="hero" size="sm">Get Started</Button>
+              <Link href="/auth">
+                <Button variant="default" size="sm">Get Started</Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -98,9 +127,11 @@ const Index = () => {
           </p>
           
           <div className="flex items-center justify-center gap-3 flex-wrap">
-            <Button variant="hero" size="default" className="gap-2 text-sm">
-              Start Learning <ArrowRight className="h-4 w-4" />
-            </Button>
+            <Link href="/auth/register">
+              <Button variant="default" size="default" className="gap-2 text-sm">
+                Start Learning <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
             <Button variant="outline" size="default" className="text-sm">Watch Demo</Button>
           </div>
 
@@ -517,7 +548,7 @@ const Index = () => {
                   <span className="text-sm">Community support</span>
                 </li>
               </ul>
-              <Button variant="outline" className="w-full">Get started</Button>
+              <Link href="/login"  className="w-full">Get started</Link>
             </Card>
             </ScrollFadeIn>
 
@@ -556,7 +587,7 @@ const Index = () => {
                   <span className="text-sm">Priority support</span>
                 </li>
               </ul>
-              <Button variant="hero" className="w-full">Get started</Button>
+              <Button variant="default" className="w-full">Get started</Button>
             </Card>
             </ScrollFadeIn>
 
@@ -609,7 +640,7 @@ const Index = () => {
                 Join thousands of learners who are building real-world skills and 
                 accelerating their careers with InternSpirit.
               </p>
-              <Button variant="hero" size="lg" className="gap-2">
+              <Button variant="default" size="lg" className="gap-2">
                 Start for Free <ArrowRight className="h-5 w-5" />
               </Button>
             </Card>

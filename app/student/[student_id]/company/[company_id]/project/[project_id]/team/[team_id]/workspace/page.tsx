@@ -17,6 +17,7 @@ import { AspectRatio } from "@/components/ui/aspect-ratio"
 // import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import AiLearningChat from "@/components/ai-learning-chat"
+import { useStudentAuth } from "@/hooks/use-student-auth"
 
 const teamData = {
   1: {
@@ -70,14 +71,22 @@ export default function TeamWorkspacePage() {
   const params = useParams()
   const teamId = Number(params.team_id)
   const projectId = params.project_id
-  const studentId = params.student_id
+  const studentId = params.student_id as string
   const companyId = params.company_id
   const team = teamData[teamId as keyof typeof teamData]
+
+  // Security check: Verify the logged-in user matches the student_id in URL
+  const isAuthorized = useStudentAuth(studentId)
 
   // Change from `[]` to `{}`
 const [teammateDetails, setTeammateDetails] = useState<{ [key: string]: any }>({});
 
 useEffect(() => {
+    // Only fetch data if user is authorized
+    if (isAuthorized !== true) {
+      return
+    }
+
     const fetchTeammateDetails = async () => {
       // Step 1: Fetch all member records from `team_members`
       const { data: membersData, error: membersError } = await supabase
@@ -123,7 +132,7 @@ useEffect(() => {
     };
 
     fetchTeammateDetails();
-  }, []); // Make sure to re-run if the team_id changes
+  }, [isAuthorized, params.team_id]); // Make sure to re-run if the team_id or authorization changes
 
   const [tasks, setTask] = useState<any>([])
   const personalTasks = tasks.filter((t: any) => t.assignee === params.student_id)
@@ -290,7 +299,22 @@ useEffect(() => {
     return () => document.removeEventListener('mouseup', onMouseUp)
   }, [])
 
-  
+  // Show loading while checking authorization
+  if (isAuthorized === null) {
+    return (
+      <div className="min-h-screen bg-background grid-pattern flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading workspace...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // If not authorized, don't render anything (redirect is in progress)
+  if (isAuthorized === false) {
+    return null
+  }
 
   return (
     <>
@@ -389,7 +413,7 @@ useEffect(() => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 p-0 min-h-0">
+            <div className="flex-1 p-0 min-h-0 overflow-hidden">
               {activeTab === "tasks" && (
                 <ResizablePanelGroup direction="horizontal">
                   {/* Personal tasks list */}
@@ -594,7 +618,9 @@ useEffect(() => {
               )}
 
               {activeTab === "learning" && (
-                <AiLearningChat uid={studentId} project_id={projectId} team_id={teamId} company_id={companyId} learningPaneKey={learningPaneKey} selectedTask={selectedTask} learningPrefill={learningPrefill} />
+                <div className="h-full flex flex-col">
+                  <AiLearningChat uid={studentId} project_id={projectId} team_id={teamId} company_id={companyId} learningPaneKey={learningPaneKey} selectedTask={selectedTask} learningPrefill={learningPrefill} />
+                </div>
               )}
 
               {activeTab === "profile" && (

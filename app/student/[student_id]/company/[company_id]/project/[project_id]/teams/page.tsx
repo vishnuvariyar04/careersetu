@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, ArrowRight, Star, Clock, Code, User, ArrowLeft, Loader2, Plus } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useParams } from "next/navigation"
+import { useStudentAuth } from "@/hooks/use-student-auth"
 
 export default function ProjectTeamsPage() {
   const [teams, setTeams] = useState<any[]>([])
@@ -30,12 +31,20 @@ export default function ProjectTeamsPage() {
   const companyId = params.company_id as string
   const projectId = params.project_id as string
   
+  // Security check: Verify the logged-in user matches the student_id in URL
+  const isAuthorized = useStudentAuth(studentId)
+  
   // State to hold URL parameters and the Supabase client instance
   // const [params, setParams] = useState({ studentId: '', companyId: '', projectId: '' });
 
 
   // Effect to fetch data whenever params or the supabase client changes
   useEffect(() => {
+    // Only fetch data if user is authorized
+    if (isAuthorized !== true) {
+      return
+    }
+
     const fetchTeamData = async () => {
       // Guard against running fetch with incomplete params or uninitialized client
      console.log(projectId)
@@ -97,7 +106,7 @@ export default function ProjectTeamsPage() {
     };
 
     fetchTeamData();
-  }, []); // Rerun if params or supabase client changes
+  }, [isAuthorized, projectId, studentId]); // Rerun if params or authorization changes
 
   const handleJoinTeam = async (teamId: string, role: string) => {
     if (!supabase) return; // Guard against uninitialized client
@@ -229,12 +238,18 @@ export default function ProjectTeamsPage() {
     window.location.href = `/student/${studentId}/company/${companyId}/project/${projectId}/team/${teamData.team_id}/workspace`;
   };
   
-  if (isLoading) {
+  // Show loading while checking authorization or loading data
+  if (isAuthorized === null || isLoading) {
     return (
         <div className="min-h-screen bg-background grid-pattern flex items-center justify-center">
             <Loader2 className="w-12 h-12 animate-spin text-primary" />
         </div>
     );
+  }
+
+  // If not authorized, don't render anything (redirect is in progress)
+  if (isAuthorized === false) {
+    return null
   }
 
   return (
