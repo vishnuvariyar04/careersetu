@@ -1,26 +1,129 @@
 "use client"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Plus, Bot, BookOpen, ListChecks, GraduationCap, Video, Image as ImageIcon, Sparkles, CheckCircle2 } from "lucide-react"
+import { 
+  BookOpen, 
+  FolderKanban, 
+  ChevronDown, 
+  ChevronRight, 
+  Send, 
+  Bot, 
+  GraduationCap,
+  CheckCircle2,
+  Clock,
+  Target,
+  Sparkles
+} from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import LearningSidebar from "@/components/company/learning-sidebar"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { useEffect, useMemo, useState } from "react"
-import AIChat from "@/components/ai-learning-chat"
-import CurriculumSidebar from "@/components/teacher-agent/CurriculumSidebar"
-import LessonPlayer from "@/components/teacher-agent/LessonPlayer"
-import LessonContent from "@/components/teacher-agent/LessonContent"
-import QuizBlock from "@/components/teacher-agent/QuizBlock"
-// ProgressSummary intentionally not used to keep UI minimal
-import type { Module as TeacherModule } from "@/lib/teacher-progress"
-import { ensureSkillInitialized, getProgress, updateLesson, markQuiz, computeReadiness } from "@/lib/teacher-progress"
+import { useEffect, useMemo, useState, useRef } from "react"
 import { useStudentAuth } from "@/hooks/use-student-auth"
+
+// Mock data for learning modules
+const MOCK_LEARNING_MODULES = [
+  {
+    id: "react-basics",
+    title: "React Fundamentals",
+    skill: "React",
+    description: "Learn the core concepts of React including components, props, and state",
+    estimatedTime: "4 hours",
+    progress: 65,
+    topics: [
+      { id: "1", title: "Components & JSX", completed: true },
+      { id: "2", title: "Props & State", completed: true },
+      { id: "3", title: "Hooks", completed: false },
+      { id: "4", title: "Context API", completed: false }
+    ]
+  },
+  {
+    id: "react-advanced",
+    title: "Advanced React Patterns",
+    skill: "React",
+    description: "Master advanced patterns like custom hooks, performance optimization, and more",
+    estimatedTime: "6 hours",
+    progress: 20,
+    topics: [
+      { id: "1", title: "Custom Hooks", completed: true },
+      { id: "2", title: "Performance", completed: false },
+      { id: "3", title: "Suspense & Lazy", completed: false }
+    ]
+  },
+  {
+    id: "express-basics",
+    title: "Express.js Fundamentals",
+    skill: "Express",
+    description: "Build RESTful APIs with Express.js and Node.js",
+    estimatedTime: "5 hours",
+    progress: 40,
+    topics: [
+      { id: "1", title: "Routing", completed: true },
+      { id: "2", title: "Middleware", completed: true },
+      { id: "3", title: "Error Handling", completed: false },
+      { id: "4", title: "Authentication", completed: false }
+    ]
+  },
+  {
+    id: "express-advanced",
+    title: "Express.js Best Practices",
+    skill: "Express",
+    description: "Learn production-ready patterns and security best practices",
+    estimatedTime: "4 hours",
+    progress: 0,
+    topics: [
+      { id: "1", title: "Security", completed: false },
+      { id: "2", title: "Testing", completed: false },
+      { id: "3", title: "Deployment", completed: false }
+    ]
+  }
+]
+
+// Mock data for projects
+const MOCK_PROJECTS = [
+  {
+    id: "proj-1",
+    title: "E-Commerce Platform",
+    description: "Build a full-stack e-commerce application with React and Express",
+    status: "active",
+    tasks: [
+      { id: "t1", title: "Setup project structure", completed: true },
+      { id: "t2", title: "Implement user authentication", completed: true },
+      { id: "t3", title: "Create product catalog", completed: false },
+      { id: "t4", title: "Build shopping cart", completed: false },
+      { id: "t5", title: "Payment integration", completed: false }
+    ],
+    requiredSkills: ["React", "Express", "MongoDB"],
+    progress: 40
+  },
+  {
+    id: "proj-2",
+    title: "Real-time Chat Application",
+    description: "Create a real-time messaging app using WebSockets",
+    status: "active",
+    tasks: [
+      { id: "t1", title: "Setup WebSocket server", completed: false },
+      { id: "t2", title: "Build chat interface", completed: false },
+      { id: "t3", title: "Implement message history", completed: false },
+      { id: "t4", title: "Add user presence", completed: false }
+    ],
+    requiredSkills: ["React", "Express", "Socket.io"],
+    progress: 0
+  }
+]
+
+type Mode = "learning" | "project"
+type AgentType = "teacher" | "pm"
+
+interface Message {
+  id: string
+  content: string
+  sender: "user" | "agent"
+  agentType?: AgentType
+  timestamp: Date
+}
 
 export default function CompanyDetailsPage() {
   const params = useParams()
@@ -32,9 +135,30 @@ export default function CompanyDetailsPage() {
   const [student, setStudent] = useState<any>()
   const [isJoined, setIsJoined] = useState(false)
   const [projects, setProjects] = useState<any[]>([])
+  const [team_id, setTeamId] = useState<string>("")
   
   // Security check: Verify the logged-in user matches the student_id in URL
   const isAuthorized = useStudentAuth(studentId)
+
+  // New state for redesigned UI
+  const [mode, setMode] = useState<Mode>("learning")
+  const [selectedAgent, setSelectedAgent] = useState<AgentType>("teacher")
+  const [hoveredSidebarItem, setHoveredSidebarItem] = useState<"learn" | "projects" | null>(null)
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
+  const [selectedModule, setSelectedModule] = useState<string | null>(null)
+  const [selectedProject, setSelectedProject] = useState<string | null>(null)
+  const [joinedProjectIds, setJoinedProjectIds] = useState<Set<string>>(new Set())
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "1",
+      content: "Hello! I'm your learning assistant. How can I help you today?",
+      sender: "agent",
+      agentType: "teacher",
+      timestamp: new Date()
+    }
+  ])
+  const [inputMessage, setInputMessage] = useState("")
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // Only fetch data if user is authorized
@@ -65,7 +189,7 @@ export default function CompanyDetailsPage() {
         return
       }
 
-      console.log("Projects: ",projectsData)
+      console.log("Projects: ", projectsData)
       setProjects(projectsData || [])
 
       // Fetch the current student's data (skills included)
@@ -82,10 +206,21 @@ export default function CompanyDetailsPage() {
 
       const joinedCompanies = studentData?.companies_joined || []
       setIsJoined(joinedCompanies.includes(companyId))
+
+      // Fetch team ID
+      const { data: teamData, error: teamError } = await supabase
+        .from('team_members')
+        .select('team_id')
+        .eq('student_id', studentId)
+        .single()
+      if (!teamError && teamData) {
+        setTeamId(teamData.team_id)
+      }
     }
     fetchData()
   }, [companyId, studentId, isAuthorized])
-  // --- Skills Derivations ---
+
+  // Skills Derivations
   const companyRequiredSkills: string[] = useMemo(() => {
     const set = new Set<string>()
     projects.forEach((p: any) => {
@@ -103,699 +238,521 @@ export default function CompanyDetailsPage() {
     return Array.isArray(raw) ? raw.filter(Boolean) : []
   }, [student])
 
-  const missingSkills: string[] = useMemo(() => {
-    const set = new Set(studentSkills)
-    return companyRequiredSkills.filter((s) => !set.has(s))
-  }, [companyRequiredSkills, studentSkills])
-
   const skillCoveragePercent = useMemo(() => {
     if (companyRequiredSkills.length === 0) return 0
     const covered = companyRequiredSkills.filter((s) => studentSkills.includes(s)).length
     return Math.round((covered / companyRequiredSkills.length) * 100)
   }, [companyRequiredSkills, studentSkills])
 
-  const [activeView, setActiveView] = useState<'teacher' | 'skills' | 'projects'>('teacher')
-  const [teacherTab, setTeacherTab] = useState<'lesson' | 'tutor'>('tutor')
-  const [showQuiz, setShowQuiz] = useState(false)
-  const [showCurriculum, setShowCurriculum] = useState<boolean>(true)
-
-  // --- Teacher Agent State ---
-  const [selectedSkill, setSelectedSkill] = useState<string>("")
-  const [skillModules, setSkillModules] = useState<TeacherModule[]>([])
-  const [selectedModuleId, setSelectedModuleId] = useState<string | undefined>(undefined)
-
+  // Hash-based mode persistence
   useEffect(() => {
-    if (!student || !company) return
-    // Initialize selected skill from missing skills, fallback to any company required skill
-    const initialSkill = (missingSkills[0] || companyRequiredSkills[0] || "").toString()
-    if (!initialSkill) return
-    setSelectedSkill((prev) => prev || initialSkill)
-  }, [student, company, missingSkills, companyRequiredSkills])
-
-  useEffect(() => {
-    if (!selectedSkill) return
-    const { modules } = ensureSkillInitialized(studentId, companyId, selectedSkill)
-    setSkillModules(modules)
-    setSelectedModuleId((prev) => prev || modules[0]?.id)
-  }, [selectedSkill, studentId, companyId])
-const [team_id, setTeamId] = useState<string>("")
-  // Persisted curriculum visibility
-  useEffect(() => {
-    try {
-      const persisted = localStorage.getItem('details_show_curriculum')
-      if (persisted !== null) setShowCurriculum(persisted === 'true')
-      const fetchTeamId = async () => {
-        const { data: teamData, error: teamError } = await supabase
-          .from('team_members')
-          .select('team_id')
-          .eq('student_id', studentId)
-          .single()
-        if (teamError) {
-          console.error("Error fetching team:", teamError)
-          return
-        }
-        setTeamId(teamData.team_id)
-      }
-      fetchTeamId()
-    } catch (_) {}
+    const hash = window.location.hash.slice(1)
+    if (hash === "learning" || hash === "project") {
+      setMode(hash)
+    }
   }, [])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('details_show_curriculum', String(showCurriculum))
-    } catch (_) {}
-  }, [showCurriculum])
-
-  // Keyboard shortcut: "C" toggles curriculum when not typing
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null
-      const tag = target?.tagName?.toLowerCase()
-      const isTyping = tag === 'input' || tag === 'textarea' || (target?.getAttribute('contenteditable') === 'true')
-      if (isTyping) return
-      if (e.key?.toLowerCase() === 'c' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        setShowCurriculum((s) => !s)
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
-
-  const currentModule = useMemo(() => skillModules.find((m) => m.id === selectedModuleId) || skillModules[0], [skillModules, selectedModuleId])
-  const currentLesson = useMemo(() => {
-    if (!currentModule) return undefined
-    const firstTodo = currentModule.lessons.find((l) => l.status !== 'done')
-    return firstTodo || currentModule.lessons[0]
-  }, [currentModule])
-
-  const refreshModulesFromStorage = () => {
-    const progress = getProgress(studentId, companyId)
-    const sp = progress[selectedSkill]
-    if (sp) setSkillModules(sp.modules)
+  const handleModeChange = (newMode: Mode) => {
+    setMode(newMode)
+    window.location.hash = newMode
+    setHoveredSidebarItem(null)
   }
 
-  const handleLessonDone = () => {
-    if (!currentModule || !currentLesson) return
-    updateLesson(studentId, companyId, selectedSkill, currentModule.id, currentLesson.id, 'done')
-    refreshModulesFromStorage()
-  }
-
-  const handleQuizResult = (passed: boolean) => {
-    if (!currentModule) return
-    markQuiz(studentId, companyId, selectedSkill, currentModule.id, passed)
-    refreshModulesFromStorage()
-  }
-
-  const readinessPercent = useMemo(() => {
-    const progress = getProgress(studentId, companyId)
-    return computeReadiness(progress, companyRequiredSkills)
-  }, [studentId, companyId, companyRequiredSkills, skillModules])
-
-  // --- Event Handlers ---
-  const handleJoinCompany = async (companyId: string) => {
-    if (!student) return
-    const currentCompanies = student.companies_joined || []
-    if (!currentCompanies.includes(companyId)) {
-      const updatedCompanies = [...currentCompanies, companyId]
-      const { error } = await supabase.from("students").update({ companies_joined: updatedCompanies }).eq("student_id", studentId)
-      if (error) console.error("Error joining company:", error)
-      else setIsJoined(true)
-    }
-    
-  }
-  const handleLeaveCompany = async () => {
-    // Return early if essential data isn't loaded yet.
-    if (!student || !projects) return;
-  
-    // 1. Get the IDs of all projects belonging to the company being left.
-    const projectsToRemoveIds = projects.map(p => p.project_id);
-  
-    // --- New Logic Start ---
-    // Before updating the student, remove them from any teams within those projects.
-    if (projectsToRemoveIds.length > 0) {
-      // 2. Find all team IDs associated with the projects to be removed.
-      const { data: teamsInCompany, error: teamsError } = await supabase
-        .from('teams')
-        .select('team_id')
-        .in('project_id', projectsToRemoveIds);
-  
-      if (teamsError) {
-        console.error("Error fetching teams to leave:", teamsError);
-        return; // Stop the process if we can't get the teams
-      }
-  
-      if (teamsInCompany && teamsInCompany.length > 0) {
-        const teamIdsToRemove = teamsInCompany.map(t => t.team_id);
-  
-        // 3. Delete the student's membership from all identified teams.
-        const { error: deleteMemberError } = await supabase
-          .from('team_members')
-          .delete()
-          .eq('student_id', studentId)
-          .in('team_id', teamIdsToRemove);
-  
-        if (deleteMemberError) {
-          console.error("Error removing student from team memberships:", deleteMemberError);
-          return; // Stop the process if deletion fails
-        }
-      }
-    }
-    // --- New Logic End ---
-  
-    // 4. Filter the student's current project list.
-    const currentStudentProjects = student.projects || [];
-    const updatedStudentProjects = currentStudentProjects.filter(
-      (projectId: string) => !projectsToRemoveIds.includes(projectId)
-    );
-  
-    // 5. Filter the student's joined companies list.
-    const currentCompanies = student.companies_joined || [];
-    const updatedCompanies = currentCompanies.filter((c: any) => c !== companyId);
-  
-    // 6. Update the student's record with the cleaned lists.
-    const { error: updateStudentError } = await supabase
-      .from("students")
-      .update({ 
-        companies_joined: updatedCompanies,
-        projects: updatedStudentProjects
-      })
-      .eq("student_id", studentId);
-      
-    if (updateStudentError) {
-      console.error("Error leaving company:", updateStudentError);
+  const toggleModuleExpansion = (moduleId: string) => {
+    const newExpanded = new Set(expandedModules)
+    if (newExpanded.has(moduleId)) {
+      newExpanded.delete(moduleId)
     } else {
-      setIsJoined(false);
-      router.push(`/student/${studentId}/dashboard`);
+      newExpanded.add(moduleId)
     }
+    setExpandedModules(newExpanded)
+    setSelectedModule(moduleId)
   }
 
-  const handleJoinProject = async (projectId: string) => {
-    if (!student) return
+  const handleProjectClick = (projectId: string) => {
+    setSelectedProject(projectId)
+  }
 
-    const currentProjects = student.projects || []
+  const handleJoinProject = (projectId: string) => {
+    const newJoined = new Set(joinedProjectIds)
+    newJoined.add(projectId)
+    setJoinedProjectIds(newJoined)
+  }
 
-    // First, ensure the student is officially part of the project in the database.
-    // This runs only if they haven't already joined this project.
-    if (!currentProjects.includes(projectId)) {
-      const updatedProjects = [...currentProjects, projectId]
-      const { error } = await supabase
-        .from("students")
-        .update({ projects: updatedProjects })
-        .eq("student_id", studentId)
+  const handleSendMessage = () => {
+    if (!inputMessage.trim()) return
 
-      if (error) {
-        console.error("Error joining project:", error)
-        // If the database update fails, we should not navigate.
-        return 
-      } else {
-        // Also update the local state for UI consistency
-        setStudent((prev: any) => ({ ...prev, projects: updatedProjects }))
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      content: inputMessage,
+      sender: "user",
+      timestamp: new Date()
+    }
+
+    setMessages(prev => [...prev, userMessage])
+    setInputMessage("")
+
+    // Simulate agent response
+    setTimeout(() => {
+      const agentMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: selectedAgent === "teacher" 
+          ? "That's a great question! Let me help you understand this concept better..."
+          : "I'll help you with that task. Let me break it down into smaller steps...",
+        sender: "agent",
+        agentType: selectedAgent,
+        timestamp: new Date()
       }
-    }
-
-    // After the student has successfully joined, redirect them to the team selection page.
-    router.push(`/student/${studentId}/company/${companyId}/project/${projectId}/teams`)
+      setMessages(prev => [...prev, agentMessage])
+    }, 1000)
   }
 
-  const handleGoToWorkspace = (projectId: string) => {
-    router.push(`/student/${studentId}/company/${companyId}/project/${projectId}/team/${team_id}/workspace`)
-  }
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
 
   // Show loading while checking authorization or loading data
   if (isAuthorized === null || !company || !student) {
-    return <div>Loading...</div> // Or a proper loading spinner component
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-[#0a0a0a]">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-gray-400 font-medium">Loading...</p>
+        </div>
+      </div>
+    )
   }
 
   // If not authorized, don't render anything (redirect is in progress)
   if (isAuthorized === false) {
     return null
   }
-  
+
+  const currentSelectedModule = MOCK_LEARNING_MODULES.find(m => m.id === selectedModule)
+  const currentSelectedProject = MOCK_PROJECTS.find(p => p.id === selectedProject)
+
+  // Filter learning messages for the right panel
+  const learningQA = messages.filter(m => selectedAgent === "teacher")
+
   return (
-    <div className="h-screen bg-background">
-      <div className="h-full overflow-hidden">
-        {/* Main Layout */}
-        <div className="h-full min-h-0 pl-16">
-          {/* Sidebar with Back + Company Name */}
-		  <LearningSidebar
-			activeView={activeView}
-			onChangeView={(v) => setActiveView(v)}
-			isJoined={isJoined}
-			onLeaveCompany={handleLeaveCompany}
-			skillCoveragePercent={skillCoveragePercent}
-			companyRequiredSkills={companyRequiredSkills}
-            companyName={company?.name}
-            onBack={() => router.push(`/student/${studentId}/dashboard`)}
-		  />
-
-          {/* Main content */}
-          <main className="h-full flex flex-col min-h-0">
-            {!(activeView === 'teacher' && teacherTab === 'tutor') ? (
-              <ScrollArea className="flex-1 min-h-0">
-                <div className="px-8 py-6 space-y-6 max-w-[1800px] mx-auto w-full">
-            {/* Toolbar removed; moved to sidebar header */}
-
-            {activeView === 'teacher' && (
-            <section className="space-y-4">
-              {/* Two-column layout with animated curriculum sidebar */}
-              <div className="flex gap-4 min-h-[600px]" style={{ perspective: 1200 }}>
-                {/* Curriculum Sidebar - Animated */}
-                <AnimatePresence initial={false} mode="popLayout">
-                  {showCurriculum && (
-                    <motion.div
-                      key="curriculum"
-                      className="w-80 flex-shrink-0"
-                      initial={{ opacity: 0, x: -40, rotateY: -24, filter: 'blur(6px)' }}
-                      animate={{ opacity: 1, x: 0, rotateY: 0, filter: 'blur(0px)' }}
-                      exit={{ opacity: 0, x: -48, rotateY: 12, filter: 'blur(6px)' }}
-                      transition={{ type: 'spring', stiffness: 220, damping: 26 }}
-                    >
-                      <CurriculumSidebar
-                        skills={missingSkills.length > 0 ? missingSkills : companyRequiredSkills}
-                        selectedSkill={selectedSkill}
-                        onSelectSkill={(s) => setSelectedSkill(s)}
-                        modules={skillModules}
-                        selectedModuleId={selectedModuleId}
-                        onSelectModule={(id) => setSelectedModuleId(id)}
-                        compact={false}
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Main Content Area - Tabs for Lesson/Tutor */}
-                <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-                  <Tabs value={teacherTab} onValueChange={(v) => setTeacherTab(v as 'lesson' | 'tutor')} className="h-full flex flex-col">
-                    <TabsList className="mb-4 w-full justify-start flex-shrink-0">
-                      <TabsTrigger value="tutor" className="flex items-center gap-2">
-                        <GraduationCap className="w-4 h-4" />
-                        AI Tutor
-                      </TabsTrigger>
-                      <TabsTrigger value="lesson" className="flex items-center gap-2">
-                        <Video className="w-4 h-4" />
-                        Lesson
-                      </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="lesson" className="space-y-4 mt-0">
-                      <div className="space-y-4">
-                        <LessonPlayer title={currentLesson ? currentLesson.title : 'Select a lesson'} />
-                        <LessonContent
-                          moduleTitle={currentModule ? currentModule.title : 'Module'}
-                          lessonTitle={currentLesson ? currentLesson.title : 'Lesson'}
-                          explanationHtml={`<p>Learn <strong>${selectedSkill || 'this skill'}</strong> step-by-step. Use the AI Tutor tab for deeper, personalized help.</p>`}
-                          codeSample={`// Example code for ${selectedSkill || 'skill'}\nconsole.log('Hello ${selectedSkill || 'Skill'}');`}
-                          resources={selectedSkill?.toLowerCase() === 'react' ? [{ label: 'Official Docs', href: 'https://react.dev' }] : []}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between gap-2 pt-2 border-t">
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" variant="default" onClick={handleLessonDone}>
-                            <CheckCircle2 className="w-4 h-4 mr-2" />
-                            Mark Complete
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => setShowQuiz((s) => !s)}>
-                            {showQuiz ? 'Hide Quiz' : 'Take Quiz'}
-                          </Button>
-                        </div>
-                        {currentModule && (
-                          <span className="text-xs text-muted-foreground">
-                            {currentModule.lessons.filter(l => l.status === 'done').length} / {currentModule.lessons.length} lessons completed
-                          </span>
-                        )}
-                      </div>
-                      {showQuiz && (
-                        <div className="mt-4">
-                          <QuizBlock moduleId={currentModule ? currentModule.id : 'module'} onResult={handleQuizResult} />
-                        </div>
-                      )}
-                    </TabsContent>
-
-                  <TabsContent value="tutor" className="rounded-lg border overflow-hidden mt-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col">
-                    <AIChat
-                      agentName="Learning Assistant"
-                      agentDescription={"Your personal learning companion"}
-                      uid={studentId}
-                      company_id={companyId}
-                      project_id={projects?.[0]?.project_id}
-                      team_id={"learning"}
-                      learningPaneKey={`${studentId}_${companyId}_${selectedSkill}`}
-                      selectedTask={{ title: currentLesson ? currentLesson.title : 'Learning' }}
-                      learningPrefill={`Teach ${selectedSkill || 'the skill'} with examples.`}
-                      hideHeader
-                    />
-                  </TabsContent>
-                </Tabs>
-                </div>
+    <div className="h-screen w-screen overflow-hidden bg-[#0a0a0a] font-['Inter',system-ui,sans-serif] antialiased">
+      {/* Main three-panel layout */}
+      <div className="h-full flex">
+        
+        {/* LEFT SIDEBAR - Hoverable Icons */}
+        <div className="relative flex">
+          {/* Icon Bar */}
+          <div className="w-20 bg-[#121212] border-r border-white/5 flex flex-col items-center py-8 gap-6 z-20">
+            {/* Company Logo/Name */}
+            <div className="mb-4 text-center">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-lg shadow-xl shadow-emerald-500/20">
+                {company?.name?.charAt(0) || "C"}
               </div>
+            </div>
 
-              {/* Floating FAB toggle (independent of sidebar) */}
-              <motion.button
-                onClick={() => setShowCurriculum((s) => !s)}
-                className="fixed left-6 bottom-6 z-40 rounded-full p-3 shadow-xl border border-primary/30 bg-gradient-to-br from-primary/90 via-primary to-primary/70 text-primary-foreground hover:shadow-primary/40"
-                whileTap={{ scale: 0.94 }}
-                whileHover={{ rotate: showCurriculum ? 0 : 3 }}
-                aria-label="Toggle curriculum"
-                title="Toggle curriculum (C)"
+            {/* Learn Icon */}
+            <button
+              onMouseEnter={() => setHoveredSidebarItem("learn")}
+              onClick={() => handleModeChange("learning")}
+              className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                mode === "learning" 
+                  ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xl shadow-emerald-500/30 scale-110" 
+                  : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white hover:scale-105"
+              }`}
+            >
+              <BookOpen className="w-6 h-6" />
+            </button>
+
+            {/* Projects Icon */}
+            <button
+              onMouseEnter={() => setHoveredSidebarItem("projects")}
+              onClick={() => handleModeChange("project")}
+              className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                mode === "project" 
+                  ? "bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-xl shadow-violet-500/30 scale-110" 
+                  : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white hover:scale-105"
+              }`}
+            >
+              <FolderKanban className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Slide-out Panel */}
+          <AnimatePresence>
+            {hoveredSidebarItem && (
+              <motion.div
+                initial={{ x: -300, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -300, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                onMouseLeave={() => setHoveredSidebarItem(null)}
+                className="absolute left-20 top-0 h-full w-80 bg-[#161616]/98 backdrop-blur-xl border-r border-white/10 shadow-2xl z-10"
               >
-                <BookOpen className="w-5 h-5" />
-              </motion.button>
-            </section>
-            )}
-
-            {activeView === 'skills' && (
-            <section className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ListChecks className="w-5 h-5 text-primary" />
-                  <h2 className="text-xl font-semibold">Skills Assessment</h2>
-                </div>
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Overall Coverage: </span>
-                  <span className="font-semibold text-lg text-foreground">{skillCoveragePercent}%</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Missing Skills */}
-                <Card className="border-2 border-amber-200 dark:border-amber-900">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg">Skills to Learn</CardTitle>
-                        <CardDescription>Start learning these with Teacher Agent</CardDescription>
-                      </div>
-                      <Badge variant="outline" className="text-amber-700 border-amber-300">
-                        {missingSkills.length} pending
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {missingSkills.length > 0 ? missingSkills.map((skill) => (
-                      <div key={skill} className="flex items-center justify-between rounded-lg border bg-card p-3 hover:bg-muted/50 transition">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                            <BookOpen className="w-4 h-4 text-amber-700 dark:text-amber-400" />
-                          </div>
-                          <span className="font-medium">{skill}</span>
+                <ScrollArea className="h-full">
+                  <div className="p-6">
+                    {hoveredSidebarItem === "learn" && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 mb-6">
+                          <BookOpen className="w-5 h-5 text-emerald-400" />
+                          <h2 className="text-lg font-semibold text-white tracking-tight">Learning Modules</h2>
                         </div>
-                        <Button size="sm" variant="default" onClick={() => setActiveView('teacher')}>
-                          Start Learning
-                        </Button>
-                      </div>
-                    )) : (
-                      <div className="py-8 text-center">
-                        <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-green-500" />
-                        <p className="text-sm font-medium">All caught up!</p>
-                        <p className="text-xs text-muted-foreground">You have all required skills</p>
+
+                        {/* Group by skill */}
+                        {["React", "Express"].map(skill => {
+                          const skillModules = MOCK_LEARNING_MODULES.filter(m => m.skill === skill)
+                          return (
+                            <div key={skill} className="space-y-2">
+                              <div className="flex items-center gap-2 px-2 py-1">
+                                <Badge variant="outline" className="text-xs font-medium border-white/20 text-gray-400 bg-white/5">
+                                  #{skill.toLowerCase()}
+                                </Badge>
+                              </div>
+                              {skillModules.map(module => (
+                                <div key={module.id} className="border border-white/10 rounded-xl overflow-hidden hover:border-emerald-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10">
+                                  <button
+                                    onClick={() => toggleModuleExpansion(module.id)}
+                                    className="w-full px-4 py-3 flex items-center justify-between bg-white/5 hover:bg-white/10 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      {expandedModules.has(module.id) ? (
+                                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                                      ) : (
+                                        <ChevronRight className="w-4 h-4 text-gray-400" />
+                                      )}
+                                      <div className="text-left">
+                                        <p className="font-medium text-sm text-white">{module.title}</p>
+                                        <p className="text-xs text-gray-500">{module.estimatedTime}</p>
+                                      </div>
+                                    </div>
+                                    <div className="text-xs font-semibold text-emerald-400">{module.progress}%</div>
+                                  </button>
+                                  
+                                  <AnimatePresence>
+                                    {expandedModules.has(module.id) && (
+                                      <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="overflow-hidden"
+                                      >
+                                        <div className="px-4 py-3 bg-black/30 border-t border-white/5 space-y-2">
+                                          <p className="text-xs text-gray-400 mb-3">{module.description}</p>
+                                          {module.topics.map(topic => (
+                                            <div key={topic.id} className="flex items-center gap-2 text-xs">
+                                              {topic.completed ? (
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                              ) : (
+                                                <div className="w-4 h-4 rounded-full border-2 border-gray-600" />
+                                              )}
+                                              <span className={topic.completed ? "text-gray-500" : "text-gray-300 font-medium"}>
+                                                {topic.title}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
-                  </CardContent>
-                </Card>
 
-                {/* Mastered Skills */}
-                <Card className="border-2 border-green-200 dark:border-green-900">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg">Your Skills</CardTitle>
-                        <CardDescription>Skills you've already mastered</CardDescription>
+                    {hoveredSidebarItem === "projects" && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 mb-6">
+                          <FolderKanban className="w-5 h-5 text-violet-400" />
+                          <h2 className="text-lg font-semibold text-white tracking-tight">Projects</h2>
+                        </div>
+
+                        {MOCK_PROJECTS.map(project => (
+                          <button
+                            key={project.id}
+                            onClick={() => handleProjectClick(project.id)}
+                            className={`w-full text-left border rounded-xl p-4 transition-all duration-300 ${
+                              selectedProject === project.id
+                                ? "border-violet-500/50 bg-violet-500/10 shadow-lg shadow-violet-500/10"
+                                : "border-white/10 bg-white/5 hover:border-violet-500/30 hover:bg-white/10"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <h3 className="font-medium text-sm text-white">{project.title}</h3>
+                              <Badge variant="secondary" className="text-xs bg-white/10 text-gray-300 border-white/20">{project.status}</Badge>
+                            </div>
+                            <p className="text-xs text-gray-400 mb-3">{project.description}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {project.requiredSkills.map(skill => (
+                                <Badge key={skill} variant="outline" className="text-xs border-white/20 text-gray-400 bg-white/5">
+                                  #{skill.toLowerCase()}
+                                </Badge>
+                              ))}
+                            </div>
+                          </button>
+                        ))}
                       </div>
-                      <Badge variant="outline" className="text-green-700 border-green-300">
-                        {studentSkills.length} mastered
-                      </Badge>
+                    )}
+                  </div>
+                </ScrollArea>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* CENTER - Chat Interface */}
+        <div className="flex-1 flex flex-col min-w-0 p-6">
+          <div className="h-full bg-[#161616]/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10 flex flex-col overflow-hidden">
+            {/* Chat Header with Agent Toggle */}
+            <div className="px-6 py-4 border-b border-white/10 bg-black/20">
+              <div className="flex items-center justify-between mb-3">
+                <h1 className="text-xl font-semibold text-white tracking-tight">{company?.name}</h1>
+                <Badge variant="outline" className="text-xs border-white/20 text-gray-400 bg-white/5">
+                  {mode === "learning" ? "#learning" : "#project"}
+                </Badge>
+              </div>
+              
+              {/* Agent Selector */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSelectedAgent("teacher")}
+                  className={`flex-1 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-300 ${
+                    selectedAgent === "teacher"
+                      ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30"
+                      : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <GraduationCap className="w-4 h-4" />
+                    <span>Teacher Agent</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setSelectedAgent("pm")}
+                  className={`flex-1 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-300 ${
+                    selectedAgent === "pm"
+                      ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/30"
+                      : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Bot className="w-4 h-4" />
+                    <span>PM Agent</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Messages Area */}
+            <ScrollArea className="flex-1 px-6 py-4">
+              <div className="space-y-4">
+                {messages.map(message => (
+                  <div
+                    key={message.id}
+                    className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    {message.sender === "agent" && (
+                      <Avatar className="h-8 w-8 mr-2">
+                        <AvatarFallback className={message.agentType === "teacher" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-violet-500/20 text-violet-400 border border-violet-500/30"}>
+                          {message.agentType === "teacher" ? <GraduationCap className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                    <div
+                      className={`max-w-[70%] rounded-2xl px-4 py-3 ${
+                        message.sender === "user"
+                          ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20"
+                          : "bg-white/5 text-gray-200 border border-white/10"
+                      }`}
+                    >
+                      <p className="text-sm leading-relaxed">{message.content}</p>
+                      <p className={`text-xs mt-1.5 ${message.sender === "user" ? "text-emerald-100" : "text-gray-500"}`}>
+                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    {studentSkills.length > 0 ? (
+                    {message.sender === "user" && (
+                      <Avatar className="h-8 w-8 ml-2">
+                        <AvatarFallback className="bg-white/10 text-gray-300 border border-white/20">
+                          {student?.name?.charAt(0) || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+
+            {/* Input Area */}
+            <div className="px-6 py-4 border-t border-white/10 bg-black/20">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                  placeholder={`Ask ${selectedAgent === "teacher" ? "Teacher" : "PM"} Agent...`}
+                  className="flex-1 px-4 py-3 rounded-xl border border-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 bg-white/5 text-white placeholder:text-gray-500 transition-all"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl hover:shadow-lg hover:shadow-emerald-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!inputMessage.trim()}
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT PANEL - Context Panel */}
+        <div className="w-96 p-6 pl-0">
+          <div className="h-full bg-[#161616]/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10 overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-white/10 bg-black/20">
+              <h2 className="text-lg font-semibold text-white tracking-tight">
+                {mode === "learning" ? "Learning Progress" : "Project Details"}
+              </h2>
+            </div>
+
+            <ScrollArea className="flex-1">
+              <div className="p-6 space-y-6">
+                {mode === "learning" && (
+                  <>
+                    {/* Progress Bar */}
+                    {currentSelectedModule && (
+                      <div className="space-y-3 bg-white/5 rounded-xl p-4 border border-white/10">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-300">{currentSelectedModule.title}</span>
+                          <span className="text-sm font-bold text-emerald-400">{currentSelectedModule.progress}%</span>
+                        </div>
+                        <Progress value={currentSelectedModule.progress} className="h-2 bg-white/10" />
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <Clock className="w-3 h-3" />
+                          <span>{currentSelectedModule.estimatedTime} estimated</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Learning Q&A Timeline */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-yellow-400" />
+                        <h3 className="text-sm font-medium text-white">Learning Notes</h3>
+                      </div>
+                      
+                      {learningQA.length > 0 ? (
+                        <div className="space-y-3">
+                          {learningQA.slice(-5).map(msg => (
+                            <div key={msg.id} className="p-3 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">
+                              <p className="text-xs font-medium text-gray-300 mb-1">{msg.content.slice(0, 100)}...</p>
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant="outline" className="text-xs border-white/20 text-gray-400 bg-white/5">#learning</Badge>
+                                <span className="text-xs text-gray-500">
+                                  {msg.timestamp.toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500 italic">Start chatting to see your learning notes here</p>
+                      )}
+                    </div>
+
+                    {/* Skills Coverage */}
+                    <div className="space-y-3 pt-4 border-t border-white/10">
+                      <div className="flex items-center gap-2">
+                        <Target className="w-4 h-4 text-emerald-400" />
+                        <h3 className="text-sm font-medium text-white">Skills Coverage</h3>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Overall Progress</span>
+                          <span className="font-bold text-emerald-400">{skillCoveragePercent}%</span>
+                        </div>
+                        <Progress value={skillCoveragePercent} className="h-2 bg-white/10" />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {mode === "project" && currentSelectedProject && (
+                  <>
+                    {/* Project Info */}
+                    <div className="space-y-3 bg-white/5 rounded-xl p-4 border border-white/10">
+                      <h3 className="text-lg font-semibold text-white">{currentSelectedProject.title}</h3>
+                      <p className="text-sm text-gray-400 leading-relaxed">{currentSelectedProject.description}</p>
+                      
                       <div className="flex flex-wrap gap-2">
-                        {studentSkills.map((skill) => (
-                          <Badge key={skill} variant="secondary" className="px-3 py-1.5 text-sm">
-                            <CheckCircle2 className="w-3 h-3 mr-1.5 text-green-600" />
-                            {skill}
+                        {currentSelectedProject.requiredSkills.map(skill => (
+                          <Badge key={skill} variant="outline" className="text-xs border-white/20 text-gray-400 bg-white/5">
+                            #{skill.toLowerCase()}
                           </Badge>
                         ))}
                       </div>
-                    ) : (
-                      <div className="py-8 text-center text-muted-foreground">
-                        <GraduationCap className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">No skills added yet.</p>
-                        <p className="text-xs mt-1">Complete lessons to build your skillset</p>
+                    </div>
+
+                    {/* Project Progress */}
+                    <div className="space-y-3 pt-4 border-t border-white/10">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-300">Project Progress</span>
+                        <span className="text-sm font-bold text-violet-400">{currentSelectedProject.progress}%</span>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </section>
-            )}
+                      <Progress value={currentSelectedProject.progress} className="h-2 bg-white/10" />
+                    </div>
 
-            {activeView === 'projects' && (
-            <section className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 text-primary" />
-                  <h2 className="text-xl font-semibold">Company Projects</h2>
-                </div>
-                <Badge variant="outline">{projects.length} {projects.length === 1 ? 'Project' : 'Projects'}</Badge>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {projects.length > 0 ? projects.map((project) => {
-                  const hasJoinedProject = student.projects?.includes(project.project_id)
-                  const isActive = project.status === "active"
-                  return (
-                    <Card key={project.project_id} className={`flex flex-col hover:shadow-lg transition-all ${hasJoinedProject ? 'border-2 border-primary/30' : ''}`}>
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <CardTitle className="text-lg">{project.name}</CardTitle>
-                              {hasJoinedProject && (
-                                <Badge variant="default" className="text-xs">Joined</Badge>
-                              )}
-                            </div>
-                            <CardDescription className="line-clamp-2">{project.description}</CardDescription>
+                    {/* Tasks Checklist */}
+                    <div className="space-y-3 pt-4 border-t border-white/10">
+                      <h3 className="text-sm font-medium text-white">Tasks</h3>
+                      <div className="space-y-2">
+                        {currentSelectedProject.tasks.map(task => (
+                          <div key={task.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
+                            {task.completed ? (
+                              <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                            ) : (
+                              <div className="w-5 h-5 rounded-full border-2 border-gray-600 flex-shrink-0 mt-0.5" />
+                            )}
+                            <span className={`text-sm ${task.completed ? "text-gray-500 line-through" : "text-gray-300 font-medium"}`}>
+                              {task.title}
+                            </span>
                           </div>
-                          <Badge variant={isActive ? "default" : "secondary"} className="flex-shrink-0">
-                            {project.status}
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="flex-1 space-y-4">
-                        {/* Required Skills */}
-                        {Array.isArray(project.required_skills) && project.required_skills.length > 0 && (
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground mb-2">Required Skills</p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {project.required_skills.map((skill: string) => {
-                                const hasSkill = studentSkills.includes(skill)
-                                return (
-                                  <Badge 
-                                    key={skill} 
-                                    variant={hasSkill ? "secondary" : "outline"}
-                                    className={`text-xs ${hasSkill ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'border-amber-300 text-amber-700'}`}
-                                  >
-                                    {hasSkill && <CheckCircle2 className="w-3 h-3 mr-1" />}
-                                    {skill}
-                                  </Badge>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )}
+                        ))}
+                      </div>
+                    </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex items-center justify-between gap-2 pt-2 border-t">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => setActiveView('teacher')}
-                            className="text-xs"
-                          >
-                            <GraduationCap className="w-4 h-4 mr-1.5" />
-                            Learn Skills
-                          </Button>
-                          {hasJoinedProject ? (
-                            <Button size="sm" onClick={() => handleGoToWorkspace(project.project_id)}>
-                              Open Workspace
-                            </Button>
-                          ) : (
-                            <Button size="sm" variant="default" onClick={() => handleJoinProject(project.project_id)}>
-                              <Plus className="w-4 h-4 mr-1.5" />
-                              Join Project
-                            </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                }) : (
-                  <Card className="lg:col-span-2">
-                    <CardContent className="py-12 text-center">
-                      <BookOpen className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
-                      <p className="text-lg font-medium text-muted-foreground mb-1">No projects available yet</p>
-                      <p className="text-sm text-muted-foreground">Check back later for new opportunities</p>
-                    </CardContent>
-                  </Card>
+                    {/* Join Project Button */}
+                    <div className="pt-4 border-t border-white/10">
+                      {joinedProjectIds.has(currentSelectedProject.id) ? (
+                        <Button className="w-full bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/30" disabled>
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          Joined Project
+                        </Button>
+                      ) : (
+                        <Button 
+                          className="w-full bg-gradient-to-r from-violet-500 to-purple-600 hover:shadow-lg hover:shadow-violet-500/30 transition-all"
+                          onClick={() => handleJoinProject(currentSelectedProject.id)}
+                        >
+                          Join Project
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {mode === "project" && !currentSelectedProject && (
+                  <div className="text-center py-12">
+                    <FolderKanban className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+                    <p className="text-sm text-gray-500">Select a project to view details</p>
+                  </div>
                 )}
               </div>
-            </section>
-            )}
-            
-            </div>
-              </ScrollArea>
-            ) : (
-              <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  {/* Toolbar removed; moved to sidebar header */}
-                  {activeView === 'teacher' && (
-            <section className="h-full flex flex-col">
-              {/* Two-column layout with animated curriculum sidebar */}
-              <div className="flex gap-4 flex-1 min-h-0 p-6" style={{ perspective: 1200 }}>
-                {/* Curriculum Sidebar - Animated */}
-                <AnimatePresence initial={false} mode="popLayout">
-                  {showCurriculum && (
-                    <motion.div
-                      key="curriculum"
-                      className="w-80 flex-shrink-0"
-                      initial={{ opacity: 0, x: -40, rotateY: -24, filter: 'blur(6px)' }}
-                      animate={{ opacity: 1, x: 0, rotateY: 0, filter: 'blur(0px)' }}
-                      exit={{ opacity: 0, x: -48, rotateY: 12, filter: 'blur(6px)' }}
-                      transition={{ type: 'spring', stiffness: 220, damping: 26 }}
-                    >
-                      <CurriculumSidebar
-                        skills={missingSkills.length > 0 ? missingSkills : companyRequiredSkills}
-                        selectedSkill={selectedSkill}
-                        onSelectSkill={(s) => setSelectedSkill(s)}
-                        modules={skillModules}
-                        selectedModuleId={selectedModuleId}
-                        onSelectModule={(id) => setSelectedModuleId(id)}
-                        compact={false}
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Main Content Area - Tabs for Lesson/Tutor */}
-                <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-                  <Tabs value={teacherTab} onValueChange={(v) => setTeacherTab(v as 'lesson' | 'tutor')} className="h-full flex flex-col">
-                    <TabsList className="mb-4 w-full justify-start flex-shrink-0">
-                      <TabsTrigger value="tutor" className="flex items-center gap-2">
-                        <GraduationCap className="w-4 h-4" />
-                        AI Tutor
-                      </TabsTrigger>
-                      <TabsTrigger value="lesson" className="flex items-center gap-2">
-                        <Video className="w-4 h-4" />
-                        Lesson
-                      </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="lesson" className="space-y-4 mt-0">
-                      <div className="space-y-4">
-                        <LessonPlayer title={currentLesson ? currentLesson.title : 'Select a lesson'} />
-                        <LessonContent
-                          moduleTitle={currentModule ? currentModule.title : 'Module'}
-                          lessonTitle={currentLesson ? currentLesson.title : 'Lesson'}
-                          explanationHtml={`<p>Learn <strong>${selectedSkill || 'this skill'}</strong> step-by-step. Use the AI Tutor tab for deeper, personalized help.</p>`}
-                          codeSample={`// Example code for ${selectedSkill || 'skill'}\nconsole.log('Hello ${selectedSkill || 'Skill'}');`}
-                          resources={selectedSkill?.toLowerCase() === 'react' ? [{ label: 'Official Docs', href: 'https://react.dev' }] : []}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between gap-2 pt-2 border-t">
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" variant="default" onClick={handleLessonDone}>
-                            <CheckCircle2 className="w-4 h-4 mr-2" />
-                            Mark Complete
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => setShowQuiz((s) => !s)}>
-                            {showQuiz ? 'Hide Quiz' : 'Take Quiz'}
-                          </Button>
-                        </div>
-                        {currentModule && (
-                          <span className="text-xs text-muted-foreground">
-                            {currentModule.lessons.filter(l => l.status === 'done').length} / {currentModule.lessons.length} lessons completed
-                          </span>
-                        )}
-                      </div>
-                      {showQuiz && (
-                        <div className="mt-4">
-                          <QuizBlock moduleId={currentModule ? currentModule.id : 'module'} onResult={handleQuizResult} />
-                        </div>
-                      )}
-                    </TabsContent>
-
-                  <TabsContent value="tutor" className="rounded-lg border overflow-hidden mt-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col">
-                    <AIChat
-                      agentName="Learning Assistant"
-                      agentDescription={"Your personal learning companion"}
-                      uid={studentId}
-                      company_id={companyId}
-                      project_id={projects?.[0]?.project_id}
-                      team_id={"learning"}
-                      learningPaneKey={`${studentId}_${companyId}_${selectedSkill}`}
-                      selectedTask={{ title: currentLesson ? currentLesson.title : 'Learning' }}
-                      learningPrefill={`Teach ${selectedSkill || 'the skill'} with examples.`}
-                      hideHeader
-                    />
-                  </TabsContent>
-                </Tabs>
-                </div>
-              </div>
-
-              {/* Floating FAB toggle (independent of sidebar) */}
-              <motion.button
-                onClick={() => setShowCurriculum((s) => !s)}
-                className="fixed left-16 bottom-6 z-40 rounded-full p-3 shadow-xl border border-primary/30 bg-gradient-to-br from-primary/90 via-primary to-primary/70 text-primary-foreground hover:shadow-primary/40"
-                whileTap={{ scale: 0.94 }}
-                whileHover={{ rotate: showCurriculum ? 0 : 3 }}
-                aria-label="Toggle curriculum"
-                title="Toggle curriculum (C)"
-              >
-                <BookOpen className="w-5 h-5" />
-              </motion.button>
-            </section>
-            )}
-                </div>
-              </div>
-            )}
-          </main>
+            </ScrollArea>
+          </div>
         </div>
       </div>
     </div>
-  )
-}
-
-// --- UI-only helper components for chat bubbles ---
-function AgentMessage({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-2">
-      <Avatar className="h-7 w-7">
-        <AvatarFallback>TA</AvatarFallback>
-      </Avatar>
-      <div className="rounded-lg bg-muted px-3 py-2 text-sm max-w-[36rem]">
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function UserMessage({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-2 justify-end">
-      <div className="rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm max-w-[36rem]">
-        {children}
-      </div>
-      <Avatar className="h-7 w-7">
-        <AvatarFallback>YOU</AvatarFallback>
-      </Avatar>
-    </div>
-  )
-}
-
-function PlayIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-primary">
-      <path d="M8 5v14l11-7z"></path>
-    </svg>
   )
 }

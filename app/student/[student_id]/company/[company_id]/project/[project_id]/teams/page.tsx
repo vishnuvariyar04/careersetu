@@ -38,6 +38,33 @@ export default function ProjectTeamsPage() {
   // const [params, setParams] = useState({ studentId: '', companyId: '', projectId: '' });
 
 
+  // Append a role to the student's roles[] array in Supabase, deduping
+  const appendRoleToStudent = async (role: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("students")
+        .select("roles")
+        .eq("student_id", studentId)
+        .single()
+      if (error) {
+        console.error("Fetch roles failed", error)
+        return
+      }
+      const currentRoles = Array.isArray(data?.roles) ? data.roles : []
+      const updatedRoles = currentRoles.includes(role) ? currentRoles : [...currentRoles, role]
+      const { error: updateError } = await supabase
+        .from("students")
+        .update({ roles: updatedRoles })
+        .eq("student_id", studentId)
+      if (updateError) {
+        console.error("Update roles failed", updateError)
+      }
+    } catch (e) {
+      console.error("Unexpected error updating student roles", e)
+    }
+  }
+
+
   // Effect to fetch data whenever params or the supabase client changes
   useEffect(() => {
     // Only fetch data if user is authorized
@@ -131,7 +158,8 @@ export default function ProjectTeamsPage() {
       console.error("Error joining team:", error);
       alert("Failed to join team. Please try again.");
     } else {
-      // Navigate to the workspace on successful join
+      // Update student's roles, then navigate to the workspace on successful join
+      await appendRoleToStudent(role)
       window.location.href = `/student/${studentId}/company/${companyId}/project/${projectId}/team/${teamId}/workspace`;
     }
   };
@@ -234,6 +262,8 @@ export default function ProjectTeamsPage() {
 
     setIsCreating(false);
 
+    // Append creator's role before navigating to the workspace
+    await appendRoleToStudent(selectedRole)
     // Navigate to the workspace
     window.location.href = `/student/${studentId}/company/${companyId}/project/${projectId}/team/${teamData.team_id}/workspace`;
   };
