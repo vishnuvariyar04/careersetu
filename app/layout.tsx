@@ -6,9 +6,12 @@ import { SessionProvider } from "@/components/session-provider"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "DevFlow AI - Project Management Platform",
+  title: "Outlrn",
   description: "AI-powered project management platform for web developers",
-  generator: "v0.app",
+  icons: {
+    icon: "/images/outlrn-fav.png",
+    
+  },
 }
 
 export default function RootLayout({
