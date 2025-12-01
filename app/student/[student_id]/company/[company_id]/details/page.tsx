@@ -19,7 +19,11 @@ import {
   Target,
   Sparkles,
   AlignLeft,
-  Video
+  Video,
+  Github, // <--- ADD THIS
+  X      , // <--- ADD THIS
+  Check,       // <--- ADD THIS
+  ExternalLink // <--- ADD THIS
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation"
@@ -145,6 +149,8 @@ const MOCK_PRS = [
   }
 ]
 
+
+
 // Mock e-commerce project (will be replaced with real data from database)
 const MOCK_ECOMMERCE_PROJECT = {
   project_id: "ecommerce-project",
@@ -156,6 +162,26 @@ const MOCK_ECOMMERCE_PROJECT = {
 
 type Mode = "learning" | "project"
 type AgentType = "teacher" | "pm"
+
+
+// ... imports
+
+// ADD THIS INTERFACE
+interface PrReviewData {
+  id: string
+  title: string
+  status: 'approved' | 'rejected' | 'pending' | string
+  verdict: string
+  timestamp: string
+  author: string
+  score: number
+  summary: string
+  issues: string[] // We will parse the JSON string here
+  pr_url: string
+  pr_number: number
+}
+
+// ... existing interfaces
 
 interface TaskTopic {
   id: string
@@ -338,11 +364,84 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
   }
 }
 
-
 // ... existing state ...
-  // ADD THIS:
   const [selectedPrId, setSelectedPrId] = useState<string | null>(null)
+  
+  // NEW: State for real PR data
+  const [realPrs, setRealPrs] = useState<PrReviewData[]>([])
+  const [isLoadingPrs, setIsLoadingPrs] = useState(false)
 
+
+  // ... existing fetchProjectResources function ...
+
+  // ADD THIS FUNCTION
+  const fetchPrReviews = async () => {
+    if (!studentId) return
+    
+    setIsLoadingPrs(true)
+    try {
+      // ensure we have a task context
+      if (!activeTaskId) {
+        setIsLoadingPrs(false)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('pr_reviews')
+        .select('*')
+        .eq('student_id', studentId)
+        .eq('task_id', activeTaskId)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      if (data) {
+        const formattedPrs: PrReviewData[] = data.map((row: any) => {
+          // Parse the ai_issues string into an array
+          let parsedIssues: string[] = []
+          try {
+            parsedIssues = row.ai_issues ? JSON.parse(row.ai_issues) : []
+          } catch (e) {
+            console.error("Failed to parse issues", e)
+            parsedIssues = []
+          }
+
+          // Format timestamp to "2 days ago" style or just date
+          const date = new Date(row.created_at)
+          const timeString = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+
+          return {
+            id: row.id,
+            title: row.pr_title,
+            status: row.ai_verdict?.toLowerCase() || 'pending',
+            verdict: row.ai_verdict, // Keep raw verdict for display if needed
+            timestamp: timeString,
+            author: "You", // Hardcoded based on current user
+            score: row.ai_score,
+            summary: row.ai_summary,
+            issues: row.ai_issues,
+            pr_url: row.pr_url,
+            pr_number: row.pr_number
+          }
+        })
+        setRealPrs(formattedPrs)
+        console.log(formattedPrs)
+      }
+    } catch (error) {
+      console.error("Error fetching PR reviews:", error)
+    } finally {
+      setIsLoadingPrs(false)
+    }
+  }
+
+  // ADD TO USE EFFECT
+  useEffect(() => {
+    if (mode === 'project') {
+      setRealPrs([])
+       // ... existing calls
+       fetchPrReviews() // <--- Add this call
+    }
+  }, [mode, selectedProject,activeTaskId])
   // Update URL Params Helper (No changes needed, just use it for prId)
   
   // Update the Sync Effect (Add prId handling)
@@ -928,29 +1027,120 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  // Fetch all tasks (assuming single project for now)
+ // UPDATED: Fetch tasks + Auto-Advance logic if all tasks are completed
   const fetchProjectTasks = async () => {
+    if (!studentId) return
+
     setLoadingTasks(true)
     try {
-      const { data, error } = await supabase
-        .from('tasks')
+      // 1. Fetch current assigned tasks
+      const { data: existingData, error } = await supabase
+        .from('tasks-duo-1')
         .select('*')
+        .eq('assigned-to', studentId)
         .order('task_order', { ascending: true })
 
       if (error) throw error
       
-      setProjectTasks(data || [])
-      
-      // Check if student has any assigned tasks
-      const assignedTask = data?.find(task => task.assignee === studentId)
-      setHasAssignedTask(!!assignedTask)
-      
-      // If there's an assigned task, set it as active (only if URL hasn't set one)
-      if (assignedTask && !activeTaskId) {
-        setActiveTaskId(assignedTask.task_id)
-        // Sync URL for initial state
-        updateUrlParams({ taskId: assignedTask.task_id })
+      let currentTasks = (existingData || []).map((row: any) => ({
+        task_id: row.task_id,                  
+        title: row.task,                  
+        description: row['task-description'], 
+        status: row.status,
+        role: row.role,
+        assignee: row['assigned-to'],     
+        task_order: row.task_order               
+      }))
+
+      // ---------------------------------------------------------
+      // AUTO-ADVANCE LOGIC: Check if we need to fetch the next task
+      // ---------------------------------------------------------
+      const hasInProgress = currentTasks.some(t => t.status === 'in_progress')
+      const hasTasks = currentTasks.length > 0
+
+      // If user has tasks, but NONE are in_progress, fetch the next one
+      if (hasTasks && !hasInProgress) {
+        console.log("All tasks completed. Attempting to fetch next task...")
+        
+        // Get the highest order currently assigned
+        const lastTask = currentTasks[currentTasks.length - 1]
+        const lastOrder = lastTask.task_order
+
+        // Determine role filter
+        let roleFilter: string[] = []
+        if (studentRole === "fullstack") {
+          roleFilter = ["frontend", "backend"]
+        } else {
+          roleFilter = [studentRole]
+        }
+
+        // Fetch NEXT task from master table
+        const { data: nextMasterTask, error: nextError } = await supabase
+          .from('tasks')
+          .select('*')
+          .in('role', roleFilter)
+          .gt('task_order', lastOrder) // STRICTLY GREATER THAN last order
+          .order('task_order', { ascending: true })
+          .limit(1)
+          .single()
+
+        if (!nextError && nextMasterTask) {
+          // Insert the new task into tasks-duo-1
+          const { data: newAssignedTask, error: insertError } = await supabase
+            .from('tasks-duo-1')
+            .insert({
+              'task_id': nextMasterTask.task_id,
+              'task': nextMasterTask.title,
+              'task-description': nextMasterTask.description,
+              'role': nextMasterTask.role,
+              'assigned-to': studentId,
+              'status': 'in_progress', // Set as active
+              'task_order': nextMasterTask.task_order,
+              'created_at': new Date().toISOString()
+            })
+            .select()
+            .single()
+
+          if (!insertError && newAssignedTask) {
+            // Add the new task to our local list immediately
+            const mappedNewTask = {
+              task_id: newAssignedTask.task_id,
+              title: newAssignedTask.task,
+              description: newAssignedTask['task-description'],
+              status: newAssignedTask.status,
+              role: newAssignedTask.role,
+              assignee: newAssignedTask['assigned-to'],
+              task_order: newAssignedTask.task_order
+            }
+            // Append to list
+            currentTasks = [...currentTasks, mappedNewTask]
+            
+            // Force set this new task as active
+            setActiveTaskId(mappedNewTask.task_id)
+            updateUrlParams({ taskId: mappedNewTask.task_id })
+          }
+        }
       }
+      // ---------------------------------------------------------
+      // END AUTO-ADVANCE LOGIC
+      // ---------------------------------------------------------
+
+      setProjectTasks(currentTasks)
+      setHasAssignedTask(currentTasks.length > 0)
+      
+      // Standard Auto-Select Logic (If we didn't just auto-advance)
+      const currentUrlTaskId = searchParams.get('taskId')
+      
+      // If we have active tasks, no specific task selected, and we didn't just auto-advance above
+      // (If we auto-advanced, activeTaskId is already set, so this block won't overwrite it)
+      if (currentTasks.length > 0 && !activeTaskId && !currentUrlTaskId) {
+        // Prefer the first 'in_progress' task, otherwise the last available task
+        const defaultTask = currentTasks.find(t => t.status === 'in_progress') || currentTasks[currentTasks.length - 1]
+        
+        setActiveTaskId(defaultTask.task_id)
+        updateUrlParams({ taskId: defaultTask.task_id })
+      }
+      
     } catch (error) {
       console.error('Error fetching tasks:', error)
     } finally {
@@ -978,56 +1168,119 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     }
   }
 
-  // Start project and assign first task
-  const handleStartProject = async () => {
-    if (isStartingProject) return
-    
-    setIsStartingProject(true)
+  
+
+// =========================================================
+  // PASTE THIS TO REPLACE THE PREVIOUS LOGIC BLOCK
+  // =========================================================
+
+  // NEW: State for Onboarding Wizard
+  const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false)
+  const [githubUsername, setGithubUsername] = useState("")
+  const [isOnboardingLoading, setIsOnboardingLoading] = useState(false)
+  
+  // NEW: Track the step (Input -> Success) and store API data
+  const [onboardingStep, setOnboardingStep] = useState<'input' | 'success'>('input')
+  const [onboardingData, setOnboardingData] = useState<any>(null)
+
+  // 1. Open Modal
+  const handleStartProjectClick = () => {
+    setOnboardingStep('input') // Reset to input
+    setGithubUsername('')      // Clear previous input
+    setIsOnboardingModalOpen(true)
+  }
+
+  // 2. Submit to API -> Show Success Screen
+  const submitGithubOnboarding = async () => {
+    if (!githubUsername.trim()) {
+      alert("Please enter your GitHub username")
+      return
+    }
+
+    setIsOnboardingLoading(true)
+
     try {
-      // Determine which roles to fetch based on student role
-      let roleFilter: string[] = []
-      if (studentRole === "fullstack") {
-        roleFilter = ["frontend", "backend"]
-      } else {
-        roleFilter = [studentRole]
+      const payload = {
+        student_id: studentId,
+        project_name: currentSelectedProject?.name || "unknown-project",
+        github_username: githubUsername
       }
 
-      // Fetch the first pending task for the student's role (no project_id filter)
-      const { data: tasks, error: fetchError } = await supabase
+      const response = await fetch("https://ocellar-inclusively-delsie.ngrok-free.dev/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) throw new Error("Onboarding API request failed")
+
+      const data = await response.json()
+      
+      // SUCCESS: Save data and switch to success view
+      console.log("Onboarding Success:", data)
+      setOnboardingData(data)
+      setOnboardingStep('success') 
+
+    } catch (error) {
+      console.error("Onboarding Error:", error)
+      alert("Failed to onboard. Please check the username and try again.")
+    } finally {
+      setIsOnboardingLoading(false)
+    }
+  }
+
+  // 3. User clicks "Continue" on Success Screen -> Start DB Setup
+  const handleFinalContinue = async () => {
+    setIsOnboardingModalOpen(false) // Close modal
+    await continueProjectSetup()    // Run original setup logic
+  }
+
+  // 4. The Original Database Logic
+  const continueProjectSetup = async () => {
+    if (isStartingProject) return
+    setIsStartingProject(true)
+    
+    try {
+      let roleFilter: string[] = studentRole === "fullstack" ? ["frontend", "backend"] : [studentRole]
+
+      const { data: templates, error: fetchError } = await supabase
         .from('tasks')
         .select('*')
-        .eq('status', 'pending')
-        .is('assignee', null)
         .in('role', roleFilter)
         .order('task_order', { ascending: true })
         .limit(1)
 
       if (fetchError) throw fetchError
-
-      if (!tasks || tasks.length === 0) {
-        alert('No available tasks for your role')
+      if (!templates || templates.length === 0) {
+        alert('No available tasks found for your role.')
         return
       }
+      const firstTemplate = templates[0]
 
-      const firstTask = tasks[0]
-
-      // Assign task to student
-      const { error: updateError } = await supabase
-        .from('tasks')
-        .update({ 
-          assignee: studentId,
-          status: 'in_progress'
+      const { data: newTask, error: insertError } = await supabase
+        .from('tasks-duo-1')
+        .insert({
+          'task_id': firstTemplate.task_id,
+          'task': firstTemplate.title,
+          'task-description': firstTemplate.description,
+          'role': firstTemplate.role,
+          'assigned-to': studentId,
+          'status': 'in_progress',
+          'task_order': firstTemplate.task_order,
+          'created_at': new Date().toISOString()
         })
-        .eq('task_id', firstTask.task_id)
+        .select()
+        .single()
 
-      if (updateError) throw updateError
+      if (insertError) throw insertError
 
-      // Refresh tasks and set active task
       await fetchProjectTasks()
-      setActiveTaskId(firstTask.task_id)
-      setHasAssignedTask(true)
-      // Update URL
-      updateUrlParams({ taskId: firstTask.task_id })
+      
+      if (newTask) {
+        setActiveTaskId(newTask.task_id)
+        setHasAssignedTask(true)
+        updateUrlParams({ taskId: newTask.task_id })
+      }
     } catch (error) {
       console.error('Error starting project:', error)
       alert('Failed to start project. Please try again.')
@@ -1422,7 +1675,7 @@ useEffect(() => {
                     {/* Start Button */}
                     <div className="pt-6">
                       <Button
-                        onClick={handleStartProject}
+                        onClick={handleStartProjectClick}
                         disabled={isStartingProject}
                         className="h-12 px-8 text-[15px] bg-white/20 hover:bg-white/30 text-white border border-white/20 hover:border-white/30 transition-all"
                       >
@@ -1773,10 +2026,12 @@ useEffect(() => {
     
     {/* STATE 1: PR DETAIL VIEW (Active when a PR is clicked) */}
     {activeTask && selectedPrId ? (
-      <div className="animate-in fade-in slide-in-from-right-4 duration-300 pt-6">
+     <div className="animate-in fade-in slide-in-from-right-4 duration-300 pt-6">
         {(() => {
-          const pr = MOCK_PRS.find(p => p.id === selectedPrId)
-          if (!pr) return <div className="text-zinc-500 font-mono text-sm">Error: PR Not Found</div>
+          // CHANGE: Look up in realPrs instead of MOCK_PRS
+          const pr = realPrs.find(p => p.id === selectedPrId)
+          
+          if (!pr) return <div className="text-zinc-500 font-mono text-sm">Loading or PR Not Found...</div>
 
           return (
             <div className="max-w-4xl mx-auto">
@@ -1790,7 +2045,7 @@ useEffect(() => {
                   DASHBOARD
                 </button>
                 <span className="text-zinc-800">/</span>
-                <span>{pr.id.toUpperCase()}</span>
+                <span>PR-{pr.pr_number}</span>
               </nav>
 
               {/* 2. Title & Primary Meta */}
@@ -1810,6 +2065,11 @@ useEffect(() => {
                       </span>
                       <span>•</span>
                       <span>{pr.timestamp}</span>
+                      <span>•</span>
+                      {/* NEW: Link to Repo */}
+                      <a href={pr.pr_url} target="_blank" rel="noopener noreferrer" className="hover:text-white flex items-center gap-1">
+                         View on GitHub <ChevronRight className="w-3 h-3"/>
+                      </a>
                     </div>
                   </div>
 
@@ -1827,8 +2087,7 @@ useEffect(() => {
               </header>
 
               {/* 3. Analysis Content */}
-              {pr.analysis ? (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
                   
                   {/* Left: Main Analysis (2/3) */}
                   <div className="lg:col-span-2 space-y-10">
@@ -1840,32 +2099,33 @@ useEffect(() => {
                       </h3>
                       <div className="bg-zinc-900/30 border border-zinc-800/60 rounded-lg p-5">
                         <p className="text-[14px] leading-7 text-zinc-300 font-light">
-                          {pr.analysis.summary}
+                          {pr.summary}
                         </p>
                       </div>
                     </section>
 
-                    {/* Checklist Table */}
+                    {/* Consolidated Issues List (Since DB gives a single list) */}
                     <section>
-                      <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4">Compliance Checklist</h3>
-                      <div className="border-t border-zinc-800/50">
-                        {pr.analysis.checklist.map((item, idx) => (
-                          <div key={idx} className="py-4 border-b border-zinc-800/50 flex items-start gap-4 group">
-                            <div className="mt-0.5 flex-shrink-0">
-                              {item.status === 'pass' && <CheckCircle2 className="w-4 h-4 text-emerald-500/80" />}
-                              {item.status === 'fail' && <div className="w-4 h-4 text-[10px] flex items-center justify-center text-rose-500 font-bold">✕</div>}
-                              {item.status === 'warn' && <div className="w-4 h-4 text-[10px] flex items-center justify-center text-amber-500 font-bold">!</div>}
+                      <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4">Key Improvements & Issues</h3>
+                      <div className="border border-zinc-800/50 rounded-lg bg-zinc-900/10 overflow-hidden">
+                        {pr.issues && pr.issues.length > 0 ? (
+                            <ul className="divide-y divide-zinc-800/50">
+                            {pr.issues.map((issue, idx) => (
+                                <li key={idx} className="p-4 flex items-start gap-4 group hover:bg-zinc-900/30 transition-colors">
+                                <div className="mt-1 flex-shrink-0">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500/50 group-hover:bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.2)]"></div>
+                                </div>
+                                <p className="text-sm text-zinc-400 group-hover:text-zinc-200 leading-relaxed font-light">
+                                    {issue}
+                                </p>
+                                </li>
+                            ))}
+                            </ul>
+                        ) : (
+                            <div className="p-8 text-center text-zinc-600 text-sm italic">
+                                No critical issues found. Great job!
                             </div>
-                            <div className="flex-1">
-                              <p className={`text-sm font-medium mb-0.5 ${item.status === 'pass' ? 'text-zinc-300' : 'text-zinc-200'}`}>
-                                {item.label}
-                              </p>
-                              <p className="text-xs text-zinc-600 group-hover:text-zinc-500 transition-colors">
-                                {item.comment}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
+                        )}
                       </div>
                     </section>
                   </div>
@@ -1885,55 +2145,24 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    {/* Issues List */}
-                    <div className="space-y-6">
-                      {/* Security Block */}
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-xs text-zinc-500 font-medium">Security</span>
-                          {pr.analysis.security.status === 'safe' 
-                            ? <span className="text-[10px] text-emerald-500 bg-emerald-500/10 px-1.5 rounded">SAFE</span>
-                            : <span className="text-[10px] text-rose-500 bg-rose-500/10 px-1.5 rounded">RISK</span>
-                          }
+                    {/* Quick Stats / Info */}
+                     <div className="border border-zinc-800/40 rounded-lg p-4 space-y-3">
+                        <div className="flex justify-between text-xs">
+                           <span className="text-zinc-500">PR Number</span>
+                           <span className="text-zinc-300 font-mono">#{pr.pr_number}</span>
                         </div>
-                        <ul className="space-y-2">
-                          {pr.analysis.security.issues.map((issue, idx) => (
-                            <li key={idx} className="text-xs text-zinc-400 border-l border-zinc-800 pl-3 py-0.5">
-                              {issue}
-                            </li>
-                          ))}
-                          {pr.analysis.security.issues.length === 0 && <li className="text-xs text-zinc-600 italic">No issues found.</li>}
-                        </ul>
-                      </div>
-
-                      {/* Quality Block */}
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-xs text-zinc-500 font-medium">Code Quality</span>
-                          {pr.analysis.quality.status === 'good' 
-                            ? <span className="text-[10px] text-emerald-500 bg-emerald-500/10 px-1.5 rounded">GOOD</span>
-                            : <span className="text-[10px] text-amber-500 bg-amber-500/10 px-1.5 rounded">WARN</span>
-                          }
+                        <div className="flex justify-between text-xs">
+                           <span className="text-zinc-500">Issues Found</span>
+                           <span className="text-zinc-300 font-mono">{pr.issues.length}</span>
                         </div>
-                        <ul className="space-y-2">
-                          {pr.analysis.quality.issues.map((issue, idx) => (
-                            <li key={idx} className="text-xs text-zinc-400 border-l border-zinc-800 pl-3 py-0.5">
-                              {issue}
-                            </li>
-                          ))}
-                          {pr.analysis.quality.issues.length === 0 && <li className="text-xs text-zinc-600 italic">Clean code.</li>}
-                        </ul>
-                      </div>
-                    </div>
+                        <div className="flex justify-between text-xs">
+                           <span className="text-zinc-500">Review Status</span>
+                           <span className="text-zinc-300 capitalize">{pr.status}</span>
+                        </div>
+                     </div>
 
                   </div>
-                </div>
-              ) : (
-                <div className="py-20 border border-dashed border-zinc-800 rounded-lg flex flex-col items-center justify-center text-zinc-600">
-                  <div className="w-2 h-2 bg-zinc-500 rounded-full animate-pulse mb-4"></div>
-                  <p className="text-xs uppercase tracking-widest">Analyzing Codebase...</p>
-                </div>
-              )}
+              </div>
             </div>
           )
         })()}
@@ -2087,39 +2316,41 @@ useEffect(() => {
                 <div className="relative pl-2 space-y-0">
                    {/* Continuous Line */}
                    <div className="absolute left-[7px] top-2 bottom-2 w-px bg-zinc-800"></div>
-
-                   {MOCK_PRS.map((pr, idx) => (
-                      <div key={pr.id} className="relative pl-8 py-3 group">
-                         {/* Timeline Dot */}
-                         <div className={`absolute left-[3px] top-5 w-[9px] h-[9px] rounded-full border-2 border-zinc-950 z-10 transition-colors shadow-sm
-                            ${pr.status === 'approved' ? 'bg-emerald-500' : ''}
-                            ${pr.status === 'rejected' ? 'bg-rose-500' : ''}
-                            ${pr.status === 'pending' ? 'bg-zinc-600' : ''}
-                         `}></div>
-                         
-                         <button 
-                            onClick={() => updateUrlParams({ prId: pr.id })}
-                            className="block w-full text-left p-3 rounded-md hover:bg-zinc-900/50 transition-colors"
-                         >
-                            <div className="flex items-center justify-between mb-1">
-                               <span className="text-xs text-zinc-300 group-hover:text-white font-medium transition-colors">
-                                  {pr.title}
-                               </span>
-                               <span className="text-[9px] text-zinc-600 font-mono">{pr.timestamp}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                               <span className={`text-[9px] uppercase tracking-wider font-medium
-                                  ${pr.status === 'approved' ? 'text-emerald-500' : ''}
-                                  ${pr.status === 'rejected' ? 'text-rose-500' : ''}
-                                  ${pr.status === 'pending' ? 'text-zinc-500' : ''}
-                               `}>
-                                  {pr.status}
-                               </span>
-                               {idx === 0 && <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1.5 rounded">LATEST</span>}
-                            </div>
-                         </button>
-                      </div>
-                   ))}
+{realPrs.map((pr, idx) => (
+      <div key={pr.id} className="relative pl-8 py-3 group">
+         {/* Timeline Dot */}
+         <div className={`absolute left-[3px] top-5 w-[9px] h-[9px] rounded-full border-2 border-zinc-950 z-10 transition-colors shadow-sm
+            ${pr.status === 'accepted' ? 'bg-emerald-500' : ''}
+            ${pr.status === 'rejected' ? 'bg-rose-500' : ''}
+            ${pr.status === 'pending' ? 'bg-zinc-600' : ''}
+         `}></div>
+         
+         <button 
+            onClick={() => updateUrlParams({ prId: pr.id })}
+            className="block w-full text-left hover:cursor-pointer p-3 rounded-md hover:bg-zinc-900/50 transition-colors"
+         >
+            <div className="flex items-center justify-between mb-1">
+               <span className="text-xs text-zinc-300 group-hover:text-white font-medium transition-colors truncate max-w-[150px]">
+                  {pr.title}
+               </span>
+               <span className="text-[9px] text-zinc-600 font-mono flex-shrink-0">{pr.timestamp}</span>
+            </div>
+            <div className="flex items-center gap-2">
+               <span className={`text-[9px] uppercase tracking-wider font-medium
+                  ${pr.status === 'accepted' ? 'text-emerald-500' : ''}
+                  ${pr.status === 'rejected' ? 'text-rose-500' : ''}
+                  ${pr.status === 'pending' ? 'text-zinc-500' : ''}
+               `}>
+                  {pr.status}
+               </span>
+               {idx === 0 && <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1.5 rounded">LATEST</span>}
+            </div>
+         </button>
+      </div>
+   ))}
+   {realPrs.length === 0 && !isLoadingPrs && (
+      <div className="pl-8 text-xs text-zinc-600 italic">No PRs submitted yet.</div>
+   )}
                 </div>
               </div>
 
@@ -2283,12 +2514,23 @@ useEffect(() => {
                                   const isActive = activeTask && activeTask.task_id === task.task_id
                                   const isCompleted = task.status === 'completed'
                                   return (
-                                    <button
+                                   <button
                                       key={task.task_id}
                                       onClick={() => {
+                                        // 1. Set the new active task
                                         setActiveTaskId(task.task_id)
-                                        // ADDED: Update URL - Set task, clear resource
-                                        updateUrlParams({ taskId: task.task_id, resourceId: null })
+                                        
+                                        // 2. Clear conflicting views
+                                        setSelectedPrId(null)
+                                        setActiveResourceId(null)
+                                        setSelectedTopicId(null)
+                                        
+                                        // 3. Update URL
+                                        updateUrlParams({ 
+                                          taskId: task.task_id, 
+                                          prId: null, 
+                                          resourceId: null 
+                                        })
                                       }}
                                       className={`w-full flex items-start gap-1.5 p-1 rounded-md text-left transition-colors ${
                                         isActive ? "bg-white/10 border border-white/30" : "hover:bg-white/5"
@@ -2333,6 +2575,159 @@ useEffect(() => {
           </div>
         </div>
       </div>
+
+      {/* UPDATED MODAL CODE */}
+      <AnimatePresence>
+        {isOnboardingModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-[#181a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+            >
+              
+              {/* --- VIEW 1: INPUT FORM --- */}
+              {onboardingStep === 'input' && (
+                <>
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
+                    <div className="flex items-center gap-2">
+                      <Github className="w-5 h-5 text-white" />
+                      <h3 className="text-lg font-semibold text-white">GitHub Setup</h3>
+                    </div>
+                    <button 
+                      onClick={() => setIsOnboardingModalOpen(false)}
+                      className="text-white/50 hover:text-white transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="p-6 space-y-6">
+                    <div className="space-y-2">
+                      <p className="text-sm text-white/70 leading-relaxed">
+                        To start the <strong className="text-white">{currentSelectedProject?.name}</strong> project, we need to connect your GitHub account.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-white/50 uppercase tracking-wider">
+                        GitHub Username
+                      </label>
+                      <div className="relative">
+                        <Github className="absolute left-3 top-2.5 w-4 h-4 text-white/30" />
+                        <input
+                          type="text"
+                          value={githubUsername}
+                          onChange={(e) => setGithubUsername(e.target.value)}
+                          placeholder="e.g. harshsawant2505"
+                          className="w-full bg-black/20 border border-white/10 rounded-lg py-2 pl-9 pr-4 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 transition-all text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
+                      <p className="text-xs text-emerald-200/80">
+                        We will create a repository for you and setup the webhooks automatically.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/10 bg-white/5">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setIsOnboardingModalOpen(false)}
+                      className="text-white/70 hover:text-white hover:bg-white/10"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={submitGithubOnboarding}
+                      disabled={isOnboardingLoading || !githubUsername}
+                      className="bg-white text-black hover:bg-white/90"
+                    >
+                      {isOnboardingLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin mr-2"></div>
+                          Connecting...
+                        </>
+                      ) : (
+                        "Connect & Start"
+                      )}
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {/* --- VIEW 2: SUCCESS WIZARD --- */}
+              {onboardingStep === 'success' && onboardingData && (
+                <>
+                  <div className="p-8 flex flex-col items-center text-center space-y-6">
+                    {/* Success Animation Circle */}
+                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mb-2 ring-1 ring-emerald-500/50">
+                      <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center animate-in zoom-in duration-300">
+                        <Check className="w-6 h-6 text-[#181a1a] stroke-[3]" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h3 className="text-2xl font-bold text-white">
+                        Onboarding Successful!
+                      </h3>
+                      <p className="text-sm text-white/60 max-w-[260px] mx-auto">
+                        Your environment has been set up and is ready for development.
+                      </p>
+                    </div>
+
+                    {/* Data Card */}
+                    <div className="w-full bg-black/40 border border-white/10 rounded-xl p-4 space-y-3 text-left">
+                      
+                      {/* Repo Info */}
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wider text-white/40 font-medium">
+                          Repository Created
+                        </label>
+                        <a 
+                          href={onboardingData.repo_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 hover:underline mt-1 group"
+                        >
+                          <span className="text-sm font-mono truncate">
+                            {onboardingData.repo_full_name}
+                          </span>
+                          <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100" />
+                        </a>
+                      </div>
+
+                      {/* Status */}
+                      <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                        <span className="text-[11px] text-white/50">Webhook Status</span>
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="text-[10px] font-medium text-emerald-500">
+                            {onboardingData.webhook_status}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="px-6 py-4 border-t border-white/10 bg-white/5">
+                    <Button
+                      onClick={handleFinalContinue}
+                      className="w-full bg-white text-black hover:bg-white/90 h-11 text-[15px] font-medium"
+                    >
+                      Continue to Project <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </div>
+                </>
+              )}
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
