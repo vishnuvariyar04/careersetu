@@ -828,7 +828,7 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
         resource_id: resourceId 
       }
 
-      const response = await fetch("http://127.0.0.1:8080/project/stream", {
+      const response = await fetch("https://teacher-backend-toz0.onrender.com/project/stream", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
