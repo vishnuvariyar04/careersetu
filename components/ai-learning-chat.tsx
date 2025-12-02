@@ -4,12 +4,10 @@
 
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Bot, Send, Loader2, User, Trash2, Video, BookOpen, FileText, Code, Lightbulb, MessageSquare, ChevronRight, X } from "lucide-react"
-import { AspectRatio } from "@/components/ui/aspect-ratio"
+import { Bot, Send, Loader2, User, Trash2, Video, BookOpen, FileText, Code, Lightbulb, MessageSquare, X, Plus } from "lucide-react"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 
 interface Message {
   id: string
@@ -51,7 +49,9 @@ export default function AIChat({
   team_id,
   learningPaneKey,
   selectedTask,
-  learningPrefill
+  learningPrefill,
+  hideHeader = false,
+  showToolsRow = true,
 }: any) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
@@ -63,8 +63,11 @@ export default function AIChat({
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const chatAreaRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const inputContainerRef = useRef<HTMLDivElement>(null)
+  
 
-  // Streaming Avatar (Learning Agent) integration
+  // Streaming Avatar (Learning Agent) integration – only when video panel is open
   const avatarVideoRef = useRef<HTMLVideoElement>(null)
   const avatarRef = useRef<any>(null)
   const [avatarError, setAvatarError] = useState<string | null>(null)
@@ -72,6 +75,10 @@ export default function AIChat({
   const LEARNING_AVATAR_SCRIPT = "Hello! I am your learning coach avatar. Let's get started."
   const [videoMuted, setVideoMuted] = useState(true)
   const sdkModuleRef = useRef<any>(null);
+
+  // Collapsible side video panel
+  const [showVideoPanel, setShowVideoPanel] = useState(false)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
 
   const cacheKey = `learningChat_${uid}_${team_id}`
 
@@ -148,8 +155,46 @@ export default function AIChat({
     }
   }, [messages])
 
-  // Initialize Streaming Avatar
+  // Auto-resize textarea like ChatGPT
   useEffect(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    const maxHeight = 200 // ~8 lines
+    ta.style.height = Math.min(ta.scrollHeight, maxHeight) + 'px'
+  }, [input])
+
+  
+
+  // Enhance code blocks in assistant messages with copy buttons
+  useEffect(() => {
+    const container = chatAreaRef.current
+    if (!container) return
+    const blocks = Array.from(container.querySelectorAll('.assistant-message pre')) as HTMLElement[]
+    blocks.forEach((pre) => {
+      const wrapper = pre.parentElement as HTMLElement | null
+      if (!wrapper) return
+      wrapper.classList.add('relative', 'group')
+      if (wrapper.querySelector('.copy-btn')) return
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'copy-btn absolute top-2 right-2 rounded-md border bg-background px-2 py-1 text-xs text-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow'
+      btn.textContent = 'Copy'
+      btn.addEventListener('click', () => {
+        try {
+          const code = pre.textContent || ''
+          navigator.clipboard.writeText(code)
+          btn.textContent = 'Copied'
+          setTimeout(() => (btn.textContent = 'Copy'), 1200)
+        } catch (_) {}
+      })
+      wrapper.appendChild(btn)
+    })
+  }, [messages])
+
+  // Initialize Streaming Avatar when video panel is shown and no direct videoUrl is provided
+  useEffect(() => {
+    if (!showVideoPanel || videoUrl) return
     let isMounted = true
     ;(async () => {
       try {
@@ -222,7 +267,7 @@ export default function AIChat({
         avatarRef.current?.stopAvatar?.()
       } catch {}
     }
-  }, [])
+  }, [showVideoPanel, videoUrl])
 
   // Watch for "/" to show commands
   useEffect(() => {
@@ -273,6 +318,11 @@ export default function AIChat({
     const currentMessageData = { ...messageData }
     setInput("")
     setSelectedCommand("none")
+    // Open video panel immediately for /video requests
+    if (currentMessageData.command === 'video') {
+      setShowVideoPanel(true)
+      setVideoUrl(null)
+    }
     setIsLoading(true)
 
     try {
@@ -295,14 +345,35 @@ export default function AIChat({
       const apiResponse: any = await response.json()
 
       if (apiResponse && apiResponse.output) {
-        // Use the stored SDK module to make the avatar speak the new response
-        if (avatarRef.current && sdkModuleRef.current) {
+        // If API returns a concrete video URL, prefer inline player
+        if (apiResponse.video_url) {
+          setVideoUrl(apiResponse.video_url)
+        }
+        
+        // Process the output - check if it's JSON with html_explanation
+        let processedContent = apiResponse.output
+        try {
+          const parsed = JSON.parse(apiResponse.output)
+          if (parsed.html_explanation) {
+            // Use the html_explanation as-is (it's already HTML formatted)
+            processedContent = parsed.html_explanation
+          }
+        } catch (e) {
+          // Not JSON or doesn't have html_explanation, use output as-is
+          processedContent = apiResponse.output
+        }
+        
+        // Speak via avatar only if video panel is open and no direct video URL
+        if (showVideoPanel && !apiResponse.video_url && avatarRef.current && sdkModuleRef.current) {
           try {
             const ns = typeof sdkModuleRef.current?.default === "object" ? sdkModuleRef.current.default : sdkModuleRef.current;
             const { TaskType, TaskMode } = ns;
             
+            // Strip HTML tags for speech
+            const textForSpeech = processedContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+            
             await avatarRef.current.speak({ 
-                text: apiResponse.output,
+                text: textForSpeech.substring(0, 500), // Limit length for speech
                 taskType: TaskType.REPEAT,
                 taskMode: TaskMode.ASYNC,
             });
@@ -313,7 +384,7 @@ export default function AIChat({
 
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
-          content: apiResponse.output,
+          content: processedContent,
           role: "assistant",
           timestamp: new Date(),
           command: currentMessageData.command !== "none" ? currentMessageData.command : undefined,
@@ -344,99 +415,74 @@ export default function AIChat({
     return COMMANDS.find((cmd) => cmd.name === commandName)
   }
 
+  const closeVideoPanel = () => {
+    setShowVideoPanel(false)
+    setVideoUrl(null)
+    setVideoMuted(true)
+    try { avatarRef.current?.stopAvatar?.() } catch {}
+  }
+
   return (
     <div
         key={learningPaneKey}
-        className="h-full min-h-0 overflow-hidden grid grid-cols-1 xl:grid-cols-2 gap-0"
+        className={`h-full flex overflow-hidden ${showVideoPanel ? 'gap-0' : ''}`}
     >
-        {/* --- LEFT COLUMN: LESSON CANVAS + AVATAR --- */}
-        <div
-            className="p-6 overflow-auto space-y-6 bg-muted/40 custom-scrollbar"
-            style={{ scrollbarColor: "#313233 #0000", scrollbarWidth: "thin" }}
-        >
-            <style>
-                {`
-                .custom-scrollbar::-webkit-scrollbar { width: 6px; background: transparent; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #313233; border-radius: 4px; }
-                `}
-            </style>
-            <div>
-                <h2 className="text-xl font-semibold">{selectedTask ? `Learning: ${selectedTask.title}` : 'Learning'}</h2>
-                <p className="text-sm text-muted-foreground">A rich lesson tailored to your task and project.</p>
-            </div>
+        {/* --- MAIN: CHAT INTERFACE --- */}
+        <div className={`flex flex-col h-full overflow-hidden ${showVideoPanel ? 'flex-1' : 'w-full'} min-w-0 bg-background`}>
+            {/* Header */}
+            {!hideHeader && (
+              <header className="flex-shrink-0 px-6 py-3.5 border-b">
+                  <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0">
+                              <Bot className="w-4 h-4 text-primary-foreground" />
+                          </div>
+                          <h3 className="font-medium text-sm truncate">{agentName}</h3>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={handleClearHistory} 
+                        title="Clear chat history"
+                        className="flex-shrink-0 h-8 px-2 text-xs"
+                      >
+                          <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                          Clear
+                      </Button>
+                  </div>
+              </header>
+            )}
 
-            <div>
-                <h3 className="text-sm font-medium mb-2">Learning Coach</h3>
-                 <div className="relative w-full max-w-[720px] mx-auto aspect-video bg-black rounded-md overflow-hidden">
-                    <video ref={avatarVideoRef} autoPlay playsInline muted={videoMuted} className="w-full h-full object-contain">
-                        <track kind="captions" />
-                    </video>
-                    {videoMuted && (
-                        <div className="absolute inset-x-0 bottom-3 flex justify-center">
-                            <Button size="sm" onClick={() => {
-                                setVideoMuted(false)
-                                try { avatarVideoRef.current?.play?.() } catch {}
-                            }}>
-                                Enable sound
-                            </Button>
-                        </div>
-                    )}
-                </div>
-                {avatarError && <div className="text-xs text-destructive mt-2">{avatarError}</div>}
-            </div>
-
-            <div>
-                <h3 className="text-sm font-medium mb-2">Code Snippet</h3>
-                <div className="rounded-md border bg-background">
-                    <pre className="p-3 overflow-auto text-xs">
-                        {`${learningPrefill ? learningPrefill.slice(0, 400) : '// Code examples will be generated here.'}`}
-                    </pre>
-                </div>
-            </div>
-            
-            <div>
-                <h3 className="text-sm font-medium mb-2">Explanation</h3>
-                <p className="text-sm text-muted-foreground">The assistant will explain concepts and guide you step-by-step.</p>
-            </div>
-        </div>
-
-        {/* --- RIGHT COLUMN: CHAT INTERFACE --- */}
-        <div className="flex flex-col h-full min-h-0 border-l border-border">
-            <div className="p-4 border-b border-border">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                        <Bot className="w-5 h-5 text-primary-foreground" />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-semibold">{agentName}</h3>
-                        <p className="text-sm text-muted-foreground">{agentDescription}</p>
-                    </div>
-                    <Button variant="ghost" size="icon" onClick={handleClearHistory} title="Clear chat history">
-                        <Trash2 className="w-4 h-4" />
-                    </Button>
-                </div>
-            </div>
-
-            <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-                <div className="space-y-4" ref={chatAreaRef}>
+            {/* Messages Area with Proper Scrolling */}
+            <div 
+              className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 relative" 
+              ref={scrollAreaRef}
+              style={{ scrollbarGutter: 'stable' }}
+            >
+                <div 
+                  className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-6 space-y-6" 
+                  ref={chatAreaRef}
+                >
                     {messages.length === 0 && (
-                        <div className="text-center py-12">
-                            <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                                <Bot className="w-8 h-8 text-primary-foreground" />
+                        <div className="flex flex-col items-center justify-center py-16 px-4">
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center mb-4">
+                                <Bot className="w-6 h-6 text-primary-foreground" />
                             </div>
-                            <h3 className="text-lg font-semibold mb-2">Start Learning!</h3>
-                            <p className="text-sm text-muted-foreground mb-4">Type / to see available commands</p>
-                            <div className="grid grid-cols-2 gap-2 max-w-md mx-auto">
+                            <h3 className="text-xl font-semibold mb-2">How can I help you today?</h3>
+                            <p className="text-sm text-muted-foreground mb-8 text-center max-w-md">
+                                Ask me anything or use commands to get specific help
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full max-w-2xl">
                                 {COMMANDS.map((cmd) => (
                                     <button
                                         key={cmd.name}
                                         onClick={() => handleCommandSelect(cmd.name)}
-                                        className="flex items-center gap-2 p-3 rounded-lg border hover:bg-accent transition-colors text-left"
+                                        className="flex items-start gap-3 p-3.5 rounded-lg border hover:border-primary/50 hover:bg-accent/50 transition-all text-left group"
                                     >
-                                        <cmd.icon className={`w-4 h-4 ${cmd.color}`} />
+                                        <cmd.icon className={`w-5 h-5 ${cmd.color} mt-0.5 flex-shrink-0`} />
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-medium">/{cmd.name}</div>
-                                            <div className="text-xs text-muted-foreground truncate">{cmd.description}</div>
+                                            <div className="text-sm font-medium mb-0.5">/{cmd.name}</div>
+                                            <div className="text-xs text-muted-foreground leading-relaxed">{cmd.description}</div>
                                         </div>
                                     </button>
                                 ))}
@@ -444,140 +490,344 @@ export default function AIChat({
                         </div>
                     )}
 
-                    {messages.map((message) => (
-                        <div key={message.id} className="space-y-2">
-                            <div className="flex items-center gap-2">
-                                {message.role === "assistant" ? (
-                                    <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                                        <Bot className="w-3 h-3 text-primary-foreground" />
-                                    </div>
-                                ) : (
-                                    <Avatar className="w-6 h-6">
-                                        <AvatarFallback className="text-xs"> <User className="w-3 h-3" /> </AvatarFallback>
-                                    </Avatar>
-                                )}
-                                <span className="text-sm font-medium">{message.role === "assistant" ? agentName : "You"}</span>
-                                <span className="text-xs text-muted-foreground">{formatTime(message.timestamp)}</span>
-                                {message.command && (
-                                    <Badge variant="outline" className="text-xs">/{message.command}</Badge>
-                                )}
-                            </div>
-
-                            {message.context && message.role === "user" && (
-                                <div className="ml-8 mb-2">
-                                    <div className="bg-amber-50 dark:bg-amber-950 border-l-4 border-amber-400 p-3 rounded-r-lg">
-                                        <div className="flex items-start gap-2">
-                                            <Lightbulb className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-xs font-medium text-amber-900 dark:text-amber-100 mb-1">Context:</div>
-                                                <div className="text-xs text-amber-800 dark:text-amber-200 italic line-clamp-2">"{message.context}"</div>
-                                            </div>
-                                        </div>
-                                    </div>
+                    {messages.map((message) => {
+                        const isUser = message.role === 'user'
+                        return (
+                          <div 
+                            key={message.id} 
+                            className="group"
+                          >
+                            <div className={`flex gap-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
+                              {/* Avatar - only for assistant */}
+                              {!isUser && (
+                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0 mt-1">
+                                  <Bot className="w-4 h-4 text-primary-foreground" />
                                 </div>
-                            )}
+                              )}
 
-                            <div className="ml-8">
-                                <div
-                                    className="prose prose-sm max-w-none dark:prose-invert"
+                              {/* Message Content */}
+                              <div className={`flex-1 max-w-3xl ${isUser ? 'text-right' : ''}`}>
+                                {/* Context Chip for User Messages */}
+                                {message.context && isUser && (
+                                  <div className="mb-2 inline-block max-w-full">
+                                    <div className="bg-muted/50 border rounded-lg px-3 py-2 text-left">
+                                      <div className="flex items-start gap-2">
+                                        <Lightbulb className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-xs font-medium text-muted-foreground mb-0.5">
+                                            Context
+                                          </div>
+                                          <div className="text-xs text-foreground/80 break-words">
+                                            "{message.context}"
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Message Text */}
+                                <div className={`inline-block text-left max-w-full ${isUser ? 'text-right' : ''}`}>
+                                  <div
+                                    className={`
+                                      prose prose-sm max-w-none dark:prose-invert
+                                      prose-p:my-3 prose-p:leading-[1.7] prose-p:text-[15px]
+                                      prose-headings:font-semibold prose-headings:tracking-tight
+                                      prose-h1:text-2xl prose-h1:mt-8 prose-h1:mb-4 prose-h1:pb-2 prose-h1:border-b
+                                      prose-h2:text-xl prose-h2:mt-6 prose-h2:mb-3
+                                      prose-h3:text-lg prose-h3:mt-5 prose-h3:mb-2
+                                      prose-h4:text-base prose-h4:mt-4 prose-h4:mb-2
+                                      prose-ul:my-3 prose-ul:space-y-1.5
+                                      prose-ol:my-3 prose-ol:space-y-1.5
+                                      prose-li:my-1 prose-li:leading-relaxed
+                                      prose-pre:my-4 prose-pre:bg-muted/50 prose-pre:border prose-pre:rounded-lg prose-pre:p-4
+                                      prose-code:text-sm prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:bg-muted/50 prose-code:font-mono
+                                      prose-code:before:content-none prose-code:after:content-none
+                                      prose-strong:font-semibold prose-strong:text-foreground
+                                      prose-em:italic
+                                      prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-a:font-medium
+                                      prose-blockquote:border-l-4 prose-blockquote:border-primary/30 prose-blockquote:pl-4 prose-blockquote:italic
+                                      prose-hr:my-6 prose-hr:border-border
+                                      prose-img:rounded-lg prose-img:shadow-sm
+                                      break-words
+                                      ${isUser ? 'text-foreground/90' : ''}
+                                    `}
                                     dangerouslySetInnerHTML={{ __html: message.content }}
-                                />
-                            </div>
-                        </div>
-                    ))}
+                                  />
+                                </div>
 
-                    {isLoading && (
-                        <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                                <Loader2 className="w-3 h-3 animate-spin text-primary-foreground" />
+                                {/* Timestamp - shows on hover */}
+                                <div className={`mt-1 text-[11px] text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity ${isUser ? 'text-right' : 'text-left'}`}>
+                                  {formatTime(message.timestamp)}
+                                </div>
+                              </div>
                             </div>
-                            <span className="text-sm font-medium">{agentName} is thinking...</span>
+                          </div>
+                        )
+                    })}
+
+                    {/* Loading Indicator */}
+                    {isLoading && (
+                        <div className="flex gap-4">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0 mt-1">
+                                <Loader2 className="w-4 h-4 animate-spin text-primary-foreground" />
+                            </div>
+                            <div className="flex-1 max-w-3xl pt-1">
+                                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                                    <span className="animate-pulse">●</span>
+                                    <span className="animate-pulse animation-delay-200">●</span>
+                                    <span className="animate-pulse animation-delay-400">●</span>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
-            </ScrollArea>
+            </div>
 
-            {showCommands && (
-                <div className="mx-4 mb-2 bg-background rounded-lg shadow-lg border">
-                    <div className="p-2 border-b"><div className="text-xs font-semibold px-2">COMMANDS</div></div>
-                    <div className="max-h-64 overflow-y-auto">
-                        {COMMANDS.filter((cmd) => cmd.name.includes(input.slice(1).toLowerCase())).map((cmd, index) => (
-                            <button
-                                key={cmd.name}
-                                onClick={() => handleCommandSelect(cmd.name)}
-                                className={`w-full flex items-center gap-3 p-3 text-left ${index === activeCommandIndex ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
-                            >
-                                <cmd.icon className={`w-4 h-4 ${index !== activeCommandIndex && cmd.color}`} />
-                                <div className="flex-1">
-                                    <div className="text-sm font-medium">/{cmd.name}</div>
-                                    <div className={`text-xs ${index === activeCommandIndex ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{cmd.description}</div>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
+            {/* Clear History Button (when header is hidden) */}
+            {hideHeader && (
+              <div className="absolute right-4 top-4 z-10">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={handleClearHistory} 
+                  title="Clear chat history"
+                  className="opacity-60 hover:opacity-100 transition-opacity"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             )}
 
-            {selectedText && (
-                <div className="mx-4 mb-2">
-                    <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                        <div className="flex items-start gap-2">
-                            <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+            {/* Input Composer - Fixed at Bottom */}
+            <div 
+              ref={inputContainerRef} 
+              className="flex-shrink-0 border-t"
+            >
+              <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-3.5">
+                    {/* Selected Context Chip */}
+                    {selectedText && (
+                      <div className="mb-2.5">
+                        <div className="bg-muted/50 border rounded-lg px-3 py-2">
+                          <div className="flex items-start gap-2">
+                            <MessageSquare className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
-                                <div className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">Selected context:</div>
-                                <div className="text-xs text-blue-800 dark:text-blue-200 line-clamp-2">"{selectedText}"</div>
+                              <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                                Context
+                              </div>
+                              <div className="text-xs text-foreground/80 break-words line-clamp-2">
+                                "{selectedText}"
+                              </div>
                             </div>
-                            <button onClick={() => setSelectedText("")} title="Remove context">
-                                <X className="w-4 h-4 text-blue-500 hover:text-blue-700" />
+                            <button
+                              onClick={() => setSelectedText("")}
+                              className="flex-shrink-0 p-1 hover:bg-muted rounded"
+                              title="Remove context"
+                            >
+                              <X className="w-3 h-3 text-muted-foreground" />
                             </button>
+                          </div>
                         </div>
-                    </div>
-                </div>
-            )}
+                      </div>
+                    )}
 
-            <div className="p-4 border-t border-border">
-                <div className="flex gap-2">
-                    <div className="flex-1 flex items-center gap-2 border border-input rounded-md px-3 bg-background">
-                        {selectedCommand !== "none" && (
-                            <Badge variant="secondary" className="flex items-center gap-1">
-                                /{selectedCommand}
-                                <button onClick={removeCommand} className="ml-1 hover:bg-secondary-foreground/10 rounded-full p-0.5">
-                                    <X className="w-3 h-3" />
-                                </button>
-                            </Badge>
-                        )}
-                        <input
-                            placeholder={selectedCommand !== "none" ? "Type your message..." : "Type / for commands or ask anything..."}
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (showCommands) {
-                                    const filtered = COMMANDS.filter(cmd => cmd.name.includes(input.slice(1).toLowerCase()));
-                                    if (e.key === "ArrowDown") setActiveCommandIndex(i => (i + 1) % filtered.length);
-                                    else if (e.key === "ArrowUp") setActiveCommandIndex(i => (i - 1 + filtered.length) % filtered.length);
-                                    else if (e.key === "Enter") handleCommandSelect(filtered[activeCommandIndex].name);
-                                    else if (e.key === "Escape") setShowCommands(false);
-                                } else if (e.key === "Enter" && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleSend();
+                    {/* Command Suggestions Menu */}
+                    {showCommands && (
+                      <div className="mb-2.5">
+                        <div className="rounded-lg border bg-popover shadow-lg overflow-hidden">
+                          {COMMANDS.filter(cmd => cmd.name.includes(input.slice(1).toLowerCase())).slice(0,5).map((cmd, index) => (
+                            <button
+                              key={cmd.name}
+                              onClick={() => handleCommandSelect(cmd.name)}
+                              className={`
+                                w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors
+                                ${index === activeCommandIndex 
+                                  ? 'bg-accent' 
+                                  : 'hover:bg-muted/50'
                                 }
-                            }}
-                            disabled={isLoading}
-                            ref={inputRef}
-                            className="flex-1 outline-none bg-transparent text-sm w-full h-10"
+                              `}
+                            >
+                              <cmd.icon className={`w-4 h-4 flex-shrink-0 ${cmd.color}`} />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium">/{cmd.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {cmd.description}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Input Composer */}
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1 flex items-center gap-2 rounded-xl border bg-background px-3.5 py-2 shadow-sm transition-colors focus-within:border-primary/60">
+                        {showToolsRow && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="shrink-0 rounded-full p-1.5 hover:bg-accent" title="Tools">
+                                <Plus className="w-4 h-4" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-56">
+                              {COMMANDS.map((cmd) => (
+                                <DropdownMenuItem key={cmd.name} onClick={() => handleCommandSelect(cmd.name)}>
+                                  <cmd.icon className={`mr-2 h-4 w-4 ${cmd.color}`} /> /{cmd.name} — {cmd.description}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                        {selectedCommand !== 'none' && (
+                          <div className="flex items-center gap-1 shrink-0 bg-muted/80 rounded-md px-2 py-1">
+                            <span className="text-xs font-medium text-foreground/80">/{selectedCommand}</span>
+                            <button 
+                              onClick={removeCommand} 
+                              className="hover:bg-muted-foreground/20 rounded p-0.5 transition-colors"
+                              title="Remove command"
+                            >
+                              <X className="w-2.5 h-2.5 text-muted-foreground" />
+                            </button>
+                          </div>
+                        )}
+                        <textarea
+                          placeholder={selectedCommand !== 'none' ? 'Type your message...' : 'Message AI Assistant...'}
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (showCommands) {
+                              const filtered = COMMANDS.filter(cmd => cmd.name.includes(input.slice(1).toLowerCase()))
+                              if (e.key === 'ArrowDown') {
+                                e.preventDefault()
+                                setActiveCommandIndex(i => (i + 1) % filtered.length)
+                              }
+                              else if (e.key === 'ArrowUp') {
+                                e.preventDefault()
+                                setActiveCommandIndex(i => (i - 1 + filtered.length) % filtered.length)
+                              }
+                              else if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault()
+                                handleCommandSelect(filtered[activeCommandIndex]?.name)
+                              }
+                              else if (e.key === 'Escape') setShowCommands(false)
+                            } else if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              handleSend()
+                            }
+                          }}
+                          disabled={isLoading}
+                          ref={textareaRef as any}
+                          rows={1}
+                          className="flex-1 outline-none bg-transparent text-[15px] leading-relaxed w-full resize-none max-h-[200px] placeholder:text-muted-foreground/50 disabled:opacity-50"
                         />
-                    </div>
-                    <Button
+                      </div>
+                      <Button
                         size="icon"
+                        variant={input.trim() || selectedCommand !== 'none' ? 'default' : 'ghost'}
+                        className="rounded-lg h-9 w-9 flex-shrink-0 transition-all"
                         onClick={handleSend}
-                        disabled={isLoading || (!input.trim() && selectedCommand === "none")}
-                    >
-                        <Send className="w-4 h-4" />
-                    </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">Select text in chat to use as context.</p>
+                        disabled={isLoading || (!input.trim() && selectedCommand === 'none')}
+                      >
+                        {isLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+              </div>
             </div>
         </div>
+
+        {/* --- SIDE: VIDEO PANEL --- */}
+        {showVideoPanel && (
+          <aside className="w-full sm:w-96 h-full border-l border-border bg-muted/20 flex flex-col">
+            {/* Panel Header */}
+            <header className="flex-shrink-0 px-4 py-3 border-b border-border bg-background/50 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center">
+                    <Video className="w-4 h-4 text-red-500" />
+                  </div>
+                  <h3 className="text-sm font-semibold">Video Tutorial</h3>
+                </div>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  onClick={closeVideoPanel}
+                  className="h-8 px-3"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Close
+                </Button>
+              </div>
+            </header>
+
+            {/* Video Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {videoUrl ? (
+                <div className="space-y-3">
+                  <div className="aspect-video bg-black rounded-xl overflow-hidden shadow-lg">
+                    <video 
+                      controls 
+                      playsInline 
+                      className="w-full h-full object-contain"
+                    >
+                      <source src={videoUrl ?? undefined} type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
+                  </div>
+                  <div className="text-xs text-muted-foreground text-center">
+                    Video tutorial generated successfully
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="relative aspect-video bg-gradient-to-br from-black to-black/80 rounded-xl overflow-hidden shadow-lg">
+                    <video 
+                      ref={avatarVideoRef} 
+                      autoPlay 
+                      playsInline 
+                      muted={videoMuted} 
+                      className="w-full h-full object-contain"
+                    >
+                      <track kind="captions" />
+                    </video>
+                    {videoMuted && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                        <Button 
+                          size="sm"
+                          className="shadow-lg"
+                          onClick={() => {
+                            setVideoMuted(false)
+                            try { avatarVideoRef.current?.play?.() } catch {}
+                          }}
+                        >
+                          🔊 Enable Sound
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  {avatarError ? (
+                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                      <p className="text-xs text-destructive">{avatarError}</p>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <Loader2 className="w-4 h-4 text-blue-500 animate-spin mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-blue-900 dark:text-blue-100">
+                          Your AI tutor is preparing an interactive video explanation. This may take a moment...
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
     </div>
   )
 }

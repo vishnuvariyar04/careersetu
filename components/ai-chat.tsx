@@ -360,7 +360,7 @@ export function AIChat({
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+     <ScrollArea className="flex-1 p-4 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-400" ref={scrollAreaRef}>
         <div className="space-y-4">
           {messages.map((message) => (
             <div key={message.id} className="space-y-2">

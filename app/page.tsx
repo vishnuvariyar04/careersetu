@@ -1,677 +1,1143 @@
 'use client'
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import React, { useState, useEffect, useRef } from "react"
+import { motion, AnimatePresence, useScroll, useTransform, useSpring } from "framer-motion"
+import packageJson from "../package.json"
 import { 
-  GraduationCap, 
-  Sparkles, 
-  Target, 
-  Users, 
-  Zap, 
-  CheckCircle2,
-  ArrowRight,
-  TrendingUp,
+  ArrowRight, 
+  Menu, 
+  X,
+  Code2, 
+  Terminal, 
+  Check,
   Brain,
-  Briefcase,
-  X
-} from "lucide-react";
-// import dashboardMockup from "@/assets/dashboard-mockup.png";
-import { useScrollAnimation } from "@/hooks/use-scroll-animation";
+  Target,
+  Zap,
+  BarChart,
+  Rocket,
+  MessageSquare,
+  Clock,
+  Plus,
+  Minus,
+  Star,
+  GitBranch ,
+  Twitter,
+  Github,
+  Linkedin,
+  Send
+} from "lucide-react"
 
-const ScrollFadeIn = ({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) => {
-  const { ref, isVisible } = useScrollAnimation();
-  
-  return (
-    <div
-      ref={ref}
-      className={`transition-all duration-700 ${
-        isVisible 
-          ? 'opacity-100 translate-y-0' 
-          : 'opacity-0 translate-y-8'
-      }`}
-      style={{ transitionDelay: `${delay}ms` }}
+// --- 0. Font & Global Styles ---
+const GlobalStyles = () => (
+  <style jsx global>{`
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+    
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background-color: #0b0f14; 
+      color: white;
+      overflow-x: hidden;
+    }
+    
+    html {
+      scroll-behavior: smooth;
+    }
+  `}</style>
+)
+// --- 6. NEW: Modern Comparison Component ---
+
+const ComparisonRow = ({ feature, traditional, outlrn, delay }:any) => (
+    <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ delay: delay, duration: 0.5 }}
+        className="grid grid-cols-3 gap-6 py-6 border-b border-white/5 last:border-0 items-center hover:bg-white/[0.02] transition-colors px-6 -mx-6"
     >
-      {children}
-    </div>
-  );
-};
+        {/* Feature Name */}
+        <div className="text-zinc-400 font-medium text-sm flex items-center gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
+            {feature}
+        </div>
 
-const Index = () => {
+        {/* Traditional (Negative) */}
+        <div className="text-zinc-500 font-medium text-sm flex items-center gap-2">
+            <X className="w-4 h-4 text-red-500/50 shrink-0" /> 
+            <span className="line-through decoration-red-500/30 decoration-2">{traditional}</span>
+        </div>
+
+        {/* Outlrn (Positive) */}
+        <div className="text-white font-bold text-sm flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                <Check className="w-3 h-3 text-blue-400" />
+            </div>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">
+                {outlrn}
+            </span>
+        </div>
+    </motion.div>
+)
+
+const ComparisonSection = () => {
+    return (
+        <section className="py-32 px-6 relative z-10 bg-[#0b0f15]">
+            
+            {/* Background Glow */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-900/10 rounded-full blur-[120px] pointer-events-none" />
+
+            <div className="container mx-auto max-w-5xl relative z-10">
+                
+                {/* Header */}
+                <div className="text-center mb-20">
+                     <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] font-bold uppercase tracking-wider text-zinc-300 mb-6">
+                        VS Traditional
+                    </div>
+                    <h2 className="text-4xl md:text-5xl font-bold mb-4">
+                        Why choose <span className="text-blue-500">Outlrn?</span>
+                    </h2>
+                    <p className="text-zinc-400 text-lg">Stop wasting time on passive learning methods.</p>
+                </div>
+                
+                {/* Main Comparison Table Card */}
+                <div className="relative rounded-[2.5rem] bg-[#0c1117]/80 backdrop-blur-xl border border-white/10 p-8 md:p-12 shadow-2xl overflow-hidden">
+                    
+                    {/* Top Gradient Highlight */}
+                    <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent opacity-50" />
+                    
+                    {/* Grid Header */}
+                    <div className="grid grid-cols-3 gap-6 mb-6 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 border-b border-white/10 pb-6">
+                        <div>Feature</div>
+                        <div>Traditional Courses</div>
+                        <div className="text-blue-400">The Outlrn Way</div>
+                    </div>
+
+                    {/* Rows */}
+                    <div className="flex flex-col">
+                        <ComparisonRow 
+                            feature="Content Relevance" 
+                            traditional="Irrelevant topics included" 
+                            outlrn="Only what's needed" 
+                            delay={0.1}
+                        />
+                        <ComparisonRow 
+                            feature="Learning Path" 
+                            traditional="Generic & Linear" 
+                            outlrn="Personalized AI Path" 
+                            delay={0.2}
+                        />
+                        <ComparisonRow 
+                            feature="Feedback Loop" 
+                            traditional="None or Slow" 
+                            outlrn="Real-time AI Review" 
+                            delay={0.3}
+                        />
+                        <ComparisonRow 
+                            feature="Content Format" 
+                            traditional="Long, passive videos" 
+                            outlrn="Active Micro-tasks" 
+                            delay={0.4}
+                        />
+                        <ComparisonRow 
+                            feature="End Goal" 
+                            traditional="Certificates" 
+                            outlrn="Job Readiness" 
+                            delay={0.5}
+                        />
+                    </div>
+
+                </div>
+            </div>
+        </section>
+    )
+}
+// --- 1. Logo Component ---
+const Logo = () => (
+  <img src="/images/outlrn-cropped.png" className="w-40" alt="Outlrn" />
+)
+
+// --- 2. Custom Icons ---
+const VSCodeIcon = () => (
+  <div className="w-10 h-10 bg-[#007ACC] rounded-lg flex items-center justify-center shrink-0 shadow-lg">
+    <svg viewBox="0 0 24 24" className="w-6 h-6 fill-white"><path d="M23.15 2.587l-9.854 4.103L4.856 2.016 1.08 4.29l10.939 7.667L1.13 19.648l3.774 2.274 8.438-4.673 9.856 4.104.24-.012.762-.312V2.94l-.762-.312-.288-.041z" /></svg>
+  </div>
+)
+const ReactIcon = () => (
+  <div className="w-10 h-10 bg-[#20232a] rounded-lg flex items-center justify-center shrink-0 border border-white/10 shadow-lg"><svg viewBox="0 0 24 24" className="w-6 h-6 fill-[#61dafb]"><circle cx="12" cy="12" r="2" /><g stroke="currentColor" strokeWidth="1" fill="none"><ellipse rx="10" ry="4.5" cx="12" cy="12" /><ellipse rx="10" ry="4.5" cx="12" cy="12" transform="rotate(60 12 12)" /><ellipse rx="10" ry="4.5" cx="12" cy="12" transform="rotate(120 12 12)" /></g></svg></div>
+)
+const GitIcon = () => (
+  <div className="w-10 h-10 bg-[#F05032] rounded-lg flex items-center justify-center shrink-0 shadow-lg"><svg viewBox="0 0 24 24" className="w-6 h-6 fill-white" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="2" fill="white"/><path d="M12 10v-4" stroke="white" /><path d="M12 14v4" stroke="white" /><circle cx="12" cy="6" r="1" fill="white"/></svg></div>
+)
+// --- 3. UI Components ---
+
+const Navbar = () => {
+    const [isOpen, setIsOpen] = useState(false)
+    const [isScrolled, setIsScrolled] = useState(false)
+
+    useEffect(() => {
+        const handleScroll = () => {
+            if (window.scrollY > 50) {
+                setIsScrolled(true)
+            } else {
+                setIsScrolled(false)
+            }
+        }
+        window.addEventListener("scroll", handleScroll)
+        return () => window.removeEventListener("scroll", handleScroll)
+    }, [])
+
+    return (
+        <>
+            <motion.nav 
+                initial={false}
+                animate={isScrolled ? "scrolled" : "top"}
+                variants={{
+                    top: { 
+                        width: "100%", 
+                        top: 0, 
+                        borderRadius: "0px", 
+                        backgroundColor: "rgba(11, 15, 20, 0)", 
+                        borderColor: "rgba(255, 255, 255, 0)",
+                        paddingTop: "1.5rem",
+                        paddingBottom: "1.5rem"
+                    },
+                    scrolled: { 
+                        width: "min(90%, 90%)", 
+                        top: 24, 
+                        borderRadius: "9999px", 
+                        backgroundColor: "rgba(0, 0, 0, 0.0)", // Increased opacity slightly for better glass feel
+                        borderColor: "rgba(255, 255, 255, 0.1)",
+                        paddingTop: "0.75rem",
+                        paddingBottom: "0.75rem"
+                    }
+                }}
+                // FIXED: Changed to 'tween' to prevent overshoot/bouncing
+                transition={{ 
+                    type: "tween", 
+                    ease: "easeInOut", 
+                    duration: 0.4 
+                }}
+                style={{ 
+                    position: "fixed", 
+                    left: "50%", 
+                    x: "-50%", // Keeps it perfectly centered
+                    zIndex: 50,
+                    backdropFilter: isScrolled ? "blur(12px)" : "blur(0px)",
+                }}
+                className="flex items-center justify-between px-6 border"
+            >
+                {/* 1. Logo Section */}
+                <div className="flex items-center gap-2 shrink-0">
+                    <Logo /> 
+                    <p className="mt-1 bg-[#0f172a] hover:bg-[#1e293b] border border-white/10 text-white px-5 py-2 rounded-full text-xs font-bold transition-all hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] flex items-center gap-2 whitespace-nowrap">Beta Version {packageJson.version}</p>
+                </div>
+
+                {/* 2. Navigation Links (Desktop) - Centered */}
+                <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
+                    {['Features', 'How it Works', 'Pricing', 'FAQ'].map(item => (
+                        <a 
+                            key={item} 
+                            href={`#${item.toLowerCase().replace(/\s/g, '-')}`} 
+                            className="text-md font-medium text-white  transition-colors relative group whitespace-nowrap"
+                        >
+                            {item}
+                            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-500 transition-all group-hover:w-full" />
+                        </a>
+                    ))}
+                </div>
+
+                {/* 3. Right Actions */}
+                <div className="hidden md:flex items-center gap-4 shrink-0">
+                    {/* Social Proof Pill */}
+                    {/* <motion.div 
+                        animate={{ 
+                            opacity: isScrolled ? 1 : 0, 
+                            scale: isScrolled ? 1 : 0.8,
+                            width: isScrolled ? "auto" : 0,
+                            marginRight: isScrolled ? "8px" : 0
+                        }}
+                        className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/5 text-xs font-medium text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer overflow-hidden"
+                    >
+                        <svg className="w-3 h-3 fill-current shrink-0" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                        <span className="whitespace-nowrap">12k</span>
+                    </motion.div> */}
+
+                    <button className="text-zinc-400 hover:text-white text-sm font-medium transition-colors whitespace-nowrap">
+                        Sign In
+                    </button>
+                    
+                    <button className="bg-[#0f172a] hover:bg-[#1e293b] border border-white/10 text-white px-5 py-2 rounded-full text-sm font-bold transition-all hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] flex items-center gap-2 whitespace-nowrap">
+                        Get Started <ArrowRight className="w-3 h-3" />
+                    </button>
+                </div>
+
+                {/* Mobile Menu Toggle */}
+                <button className="md:hidden text-white ml-auto" onClick={() => setIsOpen(!isOpen)}>
+                    {isOpen ? <X /> : <Menu />}
+                </button>
+            </motion.nav>
+
+            {/* Mobile Menu Dropdown */}
+            {isOpen && (
+                <div className="fixed inset-0 z-40 bg-[#0b0f14] pt-24 px-6 md:hidden">
+                    <div className="flex flex-col gap-6 text-xl font-medium text-zinc-400">
+                        {['Features', 'How it Works', 'Pricing', 'FAQ'].map(item => (
+                            <a key={item} href="#" onClick={() => setIsOpen(false)} className="hover:text-white">{item}</a>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </>
+    )
+}
+// --- 4. NEW: "Supermemory" Replica Card (Fixed Layout) ---
+const StepCard = ({ step, tag, title, desc, color, imgUrl }:any) => (
+    <div className="group relative w-full max-w-[500px] mx-auto mb-24 last:mb-0">
+        
+        {/* Card Structure: Two layers for the double-border effect */}
+        
+        {/* Layer 1: Outer Ring (The faint grey stroke) */}
+        <div className="relative rounded-[2.5rem] p-[1px] bg-white/10 hover:bg-white/20 transition-colors duration-500">
+            
+            {/* Layer 2: Inner Dark Body */}
+            <div className="relative h-full rounded-[2.5rem] bg-[#1a1f26] overflow-hidden">
+                
+                {/* Top Gradient Highlight (The sharp colored line) */}
+                <div className={`absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r ${color} opacity-100`} />
+                
+                {/* Content Padding */}
+                <div className="px-8 pt-10 pb-0 relative z-20">
+                    
+                    {/* Header: Tag */}
+                    <div className="flex items-center gap-2 mb-4">
+                        <span className="text-blue-500 font-mono text-[11px] font-bold tracking-[0.2em] uppercase">
+                            #{step} - {tag}
+                        </span>
+                    </div>
+
+                    {/* Headline */}
+                    <h3 className="text-3xl font-semibold text-white mb-4 leading-tight tracking-tight">
+                        {title}
+                    </h3>
+
+                    {/* Description */}
+                    <p className="text-zinc-400 text-sm leading-relaxed max-w-sm mb-8">
+                        {desc}
+                    </p>
+                </div>
+
+                {/* Visual Area (Integrated Bottom Section) */}
+                <div className="relative w-full h-[320px] flex items-end justify-center overflow-hidden">
+                    
+                    {/* Blue Radial Glow behind the image */}
+                    <div className="absolute bottom-[-20%] left-1/2 -translate-x-1/2 w-64 h-64 bg-blue-600/40 rounded-full blur-[80px]" />
+                    
+                    {/* Tech Grid Pattern */}
+                    <div className="absolute inset-0 opacity-20" 
+                         style={{ backgroundImage: 'radial-gradient(circle, #3b82f6 1px, transparent 1px)', backgroundSize: '40px 40px' }} 
+                    />
+
+                    {/* Image/Visual - Anchored to bottom */}
+                    <img 
+                        src={imgUrl}
+                        alt={title}
+                        className="relative z-10 w-[70%] object-contain object-bottom transform group-hover:scale-105 transition-transform duration-700 drop-shadow-2xl"
+                    />
+                    
+                    {/* Fade to Black at bottom to merge with border */}
+                    <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-[#0c1117] to-transparent z-20" />
+                </div>
+            </div>
+        </div>
+    </div>
+)
+
+// --- 5. How To Use Section (Full Width Background) ---
+// --- 5. How To Use Section (Blended Background) ---
+const HowToUseSection = () => {
+    
+    // Gradient definitions for top borders
+    const gradients = [
+        "from-blue-500 via-cyan-400 to-transparent",
+        "from-cyan-500 via-teal-400 to-transparent",
+        "from-indigo-500 via-purple-400 to-transparent",
+        "from-orange-500 via-amber-400 to-transparent",
+        "from-emerald-500 via-green-400 to-transparent"
+    ]
+
+    return (
+        // Changed bg color to #0b0f15 to match your request
+        <section className="relative bg-[#0b0f15] py-32 px-6">
+            
+            {/* --- FIXED FULL-WIDTH BACKGROUND (The Aurora) --- */}
+            <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
+                 
+                 {/* Sticky Window for the Flare */}
+                 <div className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden">
+                    <div className="w-full h-full scale-[1] opacity-90">
+                        <AuroraFlare opacity={1} />
+                    </div>
+                 </div>
+
+                 {/* --- BLEND MASKS (Top & Bottom) --- */}
+                 {/* These ensure the flare fades out perfectly into the #0b0f15 background */}
+                 <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-[#0b0f15] to-transparent z-10" />
+                 <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-[#0b0f15] to-transparent z-10" />
+            </div>
+
+            <div className="container mx-auto max-w-6xl relative z-10">
+                <div className="flex flex-col lg:flex-row gap-16 items-start">
+                    
+                    {/* --- LEFT COLUMN: STICKY HEADER --- */}
+                    <div className="lg:w-5/12 lg:sticky lg:top-32 lg:h-fit py-10">
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] font-bold uppercase tracking-wider text-zinc-300 w-fit mb-8">
+                            How it works
+                        </div>
+                        
+                        <h2 className="text-5xl md:text-6xl font-medium text-white mb-6 leading-[1.1] tracking-tight">
+                            How to use <br/> 
+                            <span className="text-white">
+                                Outlrn platform
+                            </span>
+                        </h2>
+                        
+                        <p className="text-lg text-zinc-400 leading-relaxed max-w-md mb-8">
+                            Outlrn turns scattered inputs into clean, contextual learning that you can instantly recall — powering fast, reliable engineering growth.
+                        </p>
+
+                        <button className="group flex items-center gap-2 px-6 py-3 rounded-full border border-white/20 text-white font-medium hover:bg-white/10 transition-all w-fit">
+                            <span>How Outlrn works</span>
+                            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                    </div>
+
+                    {/* --- RIGHT COLUMN: SCROLLING CARDS --- */}
+                    <div className="lg:w-7/12 flex flex-col pt-10 pb-32 relative">
+                        
+                        <StepCard 
+                            step="1"
+                            tag="CONNECT"
+                            title="Join a Company Virtual Environment"
+                            desc="We built SDKs for everything - OpenAI, Anthropic, AI SDK, Cloudflare, you name it. Installing outlrn takes minutes."
+                            color={gradients[0]}
+                            imgUrl="/images/join.png"
+                        />
+
+                        <StepCard 
+                            step="2"
+                            tag="ANALYZE"
+                            title="Learn the Skills Needed in That Company"
+                            desc="We analyze the company's stack and teach you exactly what's needed to contribute, filling knowledge gaps instantly."
+                            color={gradients[1]}
+                            imgUrl="/images/learning.png"
+                        />
+
+                        <StepCard 
+                            step="3"
+                            tag="UNLOCK"
+                            title="Join Real Projects"
+                            desc="Reach skill thresholds to unlock live modules. Work on Auth, APIs, and microservices just like a real employee."
+                            color={gradients[2]}
+                            imgUrl={"/images/proj.png"}
+                        />
+
+                        <StepCard 
+                            step="4"
+                            tag="MENTOR"
+                            title="AI Teaching"
+                            desc="Get a senior engineer-style breakdown of every concept, adapted specifically to your current understanding."
+                            color={gradients[3]}
+                            imgUrl={"/images/tut.png"}
+                        />
+
+                        <StepCard 
+                            step="5"
+                            tag="REVIEW"
+                            title="Submit & Improve"
+                            desc="Push code to GitHub. Our AI Reviewer checks quality and logic, rejecting poor code with clear fix instructions."
+                            color={gradients[4]}
+                            imgUrl={"/images/pr.png"}
+                        />
+
+                    </div>
+                </div>
+            </div>
+        </section>
+    )
+}
+// --- Aurora Component ---
+const Aurora = ({ colorStops, blend, amplitude, speed }:any) => {
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Background Effects */}
-      <div className="fixed inset-0 -z-10">
-        {/* Grid Lines - More Visible */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--primary)/0.08)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--primary)/0.08)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--primary)/0.03)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--primary)/0.03)_1px,transparent_1px)] bg-[size:8rem_8rem]" />
-        
-        {/* Spray Painted Spots */}
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] bg-accent/10 rounded-full blur-[150px]" />
-        <div className="absolute bottom-1/4 left-1/3 w-[600px] h-[600px] bg-primary/15 rounded-full blur-[180px]" />
-        <div className="absolute bottom-0 right-1/3 w-96 h-96 bg-accent/10 rounded-full blur-[120px]" />
-        
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background opacity-80" />
-      </div>
-
-      {/* Navigation */}
-      <nav className="border-b border-border bg-background/50 backdrop-blur-xl fixed w-full z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <GraduationCap className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold">InternSpirit</span>
-            </div>
-            <div className="hidden md:flex items-center gap-8">
-              <a href="#features" className="text-sm hover:text-primary transition-colors">Features</a>
-              <a href="#benefits" className="text-sm hover:text-primary transition-colors">Benefits</a>
-              <a href="#pricing" className="text-sm hover:text-primary transition-colors">Pricing</a>
-              <Button variant="hero" size="sm">Get Started</Button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Hero Section */}
-      <section className="pt-32 pb-20 px-6 relative overflow-hidden">
-        {/* Aurora Background Effect */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[12rem] max-w-full h-[50rem] pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/30 via-accent/40 to-primary/30 blur-3xl" />
-          <div className="absolute inset-0 bg-gradient-to-l from-primary/20 via-transparent to-accent/20 blur-2xl" style={{ animationDelay: '5s' }} />
-        </div>
-        
-        <div className="container mx-auto text-center relative">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary/50 border border-border/50 mb-6 backdrop-blur-sm">
-            <Sparkles className="h-3 w-3 text-primary" />
-            <span className="text-xs text-muted-foreground">Revolutionizing Professional Learning</span>
-          </div>
-          
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
-            Bridge Education to
-            <br />
-            <span className="text-primary">Real-World Success</span>
-          </h1>
-          
-          <p className="text-sm md:text-base text-muted-foreground/80 max-w-2xl mx-auto mb-8">
-            Transform how students and professionals acquire real-world skills through 
-            AI-powered workflow simulation. Learn by doing, guided by personalized AI mentors.
-          </p>
-          
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <Button variant="hero" size="default" className="gap-2 text-sm">
-              Start Learning <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="default" className="text-sm">Watch Demo</Button>
-          </div>
-
-          <div className="flex items-center justify-center gap-6 mt-10 text-xs text-muted-foreground/70">
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-primary/80" />
-              <span>No credit card required</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-primary/80" />
-              <span>AI-powered mentorship</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-primary/80" />
-              <span>Real company workflows</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Dashboard Mockup */}
-      <section className="pb-20 px-6 relative">
-        <div className="container mx-auto">
-          <ScrollFadeIn>
-            <div className="relative">
-              <div className="absolute inset-0 bg-primary/30 blur-[120px] -z-10 animate-pulse" />
-              <div className="absolute -top-20 -left-20 w-40 h-40 bg-accent/20 rounded-full blur-[80px]" />
-              <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-primary/20 rounded-full blur-[80px]" />
-              <Card className="p-2 bg-card border-border overflow-hidden">
-                <img 
-                  src={"/image.png"} 
-                  alt="InternSpirit Dashboard Interface" 
-                  className="w-full h-auto rounded-lg"
-                />
-              </Card>
-            </div>
-          </ScrollFadeIn>
-        </div>
-      </section>
-
-      {/* Problem Statement */}
-      <section className="py-20 px-6 relative">
-        <div className="container mx-auto max-w-4xl">
-          <ScrollFadeIn>
-            <div className="text-center mb-12">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-destructive/10 border border-destructive/20 mb-4">
-                <X className="h-3 w-3 text-destructive" />
-                <span className="text-xs text-destructive">The Problem</span>
-              </div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Traditional education leaves students <span className="text-muted-foreground">unprepared</span>
-              </h2>
-            </div>
-          </ScrollFadeIn>
-          
-          <div className="grid md:grid-cols-3 gap-6">
-            <ScrollFadeIn delay={100}>
-              <Card className="p-6 bg-secondary/50 border-border/50 text-center">
-                <div className="text-4xl font-bold text-muted-foreground mb-2">65%</div>
-                <p className="text-sm text-muted-foreground">of graduates lack job-ready skills</p>
-              </Card>
-            </ScrollFadeIn>
-            <ScrollFadeIn delay={200}>
-              <Card className="p-6 bg-secondary/50 border-border/50 text-center">
-                <div className="text-4xl font-bold text-muted-foreground mb-2">2.5x</div>
-                <p className="text-sm text-muted-foreground">longer to become productive at work</p>
-              </Card>
-            </ScrollFadeIn>
-            <ScrollFadeIn delay={300}>
-              <Card className="p-6 bg-secondary/50 border-border/50 text-center">
-                <div className="text-4xl font-bold text-muted-foreground mb-2">40%</div>
-                <p className="text-sm text-muted-foreground">quit within first year due to poor fit</p>
-              </Card>
-            </ScrollFadeIn>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-20 px-6 relative">
-        <div className="container mx-auto">
-          <ScrollFadeIn>
-            <div className="text-center mb-16">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-4">
-                <CheckCircle2 className="h-3 w-3 text-primary" />
-                <span className="text-xs text-primary">The Solution</span>
-              </div>
-              <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                Learn by doing. <span className="text-primary">Succeed by practicing.</span>
-              </h2>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                Experience authentic company workflows with AI mentorship that adapts to your learning style.
-              </p>
-            </div>
-          </ScrollFadeIn>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            <ScrollFadeIn delay={100}>
-              <Card className="p-8 bg-card border-border hover:border-primary/50 transition-all duration-300">
-                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-6">
-                  <Brain className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3">AI-Powered Mentorship</h3>
-                <p className="text-muted-foreground mb-4">
-                  Personalized AI mentors guide you through authentic company workflows, 
-                  providing real-time feedback and adaptive learning paths.
-                </p>
-                <ul className="space-y-2">
-                  <li className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>24/7 intelligent support</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Adaptive learning paths</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Real-time skill assessment</span>
-                  </li>
-                </ul>
-              </Card>
-            </ScrollFadeIn>
-
-            <ScrollFadeIn delay={200}>
-              <Card className="p-8 bg-card border-border hover:border-primary/50 transition-all duration-300">
-                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-6">
-                  <Briefcase className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3">Real Company Workflows</h3>
-                <p className="text-muted-foreground mb-4">
-                  Practice with authentic workflows from leading companies across industries, 
-                  building skills that employers actually need.
-                </p>
-                <ul className="space-y-2">
-                  <li className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Industry-standard processes</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Cross-functional scenarios</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Portfolio-ready projects</span>
-                  </li>
-                </ul>
-              </Card>
-            </ScrollFadeIn>
-
-            <ScrollFadeIn delay={300}>
-              <Card className="p-8 bg-card border-border hover:border-primary/50 transition-all duration-300">
-                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-6">
-                  <TrendingUp className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3">Outcome-Based Learning</h3>
-                <p className="text-muted-foreground mb-4">
-                  Track your progress with measurable outcomes that demonstrate real skill 
-                  acquisition and career readiness.
-                </p>
-                <ul className="space-y-2">
-                  <li className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Skills-based certification</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Performance analytics</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>Career path mapping</span>
-                  </li>
-                </ul>
-              </Card>
-            </ScrollFadeIn>
-          </div>
-        </div>
-      </section>
-
-      {/* Outcome Highlight Section */}
-      <section className="py-20 px-6 relative bg-primary/5">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.15),transparent_70%)]" />
-        <div className="container mx-auto max-w-5xl relative">
-          <ScrollFadeIn>
-            <div className="text-center mb-12">
-              <Target className="h-12 w-12 text-primary mx-auto mb-4" />
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Outcome-Based Learning That <span className="text-primary">Actually Works</span>
-              </h2>
-              <p className="text-lg text-muted-foreground">
-                Stop learning theory. Start building skills that matter.
-              </p>
-            </div>
-          </ScrollFadeIn>
-
-          <div className="grid md:grid-cols-2 gap-8">
-            <ScrollFadeIn delay={100}>
-              <Card className="p-8 bg-card/50 backdrop-blur-sm border-primary/20">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    <CheckCircle2 className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold mb-2">Measurable Skill Development</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Every simulation tracks specific competencies, giving you concrete proof of skill acquisition 
-                      that employers recognize and value.
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            </ScrollFadeIn>
-
-            <ScrollFadeIn delay={200}>
-              <Card className="p-8 bg-card/50 backdrop-blur-sm border-primary/20">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold mb-2">Career-Ready Portfolio</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Build a portfolio of real-world projects that showcase your abilities to potential 
-                      employers, not just certificates.
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            </ScrollFadeIn>
-
-            <ScrollFadeIn delay={300}>
-              <Card className="p-8 bg-card/50 backdrop-blur-sm border-primary/20">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    <Brain className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold mb-2">Personalized Growth Path</h3>
-                    <p className="text-sm text-muted-foreground">
-                      AI analyzes your performance and adapts the learning path to focus on areas 
-                      where you need the most growth.
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            </ScrollFadeIn>
-
-            <ScrollFadeIn delay={400}>
-              <Card className="p-8 bg-card/50 backdrop-blur-sm border-primary/20">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold mb-2">Instant Application</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Apply what you learn immediately in realistic scenarios, ensuring knowledge 
-                      translates directly to workplace success.
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            </ScrollFadeIn>
-          </div>
-        </div>
-      </section>
-
-      {/* Benefits Section */}
-      <section id="benefits" className="py-20 px-6 bg-secondary/30 relative">
-        <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-[100px]" />
-        <div className="container mx-auto relative">
-          <ScrollFadeIn>
-            <div className="text-center mb-16">
-              <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                Why learners actually <span className="text-primary">switch.</span>
-              </h2>
-              <p className="text-lg text-muted-foreground">
-                Built for speed & results. Everything else just... isn't.
-              </p>
-            </div>
-          </ScrollFadeIn>
-
-          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            <div className="space-y-4">
-              <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Zap className="h-4 w-4 text-primary" />
-                </div>
-                InternSpirit
-              </h3>
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-card border border-primary/20">
-                <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium">AI-powered simulation</p>
-                  <p className="text-sm text-muted-foreground">Learn by doing with real workflows</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-card border border-primary/20">
-                <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium">Immediate skill application</p>
-                  <p className="text-sm text-muted-foreground">Practice makes perfect</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-card border border-primary/20">
-                <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium">Personalized learning</p>
-                  <p className="text-sm text-muted-foreground">AI adapts to your pace</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-card border border-primary/20">
-                <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium">Industry-relevant skills</p>
-                  <p className="text-sm text-muted-foreground">Employer-verified competencies</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-card border border-primary/20">
-                <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium">Career-ready outcomes</p>
-                  <p className="text-sm text-muted-foreground">Build your professional portfolio</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-xl font-semibold mb-6 flex items-center gap-2 text-muted-foreground">
-                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </div>
-                Traditional Learning
-              </h3>
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-secondary/50 border border-border opacity-60">
-                <div className="h-5 w-5 flex-shrink-0 mt-0.5 rounded-full border-2 border-muted-foreground" />
-                <div>
-                  <p className="font-medium text-muted-foreground">Limited real-world practice</p>
-                  <p className="text-sm text-muted-foreground">Theoretical knowledge only</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-secondary/50 border border-border opacity-60">
-                <div className="h-5 w-5 flex-shrink-0 mt-0.5 rounded-full border-2 border-muted-foreground" />
-                <div>
-                  <p className="font-medium text-muted-foreground">Generic curriculum</p>
-                  <p className="text-sm text-muted-foreground">One-size-fits-all approach</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-secondary/50 border border-border opacity-60">
-                <div className="h-5 w-5 flex-shrink-0 mt-0.5 rounded-full border-2 border-muted-foreground" />
-                <div>
-                  <p className="font-medium text-muted-foreground">Delayed feedback</p>
-                  <p className="text-sm text-muted-foreground">Wait for instructor review</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-secondary/50 border border-border opacity-60">
-                <div className="h-5 w-5 flex-shrink-0 mt-0.5 rounded-full border-2 border-muted-foreground" />
-                <div>
-                  <p className="font-medium text-muted-foreground">Outdated content</p>
-                  <p className="text-sm text-muted-foreground">Disconnected from industry</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-secondary/50 border border-border opacity-60">
-                <div className="h-5 w-5 flex-shrink-0 mt-0.5 rounded-full border-2 border-muted-foreground" />
-                <div>
-                  <p className="font-medium text-muted-foreground">Theory-heavy approach</p>
-                  <p className="text-sm text-muted-foreground">Limited practical application</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 px-6 relative">
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-accent/10 rounded-full blur-[150px]" />
-        <div className="container mx-auto relative">
-          <ScrollFadeIn>
-            <div className="text-center mb-16">
-              <h2 className="text-4xl md:text-5xl font-bold mb-4">Pricing</h2>
-              <p className="text-lg text-muted-foreground">
-                Start today for free. Upgrade as you progress to unlock advanced features.
-              </p>
-            </div>
-          </ScrollFadeIn>
-
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            <ScrollFadeIn delay={100}>
-              <Card className="p-8 bg-card border-border">
-              <div className="mb-6">
-                <h3 className="text-xl font-semibold mb-2">Starter</h3>
-                <p className="text-sm text-muted-foreground">Perfect for exploring</p>
-              </div>
-              <div className="mb-6">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-bold">$0</span>
-                  <span className="text-muted-foreground">/month</span>
-                </div>
-              </div>
-              <ul className="space-y-3 mb-8">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">3 workflow simulations</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">Basic AI mentor</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">Community support</span>
-                </li>
-              </ul>
-              <Button variant="outline" className="w-full">Get started</Button>
-            </Card>
-            </ScrollFadeIn>
-
-            <ScrollFadeIn delay={200}>
-              <Card className="p-8 bg-card border-primary relative">
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                <div className="px-4 py-1 bg-primary text-primary-foreground text-xs font-semibold rounded-full">
-                  POPULAR
-                </div>
-              </div>
-              <div className="mb-6">
-                <h3 className="text-xl font-semibold mb-2">Professional</h3>
-                <p className="text-sm text-muted-foreground">For serious learners</p>
-              </div>
-              <div className="mb-6">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-bold">$29</span>
-                  <span className="text-muted-foreground">/month</span>
-                </div>
-              </div>
-              <ul className="space-y-3 mb-8">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">Unlimited simulations</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">Advanced AI mentor</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">Skills certification</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">Priority support</span>
-                </li>
-              </ul>
-              <Button variant="hero" className="w-full">Get started</Button>
-            </Card>
-            </ScrollFadeIn>
-
-            <ScrollFadeIn delay={300}>
-              <Card className="p-8 bg-card border-border">
-              <div className="mb-6">
-                <h3 className="text-xl font-semibold mb-2">Enterprise</h3>
-                <p className="text-sm text-muted-foreground">For organizations</p>
-              </div>
-              <div className="mb-6">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-bold">Custom</span>
-                </div>
-              </div>
-              <ul className="space-y-3 mb-8">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">Custom workflows</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">Team management</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">Analytics dashboard</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">Dedicated support</span>
-                </li>
-              </ul>
-              <Button variant="outline" className="w-full">Contact sales</Button>
-            </Card>
-            </ScrollFadeIn>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 px-6 relative">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/20 rounded-full blur-[150px]" />
-        <div className="container mx-auto relative">
-          <ScrollFadeIn>
-            <Card className="p-12 bg-gradient-to-br from-primary/10 to-transparent border-primary/20 text-center">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Ready to transform your learning?
-              </h2>
-              <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-                Join thousands of learners who are building real-world skills and 
-                accelerating their careers with InternSpirit.
-              </p>
-              <Button variant="hero" size="lg" className="gap-2">
-                Start for Free <ArrowRight className="h-5 w-5" />
-              </Button>
-            </Card>
-          </ScrollFadeIn>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-border py-12 px-6">
-        <div className="container mx-auto">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <GraduationCap className="h-6 w-6 text-primary" />
-                <span className="font-bold">InternSpirit</span>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Revolutionizing professional learning through AI-powered workflow simulation.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-primary transition-colors">Features</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Pricing</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Use Cases</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Roadmap</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Company</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-primary transition-colors">About</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Careers</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Contact</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Resources</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-primary transition-colors">Documentation</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Help Center</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Community</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Status</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="pt-8 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-muted-foreground">
-              © 2025 InternSpirit. All rights reserved.
-            </p>
-            <div className="flex gap-6 text-sm text-muted-foreground">
-              <a href="#" className="hover:text-primary transition-colors">Privacy</a>
-              <a href="#" className="hover:text-primary transition-colors">Terms</a>
-              <a href="#" className="hover:text-primary transition-colors">Security</a>
-            </div>
-          </div>
-        </div>
-      </footer>
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+      {colorStops.map((color:any, index:any) => (
+        <motion.div
+          key={index}
+          className="absolute rounded-[100%] mix-blend-screen opacity-40 blur-[80px]"
+          style={{
+            backgroundColor: color,
+            width: '60vw',
+            height: '60vh',
+            left: index === 0 ? '-10%' : index === 1 ? '30%' : '50%',
+            bottom: '-20%',
+          }}
+          animate={{
+            y: [0, -40 * amplitude, 0],
+            x: [0, 20 * amplitude, 0],
+            scale: [1, 1.2 * amplitude, 1],
+            opacity: [0.3, 0.7 * blend, 0.3],
+          }}
+          transition={{
+            duration: 10 / speed,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: index * 1.5,
+          }}
+        />
+      ))}
+      <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-[#0b0f14] via-[#0b0f14]/60 to-transparent" />
     </div>
-  );
-};
+  )
+}
 
-export default Index;
+const ConnectorLines = () => (
+    <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-30 z-0 hidden lg:block">
+        <defs>
+            <linearGradient id="lineGradLeft" x1="100%" y1="50%" x2="0%" y2="50%">
+                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="transparent" />
+            </linearGradient>
+            <linearGradient id="lineGradRight" x1="0%" y1="50%" x2="100%" y2="50%">
+                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="transparent" />
+            </linearGradient>
+        </defs>
+        <path d="M 50% 55% C 40% 55%, 25% 65%, 15% 30%" stroke="url(#lineGradLeft)" strokeWidth="1.5" fill="none" strokeDasharray="4 4" />
+        <path d="M 50% 55% C 40% 55%, 25% 65%, 20% 80%" stroke="url(#lineGradLeft)" strokeWidth="1.5" fill="none" strokeDasharray="4 4" />
+        <path d="M 50% 55% C 60% 55%, 75% 65%, 85% 30%" stroke="url(#lineGradRight)" strokeWidth="1.5" fill="none" strokeDasharray="4 4" />
+        <path d="M 50% 55% C 60% 55%, 75% 65%, 80% 80%" stroke="url(#lineGradRight)" strokeWidth="1.5" fill="none" strokeDasharray="4 4" />
+    </svg>
+)
+
+// --- 3. UI Components ---
+
+// ... (Other components)
+
+const TrustedBy = () => {
+    // Duplicate the list to ensure seamless scrolling
+    
+    const brands = [
+        'Composio', 'ASU', 'Github', 'Cluely', 'Montra', 'Mixus', 
+        'Google', 'Spotify', 'Amazon', 'Meta', 'Netflix'
+    ];
+    
+    return (
+        <section className="py-12 bg-[#0b0f14] relative z-20 overflow-hidden">
+            
+            {/* Inline styles for the scrolling animation */}
+            <style jsx>{`
+                @keyframes scroll {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(-50%); }
+                }
+                .animate-scroll {
+                    animation: scroll 80s linear infinite;
+                }
+                .fade-mask {
+                    mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+                    -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+                }
+            `}</style>
+
+            <div className="container mx-auto px-6 text-center">
+                <p className="text-zinc-400 text-sm font-medium mb-12">Trusted by Companies and enterprises</p>
+                
+                {/* Scroll Container with Fade Mask */}
+                <div className="relative w-full max-w-5xl mx-auto fade-mask overflow-hidden">
+                    <div className="flex w-max animate-scroll gap-16 items-center">
+                        {/* We render the list twice to create the infinite loop effect */}
+                        {[...brands, ...brands].map((brand, i) => (
+                            <div 
+                                key={i} 
+                                className="text-2xl font-bold text-white opacity-80 hover:opacity-100 transition-colors duration-300 cursor-default select-none flex items-center gap-2"
+                            >
+                              
+                                <span>{brand}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </section>
+    )
+}
+const FeatureItem = ({ imageUrl, title, desc, linkText = "Learn more" }:any) => (
+    /* 1. Outer Bezel/Frame */
+    <div className="group relative h-full rounded-[2.5rem] bg-gradient-to-b from-white/10 via-white/5 to-transparent p-[1px] hover:from-blue-500/30 hover:via-blue-500/10 hover:to-transparent transition-all duration-500">
+        
+        {/* 2. Main Card Body */}
+        <div className="relative h-full flex flex-col bg-[#0b0f14] rounded-[2.5rem] overflow-hidden">
+            
+            {/* Background Noise/Texture (Kept subtle for texture) */}
+            <div className="absolute inset-0 opacity-[0.2] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+            
+            {/* 3. Top Section: Pure Image Area */}
+            {/* Removed: Glows, Hexagons, Inner Containers, Lines */}
+            <div className="relative h-56 w-full overflow-hidden bg-[#171a1a]">
+                <img 
+                    src={imageUrl} 
+                    alt={title} 
+                    className="w-full h-full object-contain transform transition-transform duration-700 group-hover:scale-105" 
+                />
+                
+                {/* Optional: Very subtle gradient at the bottom to blend image into the dark card body smoothly */}
+                <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#0b0f14] to-transparent" />
+            </div>
+
+            {/* 4. Bottom Section: Content */}
+            <div className="relative flex flex-col flex-grow px-8 pb-8 pt-6">
+                <h4 className="text-xl font-bold text-white mb-3 tracking-tight relative z-10">
+                    {title}
+                </h4>
+                
+                <p className="text-sm text-zinc-400 leading-relaxed mb-8 flex-grow relative z-10">
+                    {desc}
+                </p>
+
+                {/* Link */}
+                <div className="flex items-center gap-2 text-blue-400 text-sm font-medium cursor-pointer group/link hover:text-blue-300 transition-colors relative z-10">
+                    <span>{linkText}</span>
+                    <span className="transform group-hover/link:translate-x-1 transition-transform">→</span>
+                </div>
+            </div>
+        </div>
+    </div>
+)
+
+// const ComparisonRow = ({ feature, traditional, outlrn }) => (
+//     <div className="grid grid-cols-3 gap-4 py-5 border-b border-white/5 text-sm items-center">
+//         <div className="text-zinc-300 font-medium">{feature}</div>
+//         <div className="text-zinc-500 flex items-center gap-2"><X className="w-4 h-4 text-red-500/50" /> {traditional}</div>
+//         <div className="text-white flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> {outlrn}</div>
+//     </div>
+// )
+
+const TestimonialCard = ({ quote, author, role }:any) => (
+    <div className="p-8 rounded-[2rem] bg-[#0a0f16]/40 border border-white/5 hover:border-blue-500/20 transition-all backdrop-blur-sm relative">
+        <div className="flex gap-1 text-blue-500 mb-6">
+            {[1,2,3,4,5].map(s => <Star key={s} className="w-4 h-4 fill-current" />)}
+        </div>
+        <p className="text-zinc-300 mb-6 text-base leading-relaxed">"{quote}"</p>
+        <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-900/30 flex items-center justify-center text-blue-300 font-bold border border-blue-500/20">
+                {author[0]}
+            </div>
+            <div>
+                <p className="text-white text-sm font-bold">{author}</p>
+                <p className="text-zinc-500 text-xs uppercase tracking-wide">{role}</p>
+            </div>
+        </div>
+    </div>
+)
+
+const FAQItem = ({ q, a }:any) => {
+    const [open, setOpen] = useState(false)
+    return (
+        <div className="border-b border-white/5">
+            <button className="w-full py-6 text-left flex items-center justify-between text-zinc-300 hover:text-white transition-colors" onClick={() => setOpen(!open)}>
+                <span className="font-medium text-lg">{q}</span>
+                {open ? <Minus className="w-5 h-5 text-blue-500" /> : <Plus className="w-5 h-5" />}
+            </button>
+            <AnimatePresence>
+                {open && (
+                    <motion.div initial={{height: 0, opacity: 0}} animate={{height: "auto", opacity: 1}} exit={{height: 0, opacity: 0}} className="overflow-hidden">
+                        <p className="pb-6 text-zinc-400 text-sm leading-relaxed max-w-2xl">{a}</p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    )
+}
+
+// --- NEW SCROLL-BASED HOW IT WORKS SECTION ---
+
+// --- 1. NEW: High-Intensity Aurora Flare ---
+const AuroraFlare = ({ opacity }:any) => {
+    return (
+        <motion.div 
+            style={{ opacity }}
+            className="absolute bottom-0 left-0 right-0 h-[130vh] w-full pointer-events-none z-0 overflow-visible"
+        >
+            {/* Gradient Mask to fade top edge smoothly */}
+            <div 
+                className="absolute inset-0 w-full h-full"
+                style={{
+                    maskImage: "linear-gradient(to top, black 40%, transparent 100%)",
+                    WebkitMaskImage: "linear-gradient(to top, black 40%, transparent 100%)"
+                }}
+            >
+                {/* 1. The Core Blaze (Bright White/Blue center) */}
+                <motion.div 
+                    animate={{ scaleY: [1, 1.3, 1], opacity: [0.8, 1, 0.8] }}
+                    transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute bottom-[-10%] left-1/2 -translate-x-1/2 w-[40%] h-[70%] bg-[#115ca3] blur-[150px] mix-blend-screen opacity-100"
+                />
+
+                {/* 2. Wide Cyan Glow (The halo) */}
+                <motion.div 
+                    animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.7, 0.5] }}
+                    transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute bottom-[-20%] left-[10%] right-[10%] h-[80%] bg-[#0f2dbf] blur-[180px] mix-blend-screen opacity-60"
+                />
+
+                {/* 3. Rising Light Pillars (Vertical streaks) */}
+                <motion.div 
+                    animate={{ 
+                        y: [0, -80, 0],
+                        scaleX: [0.9, 1.1, 0.9],
+                        opacity: [0.6, 0.9, 0.6]
+                    }}
+                    transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute bottom-[-10%] left-[30%] w-[40%] h-[100%] bg-gradient-to-t from-white via-blue-400 to-transparent blur-[80px] mix-blend-overlay"
+                />
+            </div>
+        </motion.div>
+    )
+}
+
+
+// --- 1. NEW: Blurred Emoji Rain Component ---
+const EmojiRain = ({ emoji, opacity }:any) => {
+    // Create a fixed set of raindrops with randomized properties
+    const raindrops = Array.from({ length: 20 }).map((_, i) => ({
+        id: i,
+        left: `${Math.random() * 100}%`, // Random horizontal position
+        delay: Math.random() * 5, // Random start time
+        duration: 5 + Math.random() * 10, // Random fall speed
+        scale: 0.5 + Math.random() * 0.5, // Random size
+    }))
+
+    return (
+        <motion.div 
+            style={{ opacity }} 
+            className="absolute inset-0 pointer-events-none overflow-hidden z-0"
+        >
+            {raindrops.map((drop) => (
+                <motion.div
+                    key={drop.id}
+                    className="absolute top-[-10%] text-7xl filter blur-[4px] opacity-60"
+                    style={{ left: drop.left, scale: drop.scale }}
+                    animate={{ y: ["0vh", "120vh"], rotate: [0, 360] }}
+                    transition={{
+                        duration: drop.duration,
+                        delay: drop.delay,
+                        repeat: Infinity,
+                        ease: "linear"
+                    }}
+                >
+                    {emoji}
+                </motion.div>
+            ))}
+        </motion.div>
+    )
+}
+
+// --- 2. Compact Metallic Story Card (Kept the same) ---
+const StoryCard = ({ emoji, title, desc, style }:any) => (
+    <motion.div 
+        style={style}
+        className="absolute top-0 left-0 right-0 w-full max-w-xl mx-auto px-4 perspective-1000"
+    >
+        <div className="relative rounded-[2rem] overflow-hidden group shadow-2xl">
+            <div className="absolute inset-0 bg-gradient-to-b from-[#1e293b] via-[#0f172a] to-[#020617] opacity-95" />
+            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+            <div className="absolute inset-0 rounded-[2rem] border border-white/10" />
+            <div className="absolute top-0 inset-x-12 h-[1px] bg-gradient-to-r from-transparent via-cyan-200/50 to-transparent shadow-[0_0_15px_rgba(34,211,238,0.5)]" />
+
+            <div className="relative p-6 md:p-8 flex flex-row items-center gap-6 z-10 text-left">
+                <div className="shrink-0 relative">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 bg-blue-500/20 rounded-full blur-[30px]" />
+                    <div className="relative text-5xl md:text-6xl filter drop-shadow-lg">{emoji}</div>
+                </div>
+                <div>
+                    <h3 className="text-xl md:text-2xl font-bold mb-2 tracking-tight">
+                        <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-blue-100 to-blue-200/50">{title}</span>
+                    </h3>
+                    <p className="text-blue-200/60 text-sm md:text-base leading-relaxed font-medium">{desc}</p>
+                </div>
+            </div>
+        </div>
+    </motion.div>
+)
+
+// --- 3. Main HowItWorks Component ---
+const HowItWorksSection = () => {
+    const targetRef = useRef(null)
+    const { scrollYProgress } = useScroll({
+        target: targetRef,
+        offset: ["start start", "end end"]
+    })
+
+    // --- SPRING PHYSICS ---
+    const smoothConfig = { damping: 20, stiffness: 120, mass: 0.5 }
+    const useSmoothTransform = (value:any, range:any, output:any) => useSpring(useTransform(value, range, output), smoothConfig)
+
+    // --- A. GLOBAL ANIMATIONS ---
+    const flareOpacity = useTransform(scrollYProgress, [0, 0.1], [0, 1])
+    const headerOpacity = useTransform(scrollYProgress, [0.05, 0.10], [1, 0])
+    const headerY = useSmoothTransform(scrollYProgress, [0.05, 0.10], [0, -100])
+
+    // --- B. EMOJI RAIN TRIGGERS ---
+    const rain1Op = useTransform(scrollYProgress, [0.12, 0.15, 0.20, 0.25], [0, 1, 1, 0])
+    const rain2Op = useTransform(scrollYProgress, [0.32, 0.35, 0.40, 0.45], [0, 1, 1, 0])
+    const rain3Op = useTransform(scrollYProgress, [0.52, 0.55, 0.60, 0.65], [0, 1, 1, 0])
+    const rain4Op = useTransform(scrollYProgress, [0.72, 0.75, 1.0], [0, 1, 1])
+
+    // --- C. SEQUENTIAL CARD LOGIC ---
+
+    // CARD 1: Tutorial Hell
+    const c1Op = useTransform(scrollYProgress, [0.10, 0.15, 0.25, 0.30], [0, 1, 1, 0.5]) 
+    const c1Y = useSmoothTransform(scrollYProgress, [0.10, 0.15, 0.25, 0.30], ["20vh", "0vh", "0vh", "-40vh"]) 
+    const c1Scale = useSmoothTransform(scrollYProgress, [0.10, 0.15, 0.25, 0.30], [0.9, 1, 1, 0.8]) 
+    const c1Blur = useTransform(scrollYProgress, [0.25, 0.30], ["blur(0px)", "blur(4px)"])
+
+    // CARD 2: Reality Check
+    const c2Op = useTransform(scrollYProgress, [0.30, 0.35, 0.45, 0.50], [0, 1, 1, 0.5])
+    const c2Y = useSmoothTransform(scrollYProgress, [0.30, 0.35, 0.45, 0.50], ["20vh", "0vh", "0vh", "-38vh"]) 
+    const c2Scale = useSmoothTransform(scrollYProgress, [0.30, 0.35, 0.45, 0.50], [0.9, 1, 1, 0.85])
+    const c2Blur = useTransform(scrollYProgress, [0.45, 0.50], ["blur(0px)", "blur(4px)"])
+
+    // CARD 3: Outlrn Way
+    const c3Op = useTransform(scrollYProgress, [0.50, 0.55, 0.65, 0.70], [0, 1, 1, 0.5])
+    const c3Y = useSmoothTransform(scrollYProgress, [0.50, 0.55, 0.65, 0.70], ["20vh", "0vh", "0vh", "-36vh"]) 
+    const c3Scale = useSmoothTransform(scrollYProgress, [0.50, 0.55, 0.65, 0.70], [0.9, 1, 1, 0.9])
+    const c3Blur = useTransform(scrollYProgress, [0.65, 0.70], ["blur(0px)", "blur(4px)"])
+    
+    // CARD 4: Job Ready
+    const c4Op = useTransform(scrollYProgress, [0.70, 0.75], [0, 1])
+    const c4Y = useSmoothTransform(scrollYProgress, [0.70, 0.75], ["20vh", "0vh"])
+    const c4Scale = useSmoothTransform(scrollYProgress, [0.70, 0.75], [0.9, 1])
+
+    return (
+        <section ref={targetRef} id="how-it-works" className="relative h-[450vh] bg-[#0b0f14]">
+            {/* Sticky Viewport */}
+            <div className="sticky top-0 h-screen overflow-hidden flex flex-col items-center justify-center">
+                
+                {/* 1. Aurora Flare Background */}
+                <motion.div 
+                    style={{ opacity: flareOpacity, transformOrigin: "bottom center" }}
+                    className="absolute inset-0 z-0 flex items-end justify-center pointer-events-none"
+                >
+                    <AuroraFlare />
+                </motion.div>
+
+                {/* --- Emoji Rain Layers --- */}
+                <div className="absolute inset-0 z-0">
+                    <EmojiRain emoji="😩" opacity={rain1Op} />
+                    <EmojiRain emoji="😵‍💫" opacity={rain2Op} />
+                    <EmojiRain emoji="🤩" opacity={rain3Op} />
+                    <EmojiRain emoji="🚀" opacity={rain4Op} />
+                </div>
+
+                {/* --- NEW: Ultra-Smooth Bottom Gradient (Takes up 50% of height for seamless blend) --- */}
+                <div className="absolute bottom-0 left-0 right-0 h-[50vh] bg-gradient-to-t from-[#0b0f14] via-[#0b0f14]/40 to-transparent z-10 pointer-events-none" />
+
+                {/* 2. Content Layer */}
+                <div className="container mx-auto max-w-4xl relative z-10 px-6 h-full flex flex-col items-center justify-center">
+                    
+                    {/* Header */}
+                    <motion.div 
+                        style={{ opacity: headerOpacity, y: headerY }}
+                        className="text-center absolute top-[15%] w-full z-20"
+                    >
+                        <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white drop-shadow-2xl">
+                            The Journey to <br/> <span className="text-blue-300">Engineering Mastery</span>
+                        </h2>
+                        <p className="text-blue-100/70 text-lg animate-pulse mt-4">
+                            Scroll to see the transformation &darr;
+                        </p>
+                    </motion.div>
+
+                    {/* Cards Container */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl flex items-center justify-center">
+                        
+                        <StoryCard 
+                            style={{ y: c1Y, opacity: c1Op, scale: c1Scale, filter: c1Blur, zIndex: 10 }}
+                            emoji="😩"
+                            title="The Old Way: Tutorial Hell"
+                            desc="Watching endless videos. Copy-pasting code you don't understand."
+                        />
+
+                        <StoryCard 
+                            style={{ y: c2Y, opacity: c2Op, scale: c2Scale, filter: c2Blur, zIndex: 20 }}
+                            emoji="😵‍💫"
+                            title="The Reality Check"
+                            desc="You try to build something on your own, but you're stuck. Memorizing syntax isn't solving problems."
+                        />
+
+                        <StoryCard 
+                            style={{ y: c3Y, opacity: c3Op, scale: c3Scale, filter: c3Blur, zIndex: 30 }}
+                            emoji="🤩"
+                            title="The Outlrn Way"
+                            desc="Outcome-Based Learning. You pick a goal. AI builds your roadmap. You write code, get feedback."
+                        />
+
+                        <StoryCard 
+                            style={{ y: c4Y, opacity: c4Op, scale: c4Scale, zIndex: 40 }}
+                            emoji="🚀"
+                            title="Job Ready"
+                            desc="No more guessing. A portfolio of complex apps and the confidence of a Senior Engineer."
+                        />
+                    </div>
+                </div>
+            </div>
+        </section>
+    )
+}
+export default function LandingPage() {
+    return (
+        <div className="min-h-screen bg-[#0b0f15] text-white selection:bg-blue-500/30 relative font-['Space_Grotesk']">
+            <GlobalStyles />
+            <Navbar />
+
+            {/* --- HERO SECTION --- */}
+            <section className="relative pt-32 md:pt-48 pb-32 px-6 flex flex-col items-center text-center z-10 max-w-[100vw] overflow-visible min-h-screen">
+                <Aurora 
+                  colorStops={["#0029FF", "#2E9AFF", "#0055FF"]} 
+                  blend={0.8} 
+                  amplitude={1.4} 
+                  speed={1.2} 
+                />
+                <ConnectorLines />
+                
+                <h1 className="text-5xl md:text-[80px] font-medium tracking-tight leading-[1.1] mb-3 max-w-5xl text-white relative z-20">
+                    Personalized Learning that brings you outcome
+                </h1>
+                
+                <p className="text-lg md:text-xl leading-6 text-white max-w-2xl mb-8 font-normal relative z-20">
+                    Outlrn is an AI-powered, outcome-based learning platform that teaches you only the skills you need to grow
+                </p>
+                
+                <div className="flex flex-col sm:flex-row items-center gap-5 mb-32 relative z-20">
+                    <button onClick={()=>window.location.href = '/auth'} className="h-14 hover:cursor-pointer px-8 rounded-xl bg-gradient-to-b from-[#111c96] to-[#1d4ed8] hover:from-[#3b82f6] hover:to-[#2563eb] text-white font-bold text-base shadow-[0_0_30px_-5px_rgba(37,99,235,0.6)] border border-blue-400/20 transition-all active:scale-95 flex items-center gap-2">
+                        Get Started <ArrowRight className="w-5 h-5" />
+                    </button>
+                    <button className="h-14 px-8 rounded-full bg-transparent border border-white text-white hover:bg-white/5 transition-all font-bold text-base flex items-center gap-2">
+                        <Terminal className="w-4 h-4 text-zinc-400" /> Explore Learning Goals
+                    </button>
+                </div>  
+            </section>
+
+            {/* --- TRUSTED BY --- */}
+            <TrustedBy />
+
+            {/* --- HOW IT WORKS (REPLACED WITH STICKY SCROLL) --- */}
+            <HowItWorksSection />
+<div className="h-28 bg-[#0b0f15]"></div>
+            <HowToUseSection />
+
+            {/* --- FEATURES --- */}
+            {/* <section id="features" className="py-32 px-6 relative z-10 bg-[#0b0f14]">
+                <div className="container mx-auto max-w-7xl">
+                    <div className="mb-20 text-center">
+                        <h2 className="text-4xl md:text-5xl font-bold mb-6">Agents and Features</h2>
+                    </div>
+                   <div className="grid md:grid-cols-4 gap-6">
+
+    <FeatureItem 
+        imageUrl={"/images/code.png"} 
+        title="AI Code Reviewer Agent" 
+        desc="Automatically reviews your code, points out issues, suggests fixes, and even merges your PRs when the quality meets industry standards." 
+    />
+
+    <FeatureItem 
+        imageUrl={"/images/image.png"} 
+        title="AI Teacher Agent" 
+        desc="Breaks down any task you’re working on and teaches it step-by-step with examples, explanations, and guided implementation." 
+    />
+
+    <FeatureItem 
+        imageUrl={"/images/code.png"} 
+        title="Personalized Learning Engine" 
+        desc="Builds a custom learning path based on your goals, current level, strengths, and areas where you need improvement." 
+    />
+
+    <FeatureItem 
+        imageUrl={"/images/image.png"} 
+        title="Context-Aware Teaching" 
+        desc="The AI adapts your learning to the project's context — teaching you exactly what’s needed for that environment, stack, and task." 
+    />
+
+    
+</div>
+
+                </div>
+            </section> */}
+
+           <ComparisonSection />
+
+            {/* --- TESTIMONIALS --- */}
+            <section className="py-32 px-6 relative z-10 bg-[#0b0f14]">
+                <div className="container mx-auto max-w-7xl">
+                    <div className="text-center mb-20">
+                        <h2 className="text-3xl md:text-4xl font-bold">Loved by ambitious developers</h2>
+                    </div>
+                    <div className="grid md:grid-cols-3 gap-8">
+                        <TestimonialCard 
+                            quote="Outlrn taught me React in 2 weeks — because it only made me learn what I actually needed. No fluff, just code."
+                            author="Sarah Jenkins"
+                            role="Frontend Developer"
+                        />
+                        <TestimonialCard 
+                            quote="The AI explains concepts better than YouTube videos I've watched for hours. It feels like a senior dev is sitting next to me."
+                            author="David Chen"
+                            role="CS Student"
+                        />
+                        <TestimonialCard 
+                            quote="I finally understand backend architecture. This is honestly the future of learning. I landed my first internship last week!"
+                            author="Marcus Johnson"
+                            role="Fullstack Aspirant"
+                        />
+                    </div>
+                </div>
+            </section>
+
+            {/* --- FAQ --- */}
+            <section className="py-32 px-6 relative z-10 bg-[#0b0f14]">
+                <div className="container mx-auto max-w-3xl">
+                    <h2 className="text-3xl md:text-4xl font-bold mb-16 text-center">Frequently Asked Questions</h2>
+                    <div className="flex flex-col gap-2">
+                        <FAQItem q="How is Outlrn different from other platforms?" a="Unlike video-based courses, Outlrn uses an outcome-based approach. We assess your current level and generate a custom curriculum that only teaches what you need to reach your goal. It's active learning vs passive watching." />
+                        <FAQItem q="Can beginners use Outlrn?" a="Absolutely. The AI adapts to your starting level, whether you are a complete novice or an experienced dev looking to switch stacks. We have paths specifically for fundamentals." />
+                        <FAQItem q="How does the AI teacher work?" a="Our AI analyzes your code submissions in real-time, providing specific feedback, refactoring tips, and explaining concepts just like a human mentor would. It understands context, not just syntax." />
+                        <FAQItem q="Do I need to know coding basics?" a="It helps, but isn't strictly necessary. You can start a 'Fundamentals' path to build your base knowledge first before tackling complex frameworks." />
+                    </div>
+                </div>
+            </section>
+
+            {/* --- FINAL CTA --- */}
+            <section className="py-40 px-6 relative z-10 text-center bg-[#0b0f14] overflow-hidden">
+                 <Aurora 
+                  colorStops={["#0029FF", "#2E9AFF", "#0055FF"]} 
+                  blend={0.8} 
+                  amplitude={1.2} 
+                  speed={1.2}
+                />
+                 
+                 <div className="container mx-auto max-w-4xl relative z-20">
+                     <h2 className="text-5xl md:text-7xl font-bold mb-8 tracking-tight text-white">Stop learning randomly. <br/> <span className="text-blue-500">Learn with purpose.</span></h2>
+                     <p className="text-xl text-zinc-400 mb-12 max-w-2xl mx-auto">Get a personalized, outcome-based learning plan that adapts to you — and makes you job-ready faster.</p>
+                     <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+                        <button className="h-14 px-10 rounded-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-lg shadow-[0_0_40px_-5px_rgba(37,99,235,0.6)] transition-all">
+                            Start Learning Now
+                        </button>
+                        <button className="h-14 px-10 rounded-full bg-[#0a0f16] border border-white/10 text-white font-medium hover:bg-white/5 transition-all text-lg">
+                            Begin Your Path
+                        </button>
+                     </div>
+                 </div>
+            </section>
+
+
+            <footer className="relative bg-[#0b0f14] pt-20 pb-10 overflow-hidden border-t border-white/5">
+      
+      {/* 1. Background Effects */}
+      {/* Massive bottom glow to anchor the page */}
+      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none" />
+      
+      {/* Grid Pattern Overlay */}
+      <div className="absolute inset-0 opacity-[0.03]" 
+           style={{ 
+               backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px)', 
+               backgroundSize: '40px 40px' 
+           }} 
+      />
+
+      {/* Top Gradient Line */}
+      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+      <div className="relative max-w-7xl mx-auto px-6 lg:px-8 z-10">
+        
+        {/* 2. Main Footer Content */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-12 lg:gap-8 mb-16">
+          
+          {/* Branding Column (Span 4) */}
+          <div className="lg:col-span-4 flex flex-col gap-6">
+            <div className="flex items-center gap-3">
+              
+             <Logo /> <p className="mt-1">Beta Version {packageJson.version}</p>
+            </div>
+            <p className="text-zinc-400 leading-relaxed max-w-sm">
+             Building the future of personalized, outcome-based learning for developers worldwide.
+            </p>
+            
+            {/* Socials */}
+            <div className="flex items-center gap-4 mt-2">
+              {[Twitter, Github, Linkedin].map((Icon, i) => (
+                <a key={i} href="#" className="w-10 h-10 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-zinc-400 hover:bg-blue-500/10 hover:text-blue-400 hover:border-blue-500/20 transition-all duration-300">
+                  <Icon size={18} />
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {/* Links Columns (Span 2 each) */}
+          <div className="lg:col-span-2">
+            <h4 className="text-white font-semibold mb-6">Product</h4>
+            <ul className="flex flex-col gap-4">
+              {['Features', 'Integrations', 'Pricing', 'Changelog'].map((item) => (
+                <li key={item}>
+                  <a href="#" className="text-white hover:text-blue-400 transition-colors text-sm">{item}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="lg:col-span-2">
+            <h4 className="text-white font-semibold mb-6">Company</h4>
+            <ul className="flex flex-col gap-4">
+              {['About', 'Careers', 'FAQ', 'Contact'].map((item) => (
+                <li key={item}>
+                  <a href="#" className="text-zinc-400 hover:text-blue-400 transition-colors text-sm">{item}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Newsletter Column (Span 4) */}
+          <div className="lg:col-span-4">
+            <h4 className="text-white font-semibold mb-4">Stay updated</h4>
+            <p className="text-zinc-400 text-sm mb-6">
+              Subscribe to our newsletter for the latest updates and features.
+            </p>
+            <div className="relative group">
+              <input 
+                type="email" 
+                placeholder="Enter your email" 
+                className="w-full bg-[#0f1621] border border-white/10 rounded-xl px-4 py-3 text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all"
+              />
+              <button className="absolute right-1.5 top-1.5 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors shadow-lg shadow-blue-900/20">
+                <Send size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Bottom Bar */}
+        <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
+          <p className="text-zinc-500 text-sm">
+            © 2025 Platform Inc. All rights reserved.
+          </p>
+          <div className="flex items-center gap-8">
+            <a href="#" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">Privacy Policy</a>
+            <a href="#" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">Terms of Service</a>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+              <span className="text-zinc-500 text-sm">All systems normal</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+        </div>
+    )
+}
