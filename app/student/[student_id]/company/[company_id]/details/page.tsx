@@ -30,7 +30,22 @@ import { useParams, useRouter, useSearchParams, usePathname } from "next/navigat
 import { supabase } from "@/lib/supabase"
 import { useEffect, useMemo, useState, useRef } from "react"
 import { useStudentAuth } from "@/hooks/use-student-auth"
-
+const GlobalStyles = () => (
+  <style jsx global>{`
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+    
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background-color: #0b0f14; 
+      color: white;
+      overflow-x: hidden;
+    }
+    
+    html {
+      scroll-behavior: smooth;
+    }
+  `}</style>
+)
 // Mock data for learning modules
 const MOCK_LEARNING_MODULES = [
   {
@@ -1348,7 +1363,8 @@ useEffect(() => {
   const learningQA = messages.filter(m => selectedAgent === "teacher")
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#181a1a]" style={{ fontFamily: 'sans-serif' }}>
+    <div className="h-screen w-screen overflow-hidden bg-[#181a1a]" >
+      <GlobalStyles />
       {/* Main three-panel layout */}
       <div className="h-full flex">
         
@@ -2319,7 +2335,7 @@ useEffect(() => {
 {realPrs.map((pr, idx) => (
       <div key={pr.id} className="relative pl-8 py-3 group">
          {/* Timeline Dot */}
-         <div className={`absolute left-[3px] top-5 w-[9px] h-[9px] rounded-full border-2 border-zinc-950 z-10 transition-colors shadow-sm
+         <div className={`absolute left-[3px] top-5 w-[5px] h-[5px] rounded-full  z-10 
             ${pr.status === 'accepted' ? 'bg-emerald-500' : ''}
             ${pr.status === 'rejected' ? 'bg-rose-500' : ''}
             ${pr.status === 'pending' ? 'bg-zinc-600' : ''}
@@ -2365,15 +2381,15 @@ useEffect(() => {
                   {/* Floating semi-oval input bar at the bottom: in project mode this "asks AI" for a new topic */}
                   {/* Hide input bar when viewing a full topic or during onboarding */}
                   {!selectedTopicId && hasAssignedTask && activeTask && (
-                <div className="pointer-events-none absolute bottom-3 left-0 right-0 flex justify-center">
-                  <div className="pointer-events-auto w-full max-w-3xl bg-white/5 border border-white/10 rounded-full px-5 py-3.5 flex items-center gap-3 shadow-[0_18px_40px_rgba(0,0,0,0.7)] backdrop-blur-md">
+                <div className="pointer-events-none absolute bottom-4 left-0 right-0 flex justify-center">
+                  <div className="pointer-events-auto w-full max-w-3xl bg-white/5 border border-white/10 rounded-full px-5 py-2 flex items-center gap-3 shadow-[0_18px_40px_rgba(0,0,0,0.7)] backdrop-blur-md">
                     <input
                       type="text"
                       value={inputMessage}
                       onChange={(e) => setInputMessage(e.target.value)}
                       onKeyPress={(e) => e.key === "Enter" && handleProjectQuestion()}
                       placeholder={placeholderText || "Ask about this task..."}
-                      className="flex-1 bg-transparent text-[14px] text-white placeholder:text-white/50 focus:outline-none"
+                      className="flex-1 bg-transparent text-[14px]  text-white placeholder:text-white/50 focus:outline-none"
                     />
                     <button
                       onClick={handleProjectQuestion}

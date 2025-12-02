@@ -1,6 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence, useScroll, useTransform, useSpring } from "framer-motion"
+import packageJson from "../package.json"
 import { 
   ArrowRight, 
   Menu, 
@@ -44,7 +45,7 @@ const GlobalStyles = () => (
 )
 // --- 6. NEW: Modern Comparison Component ---
 
-const ComparisonRow = ({ feature, traditional, outlrn, delay }) => (
+const ComparisonRow = ({ feature, traditional, outlrn, delay }:any) => (
     <motion.div 
         initial={{ opacity: 0, y: 10 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -226,7 +227,7 @@ const Navbar = () => {
                 {/* 1. Logo Section */}
                 <div className="flex items-center gap-2 shrink-0">
                     <Logo /> 
-                    <p className="mt-1 bg-[#0f172a] hover:bg-[#1e293b] border border-white/10 text-white px-5 py-2 rounded-full text-xs font-bold transition-all hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] flex items-center gap-2 whitespace-nowrap">Beta Version 0.1.0</p>
+                    <p className="mt-1 bg-[#0f172a] hover:bg-[#1e293b] border border-white/10 text-white px-5 py-2 rounded-full text-xs font-bold transition-all hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] flex items-center gap-2 whitespace-nowrap">Beta Version {packageJson.version}</p>
                 </div>
 
                 {/* 2. Navigation Links (Desktop) - Centered */}
@@ -235,7 +236,7 @@ const Navbar = () => {
                         <a 
                             key={item} 
                             href={`#${item.toLowerCase().replace(/\s/g, '-')}`} 
-                            className="text-md font-medium text-zinc-400 hover:text-white transition-colors relative group whitespace-nowrap"
+                            className="text-md font-medium text-white  transition-colors relative group whitespace-nowrap"
                         >
                             {item}
                             <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-500 transition-all group-hover:w-full" />
@@ -288,7 +289,7 @@ const Navbar = () => {
     )
 }
 // --- 4. NEW: "Supermemory" Replica Card (Fixed Layout) ---
-const StepCard = ({ step, tag, title, desc, color, imgUrl }) => (
+const StepCard = ({ step, tag, title, desc, color, imgUrl }:any) => (
     <div className="group relative w-full max-w-[500px] mx-auto mb-24 last:mb-0">
         
         {/* Card Structure: Two layers for the double-border effect */}
@@ -463,10 +464,10 @@ const HowToUseSection = () => {
     )
 }
 // --- Aurora Component ---
-const Aurora = ({ colorStops, blend, amplitude, speed }) => {
+const Aurora = ({ colorStops, blend, amplitude, speed }:any) => {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-      {colorStops.map((color, index) => (
+      {colorStops.map((color:any, index:any) => (
         <motion.div
           key={index}
           className="absolute rounded-[100%] mix-blend-screen opacity-40 blur-[80px]"
@@ -567,7 +568,7 @@ const TrustedBy = () => {
         </section>
     )
 }
-const FeatureItem = ({ imageUrl, title, desc, linkText = "Learn more" }) => (
+const FeatureItem = ({ imageUrl, title, desc, linkText = "Learn more" }:any) => (
     /* 1. Outer Bezel/Frame */
     <div className="group relative h-full rounded-[2.5rem] bg-gradient-to-b from-white/10 via-white/5 to-transparent p-[1px] hover:from-blue-500/30 hover:via-blue-500/10 hover:to-transparent transition-all duration-500">
         
@@ -618,7 +619,7 @@ const FeatureItem = ({ imageUrl, title, desc, linkText = "Learn more" }) => (
 //     </div>
 // )
 
-const TestimonialCard = ({ quote, author, role }) => (
+const TestimonialCard = ({ quote, author, role }:any) => (
     <div className="p-8 rounded-[2rem] bg-[#0a0f16]/40 border border-white/5 hover:border-blue-500/20 transition-all backdrop-blur-sm relative">
         <div className="flex gap-1 text-blue-500 mb-6">
             {[1,2,3,4,5].map(s => <Star key={s} className="w-4 h-4 fill-current" />)}
@@ -636,7 +637,7 @@ const TestimonialCard = ({ quote, author, role }) => (
     </div>
 )
 
-const FAQItem = ({ q, a }) => {
+const FAQItem = ({ q, a }:any) => {
     const [open, setOpen] = useState(false)
     return (
         <div className="border-b border-white/5">
@@ -658,7 +659,7 @@ const FAQItem = ({ q, a }) => {
 // --- NEW SCROLL-BASED HOW IT WORKS SECTION ---
 
 // --- 1. NEW: High-Intensity Aurora Flare ---
-const AuroraFlare = ({ opacity }) => {
+const AuroraFlare = ({ opacity }:any) => {
     return (
         <motion.div 
             style={{ opacity }}
@@ -703,7 +704,7 @@ const AuroraFlare = ({ opacity }) => {
 
 
 // --- 1. NEW: Blurred Emoji Rain Component ---
-const EmojiRain = ({ emoji, opacity }) => {
+const EmojiRain = ({ emoji, opacity }:any) => {
     // Create a fixed set of raindrops with randomized properties
     const raindrops = Array.from({ length: 20 }).map((_, i) => ({
         id: i,
@@ -739,7 +740,7 @@ const EmojiRain = ({ emoji, opacity }) => {
 }
 
 // --- 2. Compact Metallic Story Card (Kept the same) ---
-const StoryCard = ({ emoji, title, desc, style }) => (
+const StoryCard = ({ emoji, title, desc, style }:any) => (
     <motion.div 
         style={style}
         className="absolute top-0 left-0 right-0 w-full max-w-xl mx-auto px-4 perspective-1000"
@@ -777,7 +778,7 @@ const HowItWorksSection = () => {
 
     // --- SPRING PHYSICS ---
     const smoothConfig = { damping: 20, stiffness: 120, mass: 0.5 }
-    const useSmoothTransform = (value, range, output) => useSpring(useTransform(value, range, output), smoothConfig)
+    const useSmoothTransform = (value:any, range:any, output:any) => useSpring(useTransform(value, range, output), smoothConfig)
 
     // --- A. GLOBAL ANIMATIONS ---
     const flareOpacity = useTransform(scrollYProgress, [0, 0.1], [0, 1])
@@ -907,22 +908,22 @@ export default function LandingPage() {
                 />
                 <ConnectorLines />
                 
-                <h1 className="text-5xl md:text-[75px] font-medium tracking-tight leading-[1.1] mb-3 max-w-5xl text-white relative z-20">
+                <h1 className="text-5xl md:text-[80px] font-medium tracking-tight leading-[1.1] mb-3 max-w-5xl text-white relative z-20">
                     Personalized Learning that brings you outcome
                 </h1>
                 
-                <p className="text-lg md:text-xl text-white max-w-2xl mb-8 font-normal leading-relaxed relative z-20">
+                <p className="text-lg md:text-xl leading-6 text-white max-w-2xl mb-8 font-normal relative z-20">
                     Outlrn is an AI-powered, outcome-based learning platform that teaches you only the skills you need to grow
                 </p>
                 
                 <div className="flex flex-col sm:flex-row items-center gap-5 mb-32 relative z-20">
-                    <button onClick={()=>window.location.href = '/auth'} className="h-14 hover:cursor-pointer px-8 rounded-full bg-gradient-to-b from-[#2563eb] to-[#1d4ed8] hover:from-[#3b82f6] hover:to-[#2563eb] text-white font-bold text-base shadow-[0_0_30px_-5px_rgba(37,99,235,0.6)] border border-blue-400/20 transition-all active:scale-95 flex items-center gap-2">
-                        Start Your Personalized Path <ArrowRight className="w-5 h-5" />
+                    <button onClick={()=>window.location.href = '/auth'} className="h-14 hover:cursor-pointer px-8 rounded-xl bg-gradient-to-b from-[#111c96] to-[#1d4ed8] hover:from-[#3b82f6] hover:to-[#2563eb] text-white font-bold text-base shadow-[0_0_30px_-5px_rgba(37,99,235,0.6)] border border-blue-400/20 transition-all active:scale-95 flex items-center gap-2">
+                        Get Started <ArrowRight className="w-5 h-5" />
                     </button>
-                    <button className="h-14 px-8 rounded-full bg-[#0a0f16] border border-white/10 text-white hover:bg-white/5 transition-all font-bold text-base flex items-center gap-2">
+                    <button className="h-14 px-8 rounded-full bg-transparent border border-white text-white hover:bg-white/5 transition-all font-bold text-base flex items-center gap-2">
                         <Terminal className="w-4 h-4 text-zinc-400" /> Explore Learning Goals
                     </button>
-                </div>
+                </div>  
             </section>
 
             {/* --- TRUSTED BY --- */}
@@ -1060,9 +1061,9 @@ export default function LandingPage() {
           
           {/* Branding Column (Span 4) */}
           <div className="lg:col-span-4 flex flex-col gap-6">
-            <div className="flex items-center gap-0">
+            <div className="flex items-center gap-3">
               
-             <Logo />
+             <Logo /> <p className="mt-1">Beta Version {packageJson.version}</p>
             </div>
             <p className="text-zinc-400 leading-relaxed max-w-sm">
              Building the future of personalized, outcome-based learning for developers worldwide.
@@ -1084,7 +1085,7 @@ export default function LandingPage() {
             <ul className="flex flex-col gap-4">
               {['Features', 'Integrations', 'Pricing', 'Changelog'].map((item) => (
                 <li key={item}>
-                  <a href="#" className="text-zinc-400 hover:text-blue-400 transition-colors text-sm">{item}</a>
+                  <a href="#" className="text-white hover:text-blue-400 transition-colors text-sm">{item}</a>
                 </li>
               ))}
             </ul>
