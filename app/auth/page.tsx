@@ -3,13 +3,23 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Bot, ArrowLeft } from "lucide-react"
+import { Bot, ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+
+// --- 0. Font Loading Helper ---
+const GlobalStyles = () => (
+  <style jsx global>{`
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+    
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+    }
+  `}</style>
+)
 
 function getDashboardUrl(userId: string, role?: string): string {
   const userRole = role || 'student'
@@ -64,20 +74,8 @@ export default function AuthPage() {
     }
   }
 
-  const checkUserExists = async (email: string): Promise<boolean> => {
-    // Try to sign in with a dummy password to check if user exists
-    // If user exists but password is wrong, we'll get an "Invalid login credentials" error
-    // If user doesn't exist, we'll get the same error, so we need a different approach
-    
-    // For now, we'll just try to sign in and handle the error
-    return false // This will be determined by the actual sign-in attempt
-  }
-
   const handleEmailBlur = async () => {
     if (!email || !email.includes('@')) return
-    
-    // We'll determine if user exists by attempting sign-in
-    // If it fails, we'll show registration form
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -89,22 +87,13 @@ export default function AuthPage() {
 
     try {
       if (mode === "login") {
-        // Try to sign in
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
 
-        console.log("Login attempt result:", { 
-          hasUser: !!data?.user, 
-          hasSession: !!data?.session,
-          error: signInError?.message 
-        })
-
         if (signInError) {
-          // Check if it's an invalid credentials error
           if (signInError.message.includes("Invalid login credentials")) {
-            // User might not exist, offer to register
             setError("Account not found or incorrect password. Want to register?")
             setMode("register")
             setIsLoading(false)
@@ -123,41 +112,27 @@ export default function AuthPage() {
         }
 
         if (data.user && data.session) {
-          console.log("Login successful, redirecting:", data.user.email)
-          // Force a hard refresh to ensure cookies are set
           window.location.href = redirect || getDashboardUrl(data.user.id, data.user.user_metadata?.role)
         }
       } else if (mode === "register") {
-        // Check if name is provided for registration
         if (!name.trim()) {
           setError("Please enter your name")
           setIsLoading(false)
           return
         }
 
-        console.log("Attempting registration for:", email)
-
-        // Try to register
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
               name: name,
-              role: 'student', // Default role
+              role: 'student',
             },
           },
         })
 
-        console.log("Registration result:", {
-          hasUser: !!data?.user,
-          hasSession: !!data?.session,
-          error: signUpError?.message,
-          userId: data?.user?.id,
-        })
-
         if (signUpError) {
-          // Check if user already exists
           if (signUpError.message.includes("already registered") || 
               signUpError.message.includes("already been registered")) {
             setError("Account already exists. Please login.")
@@ -165,21 +140,12 @@ export default function AuthPage() {
             setIsLoading(false)
             return
           }
-          
           setError(signUpError.message)
           setIsLoading(false)
           return
         }
 
         if (data.user) {
-          console.log("Registration successful:", {
-            email: data.user.email,
-            id: data.user.id,
-            hasSession: !!data.session,
-          })
-
-          // INSERT_YOUR_CODE
-          // Insert the new student into the students table
           try {
             const { error: studentInsertError } = await supabase
               .from("students")
@@ -197,15 +163,9 @@ export default function AuthPage() {
             console.error("Unexpected error inserting student:", err);
           }
           
-          // Check if email confirmation is required
           if (data.session) {
-            // User is logged in immediately (email confirmation disabled)
-            console.log("User has session, redirecting to dashboard")
-            // Force a hard refresh to ensure cookies are set
             window.location.href = redirect || getDashboardUrl(data.user.id, data.user.user_metadata?.role)
           } else {
-            // Email confirmation required
-            console.log("Email confirmation required")
             setError("Registration successful! Please check your email to confirm your account, then login.")
             setMode("login")
             setIsLoading(false)
@@ -224,117 +184,157 @@ export default function AuthPage() {
     setError("")
   }
 
+  // --- LOADING STATE ---
   if (mode === "checking") {
     return (
-      <div className="min-h-screen bg-background grid-pattern flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#0b0f14] flex items-center justify-center p-4 font-['Space_Grotesk']">
+        <GlobalStyles />
         <div className="text-center">
-          <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <Bot className="w-6 h-6 text-primary-foreground" />
+          <div className=" flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <img src="/images/outlrn-fav.png" className="w-24" alt="Outlrn" />
           </div>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-zinc-500 font-mono text-sm">Initializing Secure Session...</p>
         </div>
       </div>
     )
   }
 
+  // --- MAIN RENDER ---
   return (
-    <div className="min-h-screen bg-background grid-pattern flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="flex items-center gap-2 mb-8">
+    <div className="min-h-screen bg-[#0b0f14] flex items-center justify-center p-4 relative overflow-hidden font-['Space_Grotesk']">
+      <GlobalStyles />
+      
+      {/* 1. Background Effects (Matches Landing Page) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[120px]" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150"></div>
+      </div>
+
+      <div className="w-full max-w-[420px] relative z-10">
+        
+        {/* Back Link */}
+        <div className="mb-8">
           <Link
             href="/"
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex items-center gap-2 text-zinc-400 hover:text-white transition-colors text-sm font-medium group"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             Back to home
           </Link>
         </div>
 
-        <Card>
-          <CardHeader className="text-center">
-            <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4">
-              <Bot className="w-6 h-6 text-primary-foreground" />
-            </div>
-            <CardTitle className="text-2xl">
-              {mode === "login" ? "Welcome back" : "Create your account"}
-            </CardTitle>
-            <CardDescription>
+        {/* Auth Card */}
+        <div className="bg-[#0a0f16]/60 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 md:p-10 shadow-2xl">
+          
+          {/* Header */}
+          <div className="text-center flex flex-col items-center justify-center mb-8">
+            <img src="/images/outlrn-cropped.png" className="w-36 mb-6" alt="" />
+            <h1 className="text-2xl font-bold text-white mb-2 tracking-tight">
+              {mode === "login" ? "Welcome back" : "Create account"}
+            </h1>
+            <p className="text-zinc-400 text-sm">
               {mode === "login" 
-                ? "Sign in to your DevFlow AI account" 
-                : "Join DevFlow AI to start your journey"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-                  {error}
-                </div>
-              )}
-              
-              {mode === "register" && (
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    placeholder="Enter your full name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </div>
-              )}
+                ? "Enter your credentials to access your workspace" 
+                : "Join DevFlow AI to start your engineering journey"}
+            </p>
+          </div>
 
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm flex items-start gap-2">
+                 <span className="shrink-0 mt-0.5">⚠️</span>
+                 <span>{error}</span>
+              </div>
+            )}
+            
+            {mode === "register" && (
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="name" className="text-zinc-300 text-xs uppercase tracking-wider font-bold ml-1">Full Name</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onBlur={handleEmailBlur}
+                  id="name"
+                  type="text"
+                  placeholder="e.g. Alex Chen"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   required
+                  className="bg-[#050910] border-white/10 text-white placeholder:text-zinc-600 focus:border-blue-500/50 focus:ring-blue-500/20 h-12 rounded-xl font-['Space_Grotesk']"
                 />
               </div>
+            )}
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder={mode === "login" ? "Enter your password" : "Create a password (min 6 characters)"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
-              </div>
-
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading 
-                  ? (mode === "login" ? "Signing in..." : "Creating account...") 
-                  : (mode === "login" ? "Sign In" : "Create Account")}
-              </Button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                {mode === "login" ? "Don't have an account? " : "Already have an account? "}
-                <button
-                  onClick={toggleMode}
-                  className="text-primary hover:underline font-medium"
-                  type="button"
-                >
-                  {mode === "login" ? "Sign up" : "Sign in"}
-                </button>
-              </p>
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-zinc-300 text-xs uppercase tracking-wider font-bold ml-1">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onBlur={handleEmailBlur}
+                required
+                className="bg-[#050910] border-white/10 text-white placeholder:text-zinc-600 focus:border-blue-500/50 focus:ring-blue-500/20 h-12 rounded-xl font-['Space_Grotesk']"
+              />
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                 <Label htmlFor="password" className="text-zinc-300 text-xs uppercase tracking-wider font-bold ml-1">Password</Label>
+                 {mode === "login" && (
+                    <Link href="#" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Forgot?</Link>
+                 )}
+              </div>
+              <Input
+                id="password"
+                type="password"
+                placeholder={mode === "login" ? "••••••••" : "Min 6 characters"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                className="bg-[#050910] border-white/10 text-white placeholder:text-zinc-600 focus:border-blue-500/50 focus:ring-blue-500/20 h-12 rounded-xl font-['Space_Grotesk']"
+              />
+            </div>
+
+            <Button 
+                type="submit" 
+                className="w-full h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold text-base shadow-lg shadow-blue-900/20 transition-all active:scale-[0.98] mt-2 font-['Space_Grotesk']" 
+                disabled={isLoading}
+            >
+              {isLoading ? (
+                  <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {mode === "login" ? "Signing in..." : "Creating account..."}
+                  </span>
+              ) : (
+                  mode === "login" ? "Sign In" : "Create Account"
+              )}
+            </Button>
+          </form>
+
+          {/* Footer Toggle */}
+          <div className="mt-8 pt-6 border-t border-white/5 text-center">
+            <p className="text-sm text-zinc-500">
+              {mode === "login" ? "New to the platform? " : "Already have an account? "}
+              <button
+                onClick={toggleMode}
+                className="text-blue-400 hover:text-blue-300 font-bold transition-colors ml-1"
+                type="button"
+              >
+                {mode === "login" ? "Join now" : "Sign in"}
+              </button>
+            </p>
+          </div>
+        </div>
+        
+        {/* Simple footer links */}
+        <div className="flex items-center justify-center gap-6 mt-8 text-xs text-zinc-600">
+            <Link href="#" className="hover:text-zinc-400 transition-colors">Privacy</Link>
+            <Link href="#" className="hover:text-zinc-400 transition-colors">Terms</Link>
+            <Link href="#" className="hover:text-zinc-400 transition-colors">Contact</Link>
+        </div>
+
       </div>
     </div>
   )
 }
-

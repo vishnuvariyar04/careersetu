@@ -2232,7 +2232,7 @@ useEffect(() => {
                             updateUrlParams({ resourceId: res.id })
                             fetchResourceTopics(res.id, activeTask.task_id)
                           }}
-                          className={`group flex items-center justify-between p-4 rounded-xl border text-left relative overflow-hidden transition-all
+                          className={`group hover:cursor-pointer flex items-center justify-between p-4 rounded-xl border text-left relative overflow-hidden transition-all
                             ${isThisStreaming 
                               ? "bg-emerald-950/10 border-emerald-500/20 ring-1 ring-emerald-500/20" 
                               : "bg-zinc-900/30 border-zinc-800/50 hover:border-zinc-700 hover:bg-zinc-900/50"

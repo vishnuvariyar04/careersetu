@@ -150,7 +150,7 @@ const ComparisonSection = () => {
 }
 // --- 1. Logo Component ---
 const Logo = () => (
-  <img src="/images/outlrn-cropped.png" className="w-28" alt="Outlrn" />
+  <img src="/images/outlrn-cropped.png" className="w-40" alt="Outlrn" />
 )
 
 // --- 2. Custom Icons ---
@@ -234,7 +234,7 @@ const Navbar = () => {
                         <a 
                             key={item} 
                             href={`#${item.toLowerCase().replace(/\s/g, '-')}`} 
-                            className="text-sm font-medium text-zinc-400 hover:text-white transition-colors relative group whitespace-nowrap"
+                            className="text-md font-medium text-zinc-400 hover:text-white transition-colors relative group whitespace-nowrap"
                         >
                             {item}
                             <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-500 transition-all group-hover:w-full" />
