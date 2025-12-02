@@ -392,7 +392,7 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
         .eq('student_id', studentId)
         .eq('task_id', activeTaskId)
         .order('created_at', { ascending: false })
-
+      console.log("Fetched PR review data:", data, studentId, activeTaskId)
       if (error) throw error
 
       if (data) {

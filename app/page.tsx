@@ -225,12 +225,13 @@ const Navbar = () => {
             >
                 {/* 1. Logo Section */}
                 <div className="flex items-center gap-2 shrink-0">
-                    <Logo />
+                    <Logo /> 
+                    <p className="mt-1 bg-[#0f172a] hover:bg-[#1e293b] border border-white/10 text-white px-5 py-2 rounded-full text-xs font-bold transition-all hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] flex items-center gap-2 whitespace-nowrap">Beta Version 0.1.0</p>
                 </div>
 
                 {/* 2. Navigation Links (Desktop) - Centered */}
                 <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
-                    {['Features', 'How it Works', 'Pricing', 'Blog'].map(item => (
+                    {['Features', 'How it Works', 'Pricing', 'FAQ'].map(item => (
                         <a 
                             key={item} 
                             href={`#${item.toLowerCase().replace(/\s/g, '-')}`} 
@@ -277,7 +278,7 @@ const Navbar = () => {
             {isOpen && (
                 <div className="fixed inset-0 z-40 bg-[#0b0f14] pt-24 px-6 md:hidden">
                     <div className="flex flex-col gap-6 text-xl font-medium text-zinc-400">
-                        {['Features', 'How it Works', 'Pricing', 'Blog'].map(item => (
+                        {['Features', 'How it Works', 'Pricing', 'FAQ'].map(item => (
                             <a key={item} href="#" onClick={() => setIsOpen(false)} className="hover:text-white">{item}</a>
                         ))}
                     </div>
@@ -1092,7 +1093,7 @@ export default function LandingPage() {
           <div className="lg:col-span-2">
             <h4 className="text-white font-semibold mb-6">Company</h4>
             <ul className="flex flex-col gap-4">
-              {['About', 'Careers', 'Blog', 'Contact'].map((item) => (
+              {['About', 'Careers', 'FAQ', 'Contact'].map((item) => (
                 <li key={item}>
                   <a href="#" className="text-zinc-400 hover:text-blue-400 transition-colors text-sm">{item}</a>
                 </li>
