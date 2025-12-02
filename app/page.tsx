@@ -42,7 +42,112 @@ const GlobalStyles = () => (
     }
   `}</style>
 )
+// --- 6. NEW: Modern Comparison Component ---
 
+const ComparisonRow = ({ feature, traditional, outlrn, delay }) => (
+    <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ delay: delay, duration: 0.5 }}
+        className="grid grid-cols-3 gap-6 py-6 border-b border-white/5 last:border-0 items-center hover:bg-white/[0.02] transition-colors px-6 -mx-6"
+    >
+        {/* Feature Name */}
+        <div className="text-zinc-400 font-medium text-sm flex items-center gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
+            {feature}
+        </div>
+
+        {/* Traditional (Negative) */}
+        <div className="text-zinc-500 font-medium text-sm flex items-center gap-2">
+            <X className="w-4 h-4 text-red-500/50 shrink-0" /> 
+            <span className="line-through decoration-red-500/30 decoration-2">{traditional}</span>
+        </div>
+
+        {/* Outlrn (Positive) */}
+        <div className="text-white font-bold text-sm flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                <Check className="w-3 h-3 text-blue-400" />
+            </div>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">
+                {outlrn}
+            </span>
+        </div>
+    </motion.div>
+)
+
+const ComparisonSection = () => {
+    return (
+        <section className="py-32 px-6 relative z-10 bg-[#0b0f15]">
+            
+            {/* Background Glow */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-900/10 rounded-full blur-[120px] pointer-events-none" />
+
+            <div className="container mx-auto max-w-5xl relative z-10">
+                
+                {/* Header */}
+                <div className="text-center mb-20">
+                     <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] font-bold uppercase tracking-wider text-zinc-300 mb-6">
+                        VS Traditional
+                    </div>
+                    <h2 className="text-4xl md:text-5xl font-bold mb-4">
+                        Why choose <span className="text-blue-500">Outlrn?</span>
+                    </h2>
+                    <p className="text-zinc-400 text-lg">Stop wasting time on passive learning methods.</p>
+                </div>
+                
+                {/* Main Comparison Table Card */}
+                <div className="relative rounded-[2.5rem] bg-[#0c1117]/80 backdrop-blur-xl border border-white/10 p-8 md:p-12 shadow-2xl overflow-hidden">
+                    
+                    {/* Top Gradient Highlight */}
+                    <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent opacity-50" />
+                    
+                    {/* Grid Header */}
+                    <div className="grid grid-cols-3 gap-6 mb-6 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 border-b border-white/10 pb-6">
+                        <div>Feature</div>
+                        <div>Traditional Courses</div>
+                        <div className="text-blue-400">The Outlrn Way</div>
+                    </div>
+
+                    {/* Rows */}
+                    <div className="flex flex-col">
+                        <ComparisonRow 
+                            feature="Content Relevance" 
+                            traditional="Irrelevant topics included" 
+                            outlrn="Only what's needed" 
+                            delay={0.1}
+                        />
+                        <ComparisonRow 
+                            feature="Learning Path" 
+                            traditional="Generic & Linear" 
+                            outlrn="Personalized AI Path" 
+                            delay={0.2}
+                        />
+                        <ComparisonRow 
+                            feature="Feedback Loop" 
+                            traditional="None or Slow" 
+                            outlrn="Real-time AI Review" 
+                            delay={0.3}
+                        />
+                        <ComparisonRow 
+                            feature="Content Format" 
+                            traditional="Long, passive videos" 
+                            outlrn="Active Micro-tasks" 
+                            delay={0.4}
+                        />
+                        <ComparisonRow 
+                            feature="End Goal" 
+                            traditional="Certificates" 
+                            outlrn="Job Readiness" 
+                            delay={0.5}
+                        />
+                    </div>
+
+                </div>
+            </div>
+        </section>
+    )
+}
 // --- 1. Logo Component ---
 const Logo = () => (
   <img src="/images/outlrn-cropped.png" className="w-28" alt="Outlrn" />
@@ -94,10 +199,10 @@ const Navbar = () => {
                         paddingBottom: "1.5rem"
                     },
                     scrolled: { 
-                        width: "min(90%, 80%)", 
+                        width: "min(90%, 90%)", 
                         top: 24, 
                         borderRadius: "9999px", 
-                        backgroundColor: "rgba(10, 15, 22, 0.7)", // Increased opacity slightly for better glass feel
+                        backgroundColor: "rgba(0, 0, 0, 0.0)", // Increased opacity slightly for better glass feel
                         borderColor: "rgba(255, 255, 255, 0.1)",
                         paddingTop: "0.75rem",
                         paddingBottom: "0.75rem"
@@ -181,7 +286,181 @@ const Navbar = () => {
         </>
     )
 }
+// --- 4. NEW: "Supermemory" Replica Card (Fixed Layout) ---
+const StepCard = ({ step, tag, title, desc, color, imgUrl }) => (
+    <div className="group relative w-full max-w-[500px] mx-auto mb-24 last:mb-0">
+        
+        {/* Card Structure: Two layers for the double-border effect */}
+        
+        {/* Layer 1: Outer Ring (The faint grey stroke) */}
+        <div className="relative rounded-[2.5rem] p-[1px] bg-white/10 hover:bg-white/20 transition-colors duration-500">
+            
+            {/* Layer 2: Inner Dark Body */}
+            <div className="relative h-full rounded-[2.5rem] bg-[#1a1f26] overflow-hidden">
+                
+                {/* Top Gradient Highlight (The sharp colored line) */}
+                <div className={`absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r ${color} opacity-100`} />
+                
+                {/* Content Padding */}
+                <div className="px-8 pt-10 pb-0 relative z-20">
+                    
+                    {/* Header: Tag */}
+                    <div className="flex items-center gap-2 mb-4">
+                        <span className="text-blue-500 font-mono text-[11px] font-bold tracking-[0.2em] uppercase">
+                            #{step} - {tag}
+                        </span>
+                    </div>
 
+                    {/* Headline */}
+                    <h3 className="text-3xl font-semibold text-white mb-4 leading-tight tracking-tight">
+                        {title}
+                    </h3>
+
+                    {/* Description */}
+                    <p className="text-zinc-400 text-sm leading-relaxed max-w-sm mb-8">
+                        {desc}
+                    </p>
+                </div>
+
+                {/* Visual Area (Integrated Bottom Section) */}
+                <div className="relative w-full h-[320px] flex items-end justify-center overflow-hidden">
+                    
+                    {/* Blue Radial Glow behind the image */}
+                    <div className="absolute bottom-[-20%] left-1/2 -translate-x-1/2 w-64 h-64 bg-blue-600/40 rounded-full blur-[80px]" />
+                    
+                    {/* Tech Grid Pattern */}
+                    <div className="absolute inset-0 opacity-20" 
+                         style={{ backgroundImage: 'radial-gradient(circle, #3b82f6 1px, transparent 1px)', backgroundSize: '40px 40px' }} 
+                    />
+
+                    {/* Image/Visual - Anchored to bottom */}
+                    <img 
+                        src={imgUrl}
+                        alt={title}
+                        className="relative z-10 w-[70%] object-contain object-bottom transform group-hover:scale-105 transition-transform duration-700 drop-shadow-2xl"
+                    />
+                    
+                    {/* Fade to Black at bottom to merge with border */}
+                    <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-[#0c1117] to-transparent z-20" />
+                </div>
+            </div>
+        </div>
+    </div>
+)
+
+// --- 5. How To Use Section (Full Width Background) ---
+// --- 5. How To Use Section (Blended Background) ---
+const HowToUseSection = () => {
+    
+    // Gradient definitions for top borders
+    const gradients = [
+        "from-blue-500 via-cyan-400 to-transparent",
+        "from-cyan-500 via-teal-400 to-transparent",
+        "from-indigo-500 via-purple-400 to-transparent",
+        "from-orange-500 via-amber-400 to-transparent",
+        "from-emerald-500 via-green-400 to-transparent"
+    ]
+
+    return (
+        // Changed bg color to #0b0f15 to match your request
+        <section className="relative bg-[#0b0f15] py-32 px-6">
+            
+            {/* --- FIXED FULL-WIDTH BACKGROUND (The Aurora) --- */}
+            <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
+                 
+                 {/* Sticky Window for the Flare */}
+                 <div className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden">
+                    <div className="w-full h-full scale-[1] opacity-90">
+                        <AuroraFlare opacity={1} />
+                    </div>
+                 </div>
+
+                 {/* --- BLEND MASKS (Top & Bottom) --- */}
+                 {/* These ensure the flare fades out perfectly into the #0b0f15 background */}
+                 <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-[#0b0f15] to-transparent z-10" />
+                 <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-[#0b0f15] to-transparent z-10" />
+            </div>
+
+            <div className="container mx-auto max-w-6xl relative z-10">
+                <div className="flex flex-col lg:flex-row gap-16 items-start">
+                    
+                    {/* --- LEFT COLUMN: STICKY HEADER --- */}
+                    <div className="lg:w-5/12 lg:sticky lg:top-32 lg:h-fit py-10">
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] font-bold uppercase tracking-wider text-zinc-300 w-fit mb-8">
+                            How it works
+                        </div>
+                        
+                        <h2 className="text-5xl md:text-6xl font-medium text-white mb-6 leading-[1.1] tracking-tight">
+                            How to use <br/> 
+                            <span className="text-white">
+                                Outlrn platform
+                            </span>
+                        </h2>
+                        
+                        <p className="text-lg text-zinc-400 leading-relaxed max-w-md mb-8">
+                            Outlrn turns scattered inputs into clean, contextual learning that you can instantly recall — powering fast, reliable engineering growth.
+                        </p>
+
+                        <button className="group flex items-center gap-2 px-6 py-3 rounded-full border border-white/20 text-white font-medium hover:bg-white/10 transition-all w-fit">
+                            <span>How Outlrn works</span>
+                            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                    </div>
+
+                    {/* --- RIGHT COLUMN: SCROLLING CARDS --- */}
+                    <div className="lg:w-7/12 flex flex-col pt-10 pb-32 relative">
+                        
+                        <StepCard 
+                            step="1"
+                            tag="CONNECT"
+                            title="Join a Company Virtual Environment"
+                            desc="We built SDKs for everything - OpenAI, Anthropic, AI SDK, Cloudflare, you name it. Installing outlrn takes minutes."
+                            color={gradients[0]}
+                            imgUrl="/images/join.png"
+                        />
+
+                        <StepCard 
+                            step="2"
+                            tag="ANALYZE"
+                            title="Learn the Skills Needed in That Company"
+                            desc="We analyze the company's stack and teach you exactly what's needed to contribute, filling knowledge gaps instantly."
+                            color={gradients[1]}
+                            imgUrl="/images/learning.png"
+                        />
+
+                        <StepCard 
+                            step="3"
+                            tag="UNLOCK"
+                            title="Join Real Projects"
+                            desc="Reach skill thresholds to unlock live modules. Work on Auth, APIs, and microservices just like a real employee."
+                            color={gradients[2]}
+                            imgUrl={"/images/proj.png"}
+                        />
+
+                        <StepCard 
+                            step="4"
+                            tag="MENTOR"
+                            title="AI Teaching"
+                            desc="Get a senior engineer-style breakdown of every concept, adapted specifically to your current understanding."
+                            color={gradients[3]}
+                            imgUrl={"/images/tut.png"}
+                        />
+
+                        <StepCard 
+                            step="5"
+                            tag="REVIEW"
+                            title="Submit & Improve"
+                            desc="Push code to GitHub. Our AI Reviewer checks quality and logic, rejecting poor code with clear fix instructions."
+                            color={gradients[4]}
+                            imgUrl={"/images/pr.png"}
+                        />
+
+                    </div>
+                </div>
+            </div>
+        </section>
+    )
+}
 // --- Aurora Component ---
 const Aurora = ({ colorStops, blend, amplitude, speed }) => {
   return (
@@ -330,13 +609,13 @@ const FeatureItem = ({ imageUrl, title, desc, linkText = "Learn more" }) => (
     </div>
 )
 
-const ComparisonRow = ({ feature, traditional, outlrn }) => (
-    <div className="grid grid-cols-3 gap-4 py-5 border-b border-white/5 text-sm items-center">
-        <div className="text-zinc-300 font-medium">{feature}</div>
-        <div className="text-zinc-500 flex items-center gap-2"><X className="w-4 h-4 text-red-500/50" /> {traditional}</div>
-        <div className="text-white flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> {outlrn}</div>
-    </div>
-)
+// const ComparisonRow = ({ feature, traditional, outlrn }) => (
+//     <div className="grid grid-cols-3 gap-4 py-5 border-b border-white/5 text-sm items-center">
+//         <div className="text-zinc-300 font-medium">{feature}</div>
+//         <div className="text-zinc-500 flex items-center gap-2"><X className="w-4 h-4 text-red-500/50" /> {traditional}</div>
+//         <div className="text-white flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> {outlrn}</div>
+//     </div>
+// )
 
 const TestimonialCard = ({ quote, author, role }) => (
     <div className="p-8 rounded-[2rem] bg-[#0a0f16]/40 border border-white/5 hover:border-blue-500/20 transition-all backdrop-blur-sm relative">
@@ -613,7 +892,7 @@ const HowItWorksSection = () => {
 }
 export default function LandingPage() {
     return (
-        <div className="min-h-screen bg-[#0b0f14] text-white selection:bg-blue-500/30 relative font-['Space_Grotesk']">
+        <div className="min-h-screen bg-[#0b0f15] text-white selection:bg-blue-500/30 relative font-['Space_Grotesk']">
             <GlobalStyles />
             <Navbar />
 
@@ -636,7 +915,7 @@ export default function LandingPage() {
                 </p>
                 
                 <div className="flex flex-col sm:flex-row items-center gap-5 mb-32 relative z-20">
-                    <button className="h-14 px-8 rounded-full bg-gradient-to-b from-[#2563eb] to-[#1d4ed8] hover:from-[#3b82f6] hover:to-[#2563eb] text-white font-bold text-base shadow-[0_0_30px_-5px_rgba(37,99,235,0.6)] border border-blue-400/20 transition-all active:scale-95 flex items-center gap-2">
+                    <button onClick={()=>window.location.href = '/auth'} className="h-14 hover:cursor-pointer px-8 rounded-full bg-gradient-to-b from-[#2563eb] to-[#1d4ed8] hover:from-[#3b82f6] hover:to-[#2563eb] text-white font-bold text-base shadow-[0_0_30px_-5px_rgba(37,99,235,0.6)] border border-blue-400/20 transition-all active:scale-95 flex items-center gap-2">
                         Start Your Personalized Path <ArrowRight className="w-5 h-5" />
                     </button>
                     <button className="h-14 px-8 rounded-full bg-[#0a0f16] border border-white/10 text-white hover:bg-white/5 transition-all font-bold text-base flex items-center gap-2">
@@ -650,9 +929,11 @@ export default function LandingPage() {
 
             {/* --- HOW IT WORKS (REPLACED WITH STICKY SCROLL) --- */}
             <HowItWorksSection />
+<div className="h-28 bg-[#0b0f15]"></div>
+            <HowToUseSection />
 
             {/* --- FEATURES --- */}
-            <section id="features" className="py-32 px-6 relative z-10 bg-[#0b0f14]">
+            {/* <section id="features" className="py-32 px-6 relative z-10 bg-[#0b0f14]">
                 <div className="container mx-auto max-w-7xl">
                     <div className="mb-20 text-center">
                         <h2 className="text-4xl md:text-5xl font-bold mb-6">Agents and Features</h2>
@@ -687,29 +968,9 @@ export default function LandingPage() {
 </div>
 
                 </div>
-            </section>
+            </section> */}
 
-            {/* --- COMPARISON --- */}
-            <section className="py-32 px-6 relative z-10 bg-[#0b0f14]">
-                <div className="container mx-auto max-w-5xl">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl md:text-5xl font-bold mb-4">Because traditional learning is <span className="text-red-400">inefficient.</span></h2>
-                    </div>
-                    
-                    <div className="bg-[#0a0f16]/40 border border-white/5 rounded-[2rem] p-10 shadow-2xl backdrop-blur-sm">
-                        <div className="grid grid-cols-3 gap-4 mb-8 text-xs font-bold uppercase tracking-wider text-zinc-500 border-b border-white/5 pb-4">
-                            <div>Feature</div>
-                            <div>Traditional</div>
-                            <div className="text-blue-500">Outlrn</div>
-                        </div>
-                        <ComparisonRow feature="Content Relevance" traditional="Irrelevant topics" outlrn="Only what's needed" />
-                        <ComparisonRow feature="Learning Path" traditional="Generic / Linear" outlrn="Personalized" />
-                        <ComparisonRow feature="Feedback" traditional="None / Slow" outlrn="Real-time AI" />
-                        <ComparisonRow feature="Format" traditional="Long Videos" outlrn="Micro-tasks" />
-                        <ComparisonRow feature="Goal" traditional="Certificates" outlrn="Job Readiness" />
-                    </div>
-                </div>
-            </section>
+           <ComparisonSection />
 
             {/* --- TESTIMONIALS --- */}
             <section className="py-32 px-6 relative z-10 bg-[#0b0f14]">
