@@ -9,14 +9,25 @@ import {
   Code2, 
   Columns, 
   Volume2, 
-  VolumeX
+  VolumeX,
+  Eye,       
+  Table,     
+  List,
+  GitGraph
 } from 'lucide-react';
 
 import { TalkingHead } from "../../lib/modules/talkinghead.mjs"; 
 import { HeadTTS } from "../../lib/modules/headtts.mjs";
 
 // --- TYPES ---
-type LayoutMode = 'CONCEPT_MODE' | 'SPLIT_MODE' | 'FOCUS_MODE';
+type LayoutMode = 'CONCEPT_MODE' | 'SPLIT_MODE' | 'FOCUS_MODE' | 'VISUAL_MODE';
+type VisualType = 'ARRAY' | 'TABLE' | 'KEY_VALUE' | 'MERMAID_FLOWCHART';
+
+type VisualState = {
+  type: VisualType;
+  payload: any;
+  caption: string;
+} | null;
 
 type Message = {
   id: string;
@@ -29,6 +40,7 @@ type PlaybackAction =
   | { type: 'LAYOUT'; mode: LayoutMode }
   | { type: 'CODE'; code: string }
   | { type: 'CONCEPT'; title: string; text: string }
+  | { type: 'VISUAL'; state: VisualState } 
   | { type: 'HIGHLIGHT'; code_to_highlight: string } 
   | { type: 'WAIT'; ms: number };
 
@@ -42,82 +54,140 @@ const COLORS = {
   textMain: 'text-gray-300',
 };
 
-const INITIAL_CODE = `# Waiting for session data...
-def initial_state():
-    return "Ready"`;
+// --- VISUAL RENDERER COMPONENTS ---
 
-// --- UTILITIES ---
-const cleanCodeSnippet = (rawCode: string) => {
-    let clean = rawCode.replace(/\t/g, '  '); 
-    clean = clean.replace(/\u00A0/g, ' ');
-    return clean.trim();
+const ArrayVisualizer = ({ payload }: { payload: any }) => {
+  const data = payload?.data || [];
+  const highlights = payload?.highlights || [];
+  const pointers = payload?.pointers || {};
+  const dimmed_indices = payload?.dimmed_indices || []; 
+  
+  return (
+    <div className="flex flex-col items-center justify-center py-10 px-4 w-full overflow-x-auto">
+      <div className="flex gap-3">
+        {data.map((val: any, idx: number) => {
+          const isHighlighted = highlights.includes(idx);
+          const isDimmed = dimmed_indices.includes(idx);
+          const activePointers = Object.entries(pointers)
+            .filter(([_, ptrIdx]) => ptrIdx === idx)
+            .map(([name]) => name);
+
+          return (
+            <div key={idx} className={`relative flex flex-col items-center transition-all duration-500 ${isDimmed ? 'opacity-30 blur-[1px]' : 'opacity-100'}`}>
+              <div className="h-8 relative w-full flex justify-center">
+                {activePointers.map((p: string, i: number) => (
+                   <span key={p} className="absolute bottom-0 text-[10px] font-mono font-bold text-cyan-400 uppercase tracking-widest animate-bounce" style={{ animationDelay: `${i * 100}ms` }}>
+                     {p} ↓
+                   </span>
+                ))}
+              </div>
+              <div className={`
+                w-16 h-16 flex items-center justify-center rounded-lg border-2 text-xl font-bold font-mono shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300
+                ${isHighlighted ? 'bg-cyan-500/20 border-cyan-400 text-cyan-50 scale-110 z-10' : 'bg-[#1a1a1a] border-white/10 text-gray-400'}
+              `}>
+                {val}
+              </div>
+              <span className="mt-2 text-[10px] text-gray-600 font-mono">{idx}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 };
 
+const TableVisualizer = ({ payload }: { payload: any }) => {
+  const headers = payload?.headers || [];
+  const rows = payload?.rows || [];
+  const highlight_row = payload?.highlight_row ?? -1;
+
+  return (
+    <div className="w-full overflow-hidden rounded-lg border border-white/10">
+      <table className="w-full text-sm text-left">
+        <thead className="bg-white/5 text-gray-400 uppercase font-mono text-xs">
+          <tr>{headers.map((h: string, i: number) => <th key={i} className="px-6 py-3">{h}</th>)}</tr>
+        </thead>
+        <tbody className="divide-y divide-white/5">
+          {rows.map((row: any[], i: number) => (
+            <tr key={i} className={`transition-colors duration-300 ${highlight_row === i ? 'bg-cyan-500/20' : 'bg-transparent'}`}>
+               {row.map((cell: any, j: number) => <td key={j} className="px-6 py-4 font-mono text-gray-300">{cell}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const KeyValueVisualizer = ({ payload }: { payload: any }) => {
+  const items = payload?.items || [];
+  return (
+    <div className="grid grid-cols-2 gap-4 w-full max-w-lg">
+       {items.map((item: any, i: number) => (
+         <div key={i} className="bg-[#1a1a1a] p-4 rounded-lg border border-white/10 flex justify-between items-center">
+            <span className="text-gray-500 font-mono text-xs uppercase">{item.key}</span>
+            <span className="text-cyan-400 font-mono font-bold">{item.value}</span>
+         </div>
+       ))}
+    </div>
+  );
+};
+
+// --- MAIN COMPONENT ---
+
 const ImmersiveLearningPlatform: React.FC = () => {
-  // UI State
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('SPLIT_MODE');
-  const [activeCode, setActiveCode] = useState(INITIAL_CODE);
+  const [activeCode, setActiveCode] = useState("");
   const [highlightQuery, setHighlightQuery] = useState<string | null>(null);
-  const [conceptData, setConceptData] = useState({ title: "Waiting...", text: "Initializing session..." });
+  
+  const [conceptData, setConceptData] = useState({ title: "Initializing...", text: "Waiting for session..." });
+  const [visualData, setVisualData] = useState<VisualState>(null);
   const [subtitles, setSubtitles] = useState("");
+  const [messages, setMessages] = useState<Message[]>([{ id: 'init', role: 'assistant', content: "Welcome back." }]);
   
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false); 
   const [isPlaying, setIsPlaying] = useState(false);        
   const [isTTSActive, setIsTTSActive] = useState(true);     
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 'init', role: 'assistant', content: "Welcome back. I am ready to assist." }
-  ]);
   
-  // Refs
   const avatarRef = useRef<HTMLDivElement>(null);
   const headRef = useRef<any>(null);
   const headTTSRef = useRef<any>(null);
   const [avatarStatus, setAvatarStatus] = useState("Initializing...");
-
-  // --- SYNC ENGINE REFS ---
+  const codeContainerRef = useRef<HTMLDivElement>(null);
   const audioResolverRef = useRef<(() => void) | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const commandQueueRef = useRef<PlaybackAction[]>([]);
   const isExecutingRef = useRef(false);
-
-  // Counters & Watchdog
   const onEndCountRef = useRef(0);
   const totalPartsRef = useRef(0);
   const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const addDebug = (msg: string) => {
-      console.log(`[SYNC] ${msg}`);
-  };
-
-  // [RESTORED] WATCHDOG FUNCTION
   const kickWatchdog = () => {
       if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
-      
-      // If we don't hear anything for 5 seconds, assume we are stuck and unlock.
       watchdogTimerRef.current = setTimeout(() => {
-          addDebug("🚨 WATCHDOG EXPIRED (5s Silence). Forcing Unlock.");
           if (audioResolverRef.current) {
               audioResolverRef.current();
               audioResolverRef.current = null;
           }
-      }, 20000); 
+      }, 15000); 
   };
 
-  // --- 1. INITIALIZE AVATAR ---
+  useEffect(() => {
+    if (highlightQuery && codeContainerRef.current) {
+      const highlightedElement = codeContainerRef.current.querySelector('.border-cyan-400');
+      if (highlightedElement) highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightQuery, activeCode]);
+
   useEffect(() => {
     if (headRef.current) return;
-
     const initAvatar = async () => {
       try {
         const head = new TalkingHead(avatarRef.current, {
-          ttsEndpoint: "N/A",
-          cameraView: "upper",
-          mixerGainSpeech: 3,
-          cameraRotateEnable: false
+          ttsEndpoint: "N/A", cameraView: "upper", mixerGainSpeech: 3, cameraRotateEnable: false
         });
         headRef.current = head;
-
         const headtts = new HeadTTS({
           endpoints: ["webgpu", "wasm"],
           languages: ["en-us"],
@@ -126,96 +196,43 @@ const ImmersiveLearningPlatform: React.FC = () => {
           workerModule: window.location.origin + "/modules/worker-tts.mjs",
           dictionaryURL: window.location.origin + "/dictionaries",
           audioCtx: head.audioCtx,
-          trace: 0,
         });
         headTTSRef.current = headtts;
-
-        // --- GLOBAL EVENT LISTENER ---
         headtts.onmessage = (message: any) => {
             if (message.type === "audio") {
-                // WE GOT DATA: EXTEND LIFE
                 kickWatchdog();
-
                 const { partsTotal } = message.metaData || { partsTotal: 1 };
                 if (partsTotal > 0) totalPartsRef.current = partsTotal;
-
-                try {
-                    head.speakAudio(
-                        message.data, 
-                        { volume: 1 }, 
-                        
-                        // A. ON WORD
-                        (word: string) => {
-                            setSubtitles(prev => prev.length > 80 ? "..." + word : prev + word);
-                        },
-
-                        // B. ON END
-                        () => {
-                            onEndCountRef.current += 1;
-                            addDebug(`Callback Fired. Count: ${onEndCountRef.current} / Total Expected: ${totalPartsRef.current}`);
-
-                            // CHECK COMPLETION
-                            if (totalPartsRef.current > 0 && onEndCountRef.current >= totalPartsRef.current) {
-                                addDebug("✅ All chunks finished. Releasing Lock.");
-                                
-                                // CLEAR WATCHDOG (We are done successfully)
-                                if (watchdogTimerRef.current) {
-                                    clearTimeout(watchdogTimerRef.current);
-                                    watchdogTimerRef.current = null;
-                                }
-
-                                if (audioResolverRef.current) {
-                                    audioResolverRef.current();
-                                    audioResolverRef.current = null;
-                                }
-                                setTimeout(() => setSubtitles(""), 1000);
-                            } else {
-                                // WE FINISHED A CHUNK, BUT NOT ALL. EXTEND LIFE.
-                                kickWatchdog();
+                head.speakAudio(message.data, { volume: 1 }, 
+                    (word: string) => setSubtitles(prev => prev.length > 80 ? "..." + word : prev + word),
+                    () => {
+                        onEndCountRef.current += 1;
+                        if (totalPartsRef.current > 0 && onEndCountRef.current >= totalPartsRef.current) {
+                            if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
+                            if (audioResolverRef.current) {
+                                audioResolverRef.current();
+                                audioResolverRef.current = null;
                             }
+                            setTimeout(() => setSubtitles(""), 1000);
+                        } else {
+                            kickWatchdog();
                         }
-                    );
-                } catch (e) {
-                    console.error("Playback error", e);
-                    // Force unlock on error
-                    if (audioResolverRef.current) {
-                        audioResolverRef.current();
-                        audioResolverRef.current = null;
                     }
-                }
-            } else if (message.type === "error") {
-                console.error("TTS Error", message.data);
-                if (audioResolverRef.current) {
-                    audioResolverRef.current();
-                    audioResolverRef.current = null;
-                }
+                );
             }
         };
-
-        const personConfig = {
-             avatar: { url: "/avatars/david.glb", body: "F", avatarMood: "neutral" },
-             view: { cameraY: 0 },
-             setup: { voice: "am_fenrir", language: "en-us", speed: 1.1, audioEncoding: "wav" }
-        };
-
-        setAvatarStatus("Loading Model...");
         await Promise.all([
-             head.showAvatar(personConfig.avatar),
+             head.showAvatar({ url: "/avatars/david.glb", body: "F", avatarMood: "neutral" }),
              headtts.connect()
         ]);
-        
-        head.setView(head.viewName, personConfig.view);
-        head.cameraClock = 999;
-        headtts.setup(personConfig.setup);
+        head.setView(head.viewName, { cameraY: 0 });
+        headtts.setup({ voice: "am_fenrir", language: "en-us", speed: 1.1, audioEncoding: "wav" });
         head.start();
         setAvatarStatus("Online");
-
       } catch (err: any) {
-        console.error("Avatar Init Failed:", err);
         setAvatarStatus("Error: " + err.message);
       }
     };
-
     initAvatar();
     return () => { if (headRef.current) headRef.current.stop(); };
   }, []);
@@ -224,42 +241,34 @@ const ImmersiveLearningPlatform: React.FC = () => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // --- 2. DIRECTOR ---
   const processQueue = async () => {
     if (isExecutingRef.current) return; 
     isExecutingRef.current = true;
     setIsPlaying(true);
-
     while (commandQueueRef.current.length > 0) {
       const action = commandQueueRef.current.shift(); 
       if (!action) break;
-
       switch (action.type) {
         case 'LAYOUT':
-          addDebug(`Executing LAYOUT: ${action.mode}`);
           setLayoutMode(action.mode);
-          setHighlightQuery(null); 
+          if (action.mode !== 'SPLIT_MODE' && action.mode !== 'FOCUS_MODE') setHighlightQuery(null);
           break;
-        
         case 'CODE':
-          addDebug(`Executing CODE`);
-          setActiveCode(cleanCodeSnippet(action.code));
+          setActiveCode(action.code.trim());
           setHighlightQuery(null); 
           break;
-
         case 'CONCEPT':
           setConceptData({ title: action.title, text: action.text });
           break;
-
+        case 'VISUAL': 
+          setVisualData(action.state);
+          break;
         case 'HIGHLIGHT':
-          addDebug(`Executing HIGHLIGHT`);
           setHighlightQuery(action.code_to_highlight);
           break;
-            
         case 'WAIT':
           await new Promise(resolve => setTimeout(resolve, action.ms));
           break;
-
         case 'SPEAK':
           setMessages(prev => {
             const last = prev[prev.length - 1];
@@ -269,118 +278,74 @@ const ImmersiveLearningPlatform: React.FC = () => {
               return [...prev, { id: Date.now().toString(), role: 'assistant', content: action.text }];
             }
           });
-
           if (isTTSActive && headTTSRef.current && headRef.current && avatarStatus === "Online") {
-             
              setSubtitles("");
-             addDebug(`SPEAK LOCK: "${action.text.substring(0, 15)}..."`);
-
-             // RESET COUNTERS
              onEndCountRef.current = 0;
              totalPartsRef.current = 0;
-
-             if (headRef.current.audioCtx.state === 'suspended') {
-                 await headRef.current.audioCtx.resume();
-             }
-
-             // START INITIAL WATCHDOG
-             // Give the engine 5 seconds to send the FIRST chunk of data.
+             if (headRef.current.audioCtx.state === 'suspended') await headRef.current.audioCtx.resume();
              kickWatchdog();
-
-             // THE LOCK
              await new Promise<void>((resolve) => {
                  audioResolverRef.current = resolve;
-
-                 try {
-                    headTTSRef.current.synthesize({ input: action.text });
-                 } catch (e) {
-                    console.error("Synthesize Error", e);
-                    resolve(); 
-                 }
-                 
-                 // Relies on kickWatchdog() to resolve or timeout
+                 try { headTTSRef.current.synthesize({ input: action.text }); } 
+                 catch (e) { resolve(); }
              });
-
           } else {
             await new Promise(resolve => setTimeout(resolve, action.text.length * 50)); 
           }
           break;
       }
-      
       await new Promise(resolve => setTimeout(resolve, 50));
     }
-
     setIsPlaying(false);
     isExecutingRef.current = false;
   };
 
-  // --- 3. PRODUCER ---
   const parseAndEnqueue = (line: string) => {
     if (!line.trim()) return;
     try {
       const cleanLine = line.replace(/^data: /, '');
       const data = JSON.parse(cleanLine);
-      
       let action: PlaybackAction | null = null;
-
       if (data.type === 'speak') action = { type: 'SPEAK', text: data.text };
       else if (data.type === 'layout') action = { type: 'LAYOUT', mode: data.mode };
       else if (data.type === 'code') action = { type: 'CODE', code: data.content };
       else if (data.type === 'concept') action = { type: 'CONCEPT', title: data.title, text: data.text };
+      else if (data.type === 'visual') action = { type: 'VISUAL', state: data.state };
       else if (data.type === 'highlight') action = { type: 'HIGHLIGHT', code_to_highlight: data.code_to_highlight };
-
       if (action) {
         commandQueueRef.current.push(action);
         processQueue(); 
       }
-    } catch (e) {
-      console.warn("Parse Error:", line);
-    }
+    } catch (e) { console.warn("Parse Error:", line); }
   };
 
-  // --- 4. API HANDLER (Restored) ---
   const handleSendMessage = async () => {
     if (!input.trim() || isProcessing) return;
-
     setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: input }]);
     const currentInput = input;
     setInput('');
     setIsProcessing(true);
     setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '' }]);
-
     try {
       const response = await fetch('http://localhost:5000/api/chat', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: currentInput })
       });
-
       if (!response.body) throw new Error('No body');
-
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-
       while (true) {
         const { value, done } = await reader.read();
         if (value) buffer += decoder.decode(value, { stream: true });
-
         const lines = buffer.split('\n');
-        if (!done) buffer = lines.pop() || ""; 
-        else buffer = "";
-
+        if (!done) buffer = lines.pop() || ""; else buffer = "";
         for (const line of lines) parseAndEnqueue(line);
         if (done) break;
       }
-      
       if (buffer.trim()) parseAndEnqueue(buffer);
-
-    } catch (error) {
-      console.error("Error:", error);
-      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: "Error connecting to server." }]);
-    } finally {
-      setIsProcessing(false);
-    }
+    } catch (error) { console.error(error); } finally { setIsProcessing(false); }
   };
 
   const renderCode = () => {
@@ -388,11 +353,9 @@ const ImmersiveLearningPlatform: React.FC = () => {
         const lineNumber = i + 1;
         let isHighlighted = false;
         if (highlightQuery) {
-            const normalizedLine = cleanCodeSnippet(line).trim();
-            const normalizedQuery = cleanCodeSnippet(highlightQuery).trim();
-            if (normalizedLine && normalizedQuery && normalizedLine.includes(normalizedQuery)) {
-                isHighlighted = true;
-            }
+            const cleanLine = line.trim();
+            const cleanQuery = highlightQuery.trim();
+            if (cleanLine && cleanQuery && cleanLine.includes(cleanQuery)) isHighlighted = true;
         }
         return (
             <div key={i} className={`px-6 py-0.5 transition-colors duration-200 ${isHighlighted ? 'bg-[#1a2c33] border-l-2 border-cyan-400' : 'bg-transparent border-l-2 border-transparent'}`}>
@@ -403,14 +366,43 @@ const ImmersiveLearningPlatform: React.FC = () => {
     });
   };
 
+  const renderVisualContent = () => {
+    if (!visualData) return <div className="text-gray-600">No active visualization</div>;
+    return (
+       <div className="w-full h-full flex flex-col">
+          <div className="flex-1 flex items-center justify-center p-6 bg-[#121212] rounded-xl border border-white/5 relative overflow-hidden">
+             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px]" />
+             <div className="relative z-10 w-full flex justify-center">
+                {visualData.type === 'ARRAY' && <ArrayVisualizer payload={visualData.payload} />}
+                {visualData.type === 'TABLE' && <TableVisualizer payload={visualData.payload} />}
+                {visualData.type === 'KEY_VALUE' && <KeyValueVisualizer payload={visualData.payload} />}
+                {visualData.type === 'MERMAID_FLOWCHART' && (
+                    <div className="text-center">
+                        <GitGraph size={48} className="mx-auto text-cyan-500 mb-4" />
+                        <pre className="text-xs text-gray-500 font-mono bg-black/50 p-4 rounded">{visualData.payload.chart}</pre>
+                    </div>
+                )}
+             </div>
+          </div>
+          <div className="mt-4 px-2">
+             <div className="flex items-center gap-2 mb-2">
+                {visualData.type === 'ARRAY' && <List size={14} className="text-cyan-400" />}
+                {visualData.type === 'TABLE' && <Table size={14} className="text-cyan-400" />}
+                <span className="text-xs font-bold text-cyan-400 tracking-wider uppercase">{visualData.type} VIEW</span>
+             </div>
+             <p className="text-sm text-gray-300">{visualData.caption}</p>
+          </div>
+       </div>
+    );
+  };
+
   return (
     <div className={`flex h-screen w-full ${COLORS.bg} ${COLORS.textMain} font-sans overflow-hidden`}>
-      {/* Sidebar */}
       <div className={`w-[30%] min-w-[340px] flex flex-col border-r ${COLORS.border} relative z-20 bg-black/40 backdrop-blur-sm`}>
         <div className="p-8 flex justify-between items-center text-[10px] font-mono tracking-[0.2em] text-gray-600">
           <span>SESSION: #8492-A</span>
           <button onClick={() => setIsTTSActive(!isTTSActive)} className="hover:text-white transition-colors">
-             {isTTSActive ? <Volume2 size={14} className="text-cyan-500" /> : <VolumeX size={14} />}
+              {isTTSActive ? <Volume2 size={14} className="text-cyan-500" /> : <VolumeX size={14} />}
           </button>
         </div>
         <div className="flex-none h-[350px] flex flex-col justify-center items-center relative overflow-hidden bg-black/20">
@@ -444,15 +436,15 @@ const ImmersiveLearningPlatform: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Canvas */}
       <div className={`flex-1 flex flex-col ${COLORS.panelBg} relative overflow-hidden transition-all duration-500`}>
         <header className={`h-16 border-b ${COLORS.border} flex items-center justify-between px-8 bg-[#080808]/90 backdrop-blur z-30`}>
           <div className="flex gap-8">
-            {['CONCEPT_MODE', 'SPLIT_MODE', 'FOCUS_MODE'].map((mode) => (
+            {['CONCEPT_MODE', 'SPLIT_MODE', 'FOCUS_MODE', 'VISUAL_MODE'].map((mode) => (
                 <div key={mode} className={`relative py-5 text-xs font-medium tracking-wider uppercase flex items-center gap-2 transition-colors duration-300 ${layoutMode === mode ? 'text-white' : 'text-gray-600'}`}>
                     {mode === 'CONCEPT_MODE' && <Layout size={14} />}
                     {mode === 'SPLIT_MODE' && <Columns size={14} />}
                     {mode === 'FOCUS_MODE' && <Code2 size={14} />}
+                    {mode === 'VISUAL_MODE' && <Eye size={14} />}
                     {mode.replace('_MODE', '')}
                     {layoutMode === mode && <span className={`absolute bottom-0 left-0 w-full h-0.5 ${COLORS.cyanBg} shadow-[0_0_10px_rgba(6,182,212,0.8)]`} />}
                 </div>
@@ -464,26 +456,54 @@ const ImmersiveLearningPlatform: React.FC = () => {
         </header>
 
         <main className="flex-1 relative p-8 flex gap-6 overflow-hidden">
-          <div className={`relative flex flex-col ${COLORS.cardBg} border ${COLORS.border} rounded-2xl overflow-hidden transition-all duration-700 ease-in-out ${layoutMode === 'CONCEPT_MODE' ? 'flex-[100%] opacity-100 translate-x-0' : ''} ${layoutMode === 'SPLIT_MODE' ? 'flex-[45%] opacity-100 translate-x-0' : ''} ${layoutMode === 'FOCUS_MODE' ? 'flex-[0%] opacity-0 -translate-x-10 w-0 border-0 p-0 pointer-events-none' : ''}`}>
-            <div className="p-8 min-w-[400px] animate-in fade-in duration-700">
+          
+          {/* 1. CONCEPT CARD (LEFT IN SPLIT) */}
+          <div className={`
+             relative flex flex-col ${COLORS.cardBg} border ${COLORS.border} rounded-2xl overflow-hidden transition-all duration-700 ease-in-out
+             ${layoutMode === 'CONCEPT_MODE' ? 'flex-[100%] opacity-100 translate-x-0' : ''}
+             ${layoutMode === 'SPLIT_MODE' ? 'flex-[40%] opacity-100 translate-x-0' : ''} 
+             ${layoutMode === 'FOCUS_MODE' || layoutMode === 'VISUAL_MODE' ? 'flex-[0%] opacity-0 -translate-x-10 w-0 border-0 p-0 pointer-events-none' : ''}
+          `}>
+            <div className="p-8 min-w-[400px]">
               <h1 className="text-3xl font-light text-white tracking-tight mb-2">Concept <span className="text-gray-500">View</span></h1>
               <div className={`w-12 h-0.5 ${COLORS.cyanBg} mb-8`} />
-              <div key={conceptData.title} className="animate-in slide-in-from-right-4 duration-500">
-                 <h2 className={`text-xl font-medium mb-4 ${COLORS.cyanText}`}>{conceptData.title}</h2>
-                 <p className="text-gray-300 leading-relaxed text-sm max-w-xl">{conceptData.text}</p>
-              </div>
+              <h2 className={`text-xl font-medium mb-4 ${COLORS.cyanText}`}>{conceptData.title}</h2>
+              <p className="text-gray-300 leading-relaxed text-sm max-w-xl">{conceptData.text}</p>
             </div>
           </div>
 
-          <div className={`relative flex flex-col ${COLORS.cardBg} border ${COLORS.border} rounded-2xl overflow-hidden transition-all duration-700 ease-in-out ${layoutMode === 'CONCEPT_MODE' ? 'flex-[0%] opacity-0 translate-x-10 w-0 border-0 p-0 pointer-events-none' : ''} ${layoutMode === 'SPLIT_MODE' ? 'flex-[55%] opacity-100 translate-x-0' : ''} ${layoutMode === 'FOCUS_MODE' ? 'flex-[100%] opacity-100 translate-x-0' : ''}`}>
+          {/* 2. CODE EDITOR (RIGHT IN SPLIT, FULL IN FOCUS) */}
+          <div className={`
+             relative flex flex-col ${COLORS.cardBg} border ${COLORS.border} rounded-2xl overflow-hidden transition-all duration-700 ease-in-out
+             ${layoutMode === 'CONCEPT_MODE' || layoutMode === 'VISUAL_MODE' ? 'flex-[0%] opacity-0 translate-x-10 w-0 border-0 p-0 pointer-events-none' : ''}
+             ${layoutMode === 'SPLIT_MODE' ? 'flex-[60%] opacity-100 translate-x-0' : ''}
+             ${layoutMode === 'FOCUS_MODE' ? 'flex-[100%] opacity-100 translate-x-0' : ''}
+          `}>
              <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#121212]">
-                <span className="text-xs font-mono text-gray-500">live_script.jsx</span>
-                <span className="text-xs font-mono text-gray-600">JavaScript / React</span>
+                <span className="text-xs font-mono text-gray-500">live_script.py</span>
+                <span className="text-xs font-mono text-gray-600">Python</span>
              </div>
-             <div className="flex-1 font-mono text-xs leading-6 overflow-auto relative bg-[#0B0B0B] custom-scrollbar py-4">
+             <div ref={codeContainerRef} className="flex-1 font-mono text-xs leading-6 overflow-auto relative bg-[#0B0B0B] custom-scrollbar py-4">
                 {renderCode()}
              </div>
           </div>
+
+          {/* 3. VISUAL / CONTEXT PANEL (FULL IN VISUAL, HIDDEN IN SPLIT) */}
+          <div className={`
+             relative flex flex-col ${COLORS.cardBg} border ${COLORS.border} rounded-2xl overflow-hidden transition-all duration-700 ease-in-out
+             ${layoutMode === 'CONCEPT_MODE' || layoutMode === 'FOCUS_MODE' || layoutMode === 'SPLIT_MODE' ? 'flex-[0%] opacity-0 translate-x-10 w-0 border-0 p-0 pointer-events-none' : ''}
+             ${layoutMode === 'VISUAL_MODE' ? 'flex-[100%] opacity-100 translate-x-0' : ''}
+          `}>
+              <div className="flex-1 p-6 flex flex-col">
+                  {visualData ? renderVisualContent() : (
+                      <div className="p-4">
+                          <h2 className={`text-xl font-medium mb-4 ${COLORS.cyanText}`}>{conceptData.title}</h2>
+                          <p className="text-gray-300 leading-relaxed text-sm">{conceptData.text}</p>
+                      </div>
+                  )}
+              </div>
+          </div>
+
         </main>
 
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full max-w-lg z-40 px-4">
