@@ -1,39 +1,43 @@
 'use client'
-import React, { useState, useRef, useEffect } from 'react';
+
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import mermaid from 'mermaid';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 import { 
-  Mic, 
-  ChevronRight, 
-  Share, 
-  Settings, 
-  Layout, 
-  Code2, 
-  Columns, 
-  Volume2, 
-  VolumeX,
-  Eye,       
-  Table,     
-  List,
-  GitGraph
+  Mic, ChevronRight, Share, Settings, Layout, Code2, Columns, 
+  Volume2, VolumeX, Eye, Table as TableIcon, List, GitGraph, 
+  Terminal, Cpu, AlertCircle, Loader2
 } from 'lucide-react';
 
+// --- External Imports (Preserved) ---
 import { TalkingHead } from "../../lib/modules/talkinghead.mjs"; 
 import { HeadTTS } from "../../lib/modules/headtts.mjs";
+// Add these imports
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+// --- UTILS ---
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 // --- TYPES ---
 type LayoutMode = 'CONCEPT_MODE' | 'SPLIT_MODE' | 'FOCUS_MODE' | 'VISUAL_MODE';
 type VisualType = 'ARRAY' | 'TABLE' | 'KEY_VALUE' | 'MERMAID_FLOWCHART';
 
-type VisualState = {
+interface VisualState {
   type: VisualType;
   payload: any;
   caption: string;
-} | null;
+}
 
-type Message = {
+interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string; 
-};
+  timestamp: number;
+}
 
 type PlaybackAction = 
   | { type: 'SPEAK'; text: string }
@@ -44,53 +48,147 @@ type PlaybackAction =
   | { type: 'HIGHLIGHT'; code_to_highlight: string } 
   | { type: 'WAIT'; ms: number };
 
-const COLORS = {
-  bg: 'bg-[#050505]',        
-  panelBg: 'bg-[#080808]',   
-  cardBg: 'bg-[#0e0e0e]',    
-  border: 'border-white/10',
-  cyanText: 'text-cyan-400',
-  cyanBg: 'bg-cyan-500',
-  textMain: 'text-gray-300',
+// --- CONFIGURATION ---
+const ANIMATION_SPRING = { type: "spring", stiffness: 300, damping: 30 };
+const MERMAID_ID_PREFIX = 'immersive-mermaid-';
+
+mermaid.initialize({ 
+  startOnLoad: false, 
+  theme: 'dark', 
+  securityLevel: 'loose',
+  fontFamily: 'monospace',
+});
+
+// --- SUB-COMPONENTS ---
+
+const MermaidChart = ({ chart }: { chart: string }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [svgContent, setSvgContent] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const renderChart = async () => {
+      if (!chart || !containerRef.current) return;
+      setError(null);
+      const id = `${MERMAID_ID_PREFIX}${Date.now()}`;
+      try {
+        const { svg } = await mermaid.render(id, chart);
+        if (mounted) setSvgContent(svg);
+      } catch (err) {
+        console.error("Mermaid Render Error:", err);
+        if (mounted) setError("Diagram syntax error");
+      }
+    };
+    renderChart();
+    return () => { mounted = false; };
+  }, [chart]);
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-red-400 space-y-2">
+        <AlertCircle size={24} />
+        <span className="text-xs font-mono">{error}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      ref={containerRef} 
+      className="w-full h-full flex items-center justify-center p-4 overflow-auto mermaid-container"
+      dangerouslySetInnerHTML={{ __html: svgContent || '' }}
+    />
+  );
 };
 
-// --- VISUAL RENDERER COMPONENTS ---
+
+const detectLanguage = (code: string): 'python' | 'javascript' => {
+  if (!code) return 'python'; // Default
+  
+  // Simple heuristics
+  const jsIndicators = ['const ', 'let ', 'var ', 'function ', '=>', 'console.log', '===', 'import React'];
+  const pyIndicators = ['def ', 'import ', 'print(', 'class ', 'elif ', 'None', 'True', 'False'];
+
+  let jsScore = 0;
+  let pyScore = 0;
+
+  jsIndicators.forEach(i => { if (code.includes(i)) jsScore++; });
+  pyIndicators.forEach(i => { if (code.includes(i)) pyScore++; });
+
+  return jsScore > pyScore ? 'javascript' : 'python';
+};
 
 const ArrayVisualizer = ({ payload }: { payload: any }) => {
   const data = payload?.data || [];
   const highlights = payload?.highlights || [];
   const pointers = payload?.pointers || {};
   const dimmed_indices = payload?.dimmed_indices || []; 
-  
-  return (
-    <div className="flex flex-col items-center justify-center py-10 px-4 w-full overflow-x-auto">
-      <div className="flex gap-3">
-        {data.map((val: any, idx: number) => {
-          const isHighlighted = highlights.includes(idx);
-          const isDimmed = dimmed_indices.includes(idx);
-          const activePointers = Object.entries(pointers)
-            .filter(([_, ptrIdx]) => ptrIdx === idx)
-            .map(([name]) => name);
 
-          return (
-            <div key={idx} className={`relative flex flex-col items-center transition-all duration-500 ${isDimmed ? 'opacity-30 blur-[1px]' : 'opacity-100'}`}>
-              <div className="h-8 relative w-full flex justify-center">
-                {activePointers.map((p: string, i: number) => (
-                   <span key={p} className="absolute bottom-0 text-[10px] font-mono font-bold text-cyan-400 uppercase tracking-widest animate-bounce" style={{ animationDelay: `${i * 100}ms` }}>
-                     {p} ↓
-                   </span>
-                ))}
-              </div>
-              <div className={`
-                w-16 h-16 flex items-center justify-center rounded-lg border-2 text-xl font-bold font-mono shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300
-                ${isHighlighted ? 'bg-cyan-500/20 border-cyan-400 text-cyan-50 scale-110 z-10' : 'bg-[#1a1a1a] border-white/10 text-gray-400'}
-              `}>
-                {val}
-              </div>
-              <span className="mt-2 text-[10px] text-gray-600 font-mono">{idx}</span>
-            </div>
-          );
-        })}
+  return (
+    <div className="flex flex-col items-center justify-center w-full overflow-x-auto py-12 px-4 scrollbar-hide">
+      <div className="flex gap-4">
+        <AnimatePresence mode='popLayout'>
+          {data.map((val: any, idx: number) => {
+            const isHighlighted = highlights.includes(idx);
+            const isDimmed = dimmed_indices.includes(idx);
+            const activePointers = Object.entries(pointers)
+              .filter(([_, ptrIdx]) => ptrIdx === idx)
+              .map(([name]) => name);
+
+            return (
+              <motion.div 
+                layout
+                initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                animate={{ 
+                  opacity: isDimmed ? 0.3 : 1, 
+                  scale: isHighlighted ? 1.1 : 1,
+                  y: 0,
+                  filter: isDimmed ? 'blur(2px)' : 'blur(0px)'
+                }}
+                exit={{ opacity: 0, scale: 0 }}
+                transition={ANIMATION_SPRING}
+                key={`item-${idx}`} 
+                className="relative flex flex-col items-center group"
+              >
+                {/* Pointers Section */}
+                <div className="h-8 w-full absolute -top-10 flex flex-col-reverse items-center">
+                  <AnimatePresence>
+                    {activePointers.map((p: string) => (
+                      <motion.div 
+                        key={p}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="flex flex-col items-center"
+                      >
+                         <span className="text-[10px] font-bold font-mono text-cyan-400 bg-cyan-950/50 px-1.5 rounded uppercase tracking-wider mb-1">
+                          {p}
+                        </span>
+                        <div className="w-0.5 h-3 bg-cyan-400" />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+
+                {/* Memory Block */}
+                <div className={cn(
+                  "w-16 h-16 flex items-center justify-center rounded-xl border-2 text-xl font-bold font-mono shadow-lg transition-colors duration-300 backdrop-blur-sm",
+                  isHighlighted 
+                    ? "bg-cyan-500/20 border-cyan-400 text-cyan-50 shadow-[0_0_30px_rgba(6,182,212,0.3)] z-10" 
+                    : "bg-[#1a1a1a]/80 border-white/10 text-gray-400"
+                )}>
+                  {val}
+                </div>
+
+                {/* Index */}
+                <span className="mt-3 text-[10px] text-gray-600 font-mono group-hover:text-gray-400 transition-colors">
+                  index: {idx}
+                </span>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -102,33 +200,32 @@ const TableVisualizer = ({ payload }: { payload: any }) => {
   const highlight_row = payload?.highlight_row ?? -1;
 
   return (
-    <div className="w-full overflow-hidden rounded-lg border border-white/10">
-      <table className="w-full text-sm text-left">
-        <thead className="bg-white/5 text-gray-400 uppercase font-mono text-xs">
-          <tr>{headers.map((h: string, i: number) => <th key={i} className="px-6 py-3">{h}</th>)}</tr>
-        </thead>
-        <tbody className="divide-y divide-white/5">
-          {rows.map((row: any[], i: number) => (
-            <tr key={i} className={`transition-colors duration-300 ${highlight_row === i ? 'bg-cyan-500/20' : 'bg-transparent'}`}>
-               {row.map((cell: any, j: number) => <td key={j} className="px-6 py-4 font-mono text-gray-300">{cell}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
-
-const KeyValueVisualizer = ({ payload }: { payload: any }) => {
-  const items = payload?.items || [];
-  return (
-    <div className="grid grid-cols-2 gap-4 w-full max-w-lg">
-       {items.map((item: any, i: number) => (
-         <div key={i} className="bg-[#1a1a1a] p-4 rounded-lg border border-white/10 flex justify-between items-center">
-            <span className="text-gray-500 font-mono text-xs uppercase">{item.key}</span>
-            <span className="text-cyan-400 font-mono font-bold">{item.value}</span>
-         </div>
-       ))}
+    <div className="w-full overflow-hidden rounded-xl border border-white/10 bg-[#0a0a0a]">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-white/5 text-gray-400 uppercase font-mono text-xs tracking-wider">
+            <tr>{headers.map((h: string, i: number) => <th key={i} className="px-6 py-4 font-medium">{h}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {rows.map((row: any[], i: number) => (
+              <motion.tr 
+                key={i} 
+                initial={{ backgroundColor: 'transparent' }}
+                animate={{ 
+                  backgroundColor: highlight_row === i ? 'rgba(6,182,212, 0.15)' : 'transparent',
+                }}
+                className="transition-colors hover:bg-white/5"
+              >
+                 {row.map((cell: any, j: number) => (
+                   <td key={j} className={cn("px-6 py-4 font-mono text-gray-300", highlight_row === i && "text-cyan-200")}>
+                     {cell}
+                   </td>
+                 ))}
+              </motion.tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
@@ -136,24 +233,26 @@ const KeyValueVisualizer = ({ payload }: { payload: any }) => {
 // --- MAIN COMPONENT ---
 
 const ImmersiveLearningPlatform: React.FC = () => {
+  // State
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('SPLIT_MODE');
   const [activeCode, setActiveCode] = useState("");
   const [highlightQuery, setHighlightQuery] = useState<string | null>(null);
   
-  const [conceptData, setConceptData] = useState({ title: "Initializing...", text: "Waiting for session..." });
+  const [conceptData, setConceptData] = useState({ title: "Initializing System", text: "Establishing secure connection..." });
   const [visualData, setVisualData] = useState<VisualState>(null);
   const [subtitles, setSubtitles] = useState("");
-  const [messages, setMessages] = useState<Message[]>([{ id: 'init', role: 'assistant', content: "Welcome back." }]);
+  const [messages, setMessages] = useState<Message[]>([{ id: 'init', role: 'assistant', content: "System Online. Ready for input.", timestamp: Date.now() }]);
   
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false); 
   const [isPlaying, setIsPlaying] = useState(false);        
   const [isTTSActive, setIsTTSActive] = useState(true);     
-  
+  const [avatarStatus, setAvatarStatus] = useState("Initializing...");
+
+  // Refs
   const avatarRef = useRef<HTMLDivElement>(null);
   const headRef = useRef<any>(null);
   const headTTSRef = useRef<any>(null);
-  const [avatarStatus, setAvatarStatus] = useState("Initializing...");
   const codeContainerRef = useRef<HTMLDivElement>(null);
   const audioResolverRef = useRef<(() => void) | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -163,23 +262,21 @@ const ImmersiveLearningPlatform: React.FC = () => {
   const totalPartsRef = useRef(0);
   const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const kickWatchdog = () => {
-      if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
-      watchdogTimerRef.current = setTimeout(() => {
-          if (audioResolverRef.current) {
-              audioResolverRef.current();
-              audioResolverRef.current = null;
-          }
-      }, 15000); 
-  };
-
+  // --- LOGIC: Scrolling & Highlights ---
   useEffect(() => {
     if (highlightQuery && codeContainerRef.current) {
-      const highlightedElement = codeContainerRef.current.querySelector('.border-cyan-400');
-      if (highlightedElement) highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const highlightedElement = codeContainerRef.current.querySelector('.highlight-active');
+      if (highlightedElement) {
+        highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
   }, [highlightQuery, activeCode]);
 
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, subtitles]);
+
+  // --- LOGIC: Avatar Setup ---
   useEffect(() => {
     if (headRef.current) return;
     const initAvatar = async () => {
@@ -198,21 +295,21 @@ const ImmersiveLearningPlatform: React.FC = () => {
           audioCtx: head.audioCtx,
         });
         headTTSRef.current = headtts;
+        
         headtts.onmessage = (message: any) => {
-            if (message.type === "audio") {
+             if (message.type === "audio") {
                 kickWatchdog();
                 const { partsTotal } = message.metaData || { partsTotal: 1 };
                 if (partsTotal > 0) totalPartsRef.current = partsTotal;
+                
                 head.speakAudio(message.data, { volume: 1 }, 
                     (word: string) => setSubtitles(prev => prev.length > 80 ? "..." + word : prev + word),
                     () => {
                         onEndCountRef.current += 1;
                         if (totalPartsRef.current > 0 && onEndCountRef.current >= totalPartsRef.current) {
                             if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
-                            if (audioResolverRef.current) {
-                                audioResolverRef.current();
-                                audioResolverRef.current = null;
-                            }
+                            audioResolverRef.current?.();
+                            audioResolverRef.current = null;
                             setTimeout(() => setSubtitles(""), 1000);
                         } else {
                             kickWatchdog();
@@ -221,33 +318,47 @@ const ImmersiveLearningPlatform: React.FC = () => {
                 );
             }
         };
-        await Promise.all([
-             head.showAvatar({ url: "/avatars/david.glb", body: "F", avatarMood: "neutral" }),
-             headtts.connect()
-        ]);
-        head.setView(head.viewName, { cameraY: 0 });
-        headtts.setup({ voice: "am_fenrir", language: "en-us", speed: 1.1, audioEncoding: "wav" });
-        head.start();
-        setAvatarStatus("Online");
+
+        // Mock loading for demo if assets fail, usually wrap in try/catch real assets
+        try {
+            await Promise.all([
+                 head.showAvatar({ url: "/avatars/david.glb", body: "F", avatarMood: "neutral" }),
+                 headtts.connect()
+            ]);
+            head.setView(head.viewName, { cameraY: 0 });
+            headtts.setup({ voice: "am_fenrir", language: "en-us", speed: 1.1, audioEncoding: "wav" });
+            head.start();
+            setAvatarStatus("Online");
+        } catch (innerErr) {
+             console.warn("Avatar assets missing, running in headless mode", innerErr);
+             setAvatarStatus("Headless Mode");
+        }
       } catch (err: any) {
-        setAvatarStatus("Error: " + err.message);
+        setAvatarStatus("Offline");
       }
     };
     initAvatar();
     return () => { if (headRef.current) headRef.current.stop(); };
   }, []);
 
-  useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // --- LOGIC: Execution Queue ---
+  const kickWatchdog = () => {
+      if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
+      watchdogTimerRef.current = setTimeout(() => {
+          audioResolverRef.current?.();
+          audioResolverRef.current = null;
+      }, 15000); 
+  };
 
   const processQueue = async () => {
     if (isExecutingRef.current) return; 
     isExecutingRef.current = true;
     setIsPlaying(true);
+    
     while (commandQueueRef.current.length > 0) {
       const action = commandQueueRef.current.shift(); 
       if (!action) break;
+
       switch (action.type) {
         case 'LAYOUT':
           setLayoutMode(action.mode);
@@ -275,14 +386,15 @@ const ImmersiveLearningPlatform: React.FC = () => {
             if (last.role === 'assistant') {
               return [...prev.slice(0, -1), { ...last, content: last.content + " " + action.text }];
             } else {
-              return [...prev, { id: Date.now().toString(), role: 'assistant', content: action.text }];
+              return [...prev, { id: Date.now().toString(), role: 'assistant', content: action.text, timestamp: Date.now() }];
             }
           });
-          if (isTTSActive && headTTSRef.current && headRef.current && avatarStatus === "Online") {
+          
+          if (isTTSActive && headTTSRef.current && avatarStatus !== "Offline") {
              setSubtitles("");
              onEndCountRef.current = 0;
              totalPartsRef.current = 0;
-             if (headRef.current.audioCtx.state === 'suspended') await headRef.current.audioCtx.resume();
+             if (headRef.current?.audioCtx?.state === 'suspended') await headRef.current.audioCtx.resume();
              kickWatchdog();
              await new Promise<void>((resolve) => {
                  audioResolverRef.current = resolve;
@@ -290,11 +402,13 @@ const ImmersiveLearningPlatform: React.FC = () => {
                  catch (e) { resolve(); }
              });
           } else {
+            // Fallback reading time
             await new Promise(resolve => setTimeout(resolve, action.text.length * 50)); 
           }
           break;
       }
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Small buffer between actions
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
     setIsPlaying(false);
     isExecutingRef.current = false;
@@ -305,15 +419,17 @@ const ImmersiveLearningPlatform: React.FC = () => {
     try {
       const cleanLine = line.replace(/^data: /, '');
       const data = JSON.parse(cleanLine);
-      let action: PlaybackAction | null = null;
-      if (data.type === 'speak') action = { type: 'SPEAK', text: data.text };
-      else if (data.type === 'layout') action = { type: 'LAYOUT', mode: data.mode };
-      else if (data.type === 'code') action = { type: 'CODE', code: data.content };
-      else if (data.type === 'concept') action = { type: 'CONCEPT', title: data.title, text: data.text };
-      else if (data.type === 'visual') action = { type: 'VISUAL', state: data.state };
-      else if (data.type === 'highlight') action = { type: 'HIGHLIGHT', code_to_highlight: data.code_to_highlight };
-      if (action) {
-        commandQueueRef.current.push(action);
+      const map: Record<string, PlaybackAction> = {
+        'speak': { type: 'SPEAK', text: data.text },
+        'layout': { type: 'LAYOUT', mode: data.mode },
+        'code': { type: 'CODE', code: data.content },
+        'concept': { type: 'CONCEPT', title: data.title, text: data.text },
+        'visual': { type: 'VISUAL', state: data.state },
+        'highlight': { type: 'HIGHLIGHT', code_to_highlight: data.code_to_highlight }
+      };
+      
+      if (map[data.type]) {
+        commandQueueRef.current.push(map[data.type]);
         processQueue(); 
       }
     } catch (e) { console.warn("Parse Error:", line); }
@@ -321,208 +437,389 @@ const ImmersiveLearningPlatform: React.FC = () => {
 
   const handleSendMessage = async () => {
     if (!input.trim() || isProcessing) return;
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: input }]);
+    
+    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: input, timestamp: Date.now() }]);
     const currentInput = input;
     setInput('');
     setIsProcessing(true);
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '' }]);
+    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '', timestamp: Date.now() }]);
+
     try {
       const response = await fetch('http://localhost:5000/api/chat', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: currentInput })
+        body: JSON.stringify({ message: currentInput, session_id:'session_prod_v1' })
       });
-      if (!response.body) throw new Error('No body');
+      
+      if (!response.body) throw new Error('No response body');
+      
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      
       while (true) {
         const { value, done } = await reader.read();
         if (value) buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         if (!done) buffer = lines.pop() || ""; else buffer = "";
+        
         for (const line of lines) parseAndEnqueue(line);
         if (done) break;
       }
       if (buffer.trim()) parseAndEnqueue(buffer);
-    } catch (error) { console.error(error); } finally { setIsProcessing(false); }
+    } catch (error) { 
+      console.error(error);
+      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: "Connection to core disrupted. Please verify local server.", timestamp: Date.now() }]);
+    } finally { 
+      setIsProcessing(false); 
+    }
   };
 
-  const renderCode = () => {
-    return activeCode.split('\n').map((line, i) => {
-        const lineNumber = i + 1;
-        let isHighlighted = false;
-        if (highlightQuery) {
-            const cleanLine = line.trim();
-            const cleanQuery = highlightQuery.trim();
-            if (cleanLine && cleanQuery && cleanLine.includes(cleanQuery)) isHighlighted = true;
-        }
-        return (
-            <div key={i} className={`px-6 py-0.5 transition-colors duration-200 ${isHighlighted ? 'bg-[#1a2c33] border-l-2 border-cyan-400' : 'bg-transparent border-l-2 border-transparent'}`}>
-                <span className="inline-block w-6 text-gray-700 text-[10px] select-none mr-2">{lineNumber}</span>
-                <code className="font-mono text-gray-400 whitespace-pre">{line}</code>
-            </div>
-        );
-    });
-  };
+// --- NEW COMPONENT: Code Viewer ---
+// Place this outside or inside your main component. 
+// If inside, remove the 'const CodeViewer = ...' and just use the logic directly.
 
+const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: string | null }) => {
+  const language = detectLanguage(code);
+  const codeLines = code.split('\n');
+
+  return (
+    <div className="text-sm font-mono h-full w-full">
+      <SyntaxHighlighter
+        language={language}
+        style={vscDarkPlus}
+        customStyle={{
+          margin: 0,
+          padding: '1.5rem',
+          background: 'transparent',
+          height: '100%',
+          fontSize: '13px',
+          lineHeight: '1.6',
+        }}
+        showLineNumbers={true}
+        lineNumberStyle={{
+          minWidth: '2.5em',
+          paddingRight: '1em',
+          color: '#6e7681', // VS Code gutter color
+          textAlign: 'right'
+        }}
+        wrapLines={true}
+        lineProps={(lineNumber) => {
+          const style: React.CSSProperties = { display: 'block', width: '100%' };
+          // Check for highlighting match
+          if (highlightQuery) {
+            const lineContent = codeLines[lineNumber - 1] || '';
+            if (lineContent.includes(highlightQuery.trim())) {
+              style.backgroundColor = 'rgba(6, 182, 212, 0.15)'; 
+              style.borderLeft = '3px solid #22d3ee';
+              style.marginLeft = '-3px'; // Fix border offset
+            }
+          }
+          return { style };
+        }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  );
+};
   const renderVisualContent = () => {
-    if (!visualData) return <div className="text-gray-600">No active visualization</div>;
+    if (!visualData) return (
+      <div className="flex flex-col items-center justify-center h-full text-gray-600 space-y-4">
+        <Cpu size={48} className="opacity-20" />
+        <span className="text-xs font-mono uppercase tracking-widest opacity-50">Awaiting visual input data</span>
+      </div>
+    );
+
     return (
-       <div className="w-full h-full flex flex-col">
-          <div className="flex-1 flex items-center justify-center p-6 bg-[#121212] rounded-xl border border-white/5 relative overflow-hidden">
-             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px]" />
-             <div className="relative z-10 w-full flex justify-center">
+       <motion.div 
+         initial={{ opacity: 0, scale: 0.95 }}
+         animate={{ opacity: 1, scale: 1 }}
+         transition={{ duration: 0.5 }}
+         className="w-full h-full flex flex-col"
+       >
+          <div className="flex-1 flex items-center justify-center p-6 bg-[#0a0a0a] rounded-xl border border-white/10 relative overflow-hidden shadow-inner group">
+             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:24px_24px]" />
+             <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button className="p-1.5 hover:bg-white/10 rounded-md text-gray-400 hover:text-white"><Share size={14}/></button>
+             </div>
+             
+             <div className="relative z-10 w-full h-full flex justify-center items-center">
                 {visualData.type === 'ARRAY' && <ArrayVisualizer payload={visualData.payload} />}
                 {visualData.type === 'TABLE' && <TableVisualizer payload={visualData.payload} />}
-                {visualData.type === 'KEY_VALUE' && <KeyValueVisualizer payload={visualData.payload} />}
+                {visualData.type === 'KEY_VALUE' && (
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl">
+                     {visualData.payload?.items?.map((item: any, i: number) => (
+                       <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="bg-[#151515] p-5 rounded-lg border border-white/5 flex justify-between items-center hover:border-cyan-500/30 transition-colors">
+                          <span className="text-gray-500 font-mono text-xs uppercase tracking-wider">{item.key}</span>
+                          <span className="text-cyan-400 font-mono font-bold text-lg">{item.value}</span>
+                       </motion.div>
+                     ))}
+                   </div>
+                )}
                 {visualData.type === 'MERMAID_FLOWCHART' && (
-                    <div className="text-center">
-                        <GitGraph size={48} className="mx-auto text-cyan-500 mb-4" />
-                        <pre className="text-xs text-gray-500 font-mono bg-black/50 p-4 rounded">{visualData.payload.chart}</pre>
-                    </div>
+                  <div className="w-full h-full flex flex-col items-center">
+                     <div className="flex items-center gap-2 mb-4 bg-black/40 px-3 py-1 rounded-full border border-white/5">
+                        <GitGraph size={14} className="text-cyan-500" />
+                        <span className="text-[10px] text-gray-400 font-mono uppercase">Flowchart Visualization</span>
+                     </div>
+                     <MermaidChart chart={visualData.payload.chart} />
+                  </div>
                 )}
              </div>
           </div>
-          <div className="mt-4 px-2">
-             <div className="flex items-center gap-2 mb-2">
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 px-1"
+          >
+             <div className="flex items-center gap-2 mb-1">
                 {visualData.type === 'ARRAY' && <List size={14} className="text-cyan-400" />}
-                {visualData.type === 'TABLE' && <Table size={14} className="text-cyan-400" />}
-                <span className="text-xs font-bold text-cyan-400 tracking-wider uppercase">{visualData.type} VIEW</span>
+                {visualData.type === 'TABLE' && <TableIcon size={14} className="text-cyan-400" />}
+                <span className="text-[10px] font-bold text-cyan-400 tracking-wider uppercase">{visualData.type} VIEW</span>
              </div>
-             <p className="text-sm text-gray-300">{visualData.caption}</p>
-          </div>
-       </div>
+             <p className="text-sm text-gray-400 font-light">{visualData.caption}</p>
+          </motion.div>
+       </motion.div>
     );
   };
 
   return (
-    <div className={`flex h-screen w-full ${COLORS.bg} ${COLORS.textMain} font-sans overflow-hidden`}>
-      <div className={`w-[30%] min-w-[340px] flex flex-col border-r ${COLORS.border} relative z-20 bg-black/40 backdrop-blur-sm`}>
-        <div className="p-8 flex justify-between items-center text-[10px] font-mono tracking-[0.2em] text-gray-600">
-          <span>SESSION: #8492-A</span>
-          <button onClick={() => setIsTTSActive(!isTTSActive)} className="hover:text-white transition-colors">
-              {isTTSActive ? <Volume2 size={14} className="text-cyan-500" /> : <VolumeX size={14} />}
+    <div className="flex h-screen w-full bg-[#050505] text-gray-300 font-sans overflow-hidden selection:bg-cyan-500/30 selection:text-white">
+      
+      {/* --- SIDEBAR (CHAT) --- */}
+      <motion.div 
+        initial={{ x: -50, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        className="w-[30%] min-w-[340px] max-w-[450px] flex flex-col border-r border-white/5 relative z-20 bg-[#080808]/80 backdrop-blur-xl"
+      >
+        {/* Header */}
+        <div className="h-16 px-6 flex justify-between items-center border-b border-white/5">
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${avatarStatus === "Online" ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-red-500"}`} />
+            <span className="text-[10px] font-mono tracking-[0.2em] text-gray-500 uppercase">SYS_ONLINE</span>
+          </div>
+          <button 
+            onClick={() => setIsTTSActive(!isTTSActive)} 
+            className="p-2 hover:bg-white/5 rounded-full transition-colors group"
+            title={isTTSActive ? "Mute Voice" : "Enable Voice"}
+          >
+              {isTTSActive ? <Volume2 size={16} className="text-cyan-500 group-hover:text-cyan-400" /> : <VolumeX size={16} className="text-gray-600" />}
           </button>
         </div>
-        <div className="flex-none h-[350px] flex flex-col justify-center items-center relative overflow-hidden bg-black/20">
-          {avatarStatus !== "Online" && (
+
+        {/* 3D Avatar Stage */}
+        <div className="flex-none h-[280px] relative overflow-hidden bg-gradient-to-b from-black/20 to-[#080808]">
+           {avatarStatus !== "Online" && (
              <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/60 backdrop-blur-sm">
                 <span className="text-xs font-mono text-cyan-500 animate-pulse uppercase tracking-widest">{avatarStatus}</span>
              </div>
-          )}
-          <div ref={avatarRef} className="w-full h-full relative z-10" style={{ minHeight: '350px' }} />
-          <div className="absolute top-4 left-0 right-0 text-center px-4 pointer-events-none">
-             <span className="bg-black/50 text-white px-2 py-1 rounded text-sm shadow-lg backdrop-blur-md transition-all duration-200">{subtitles}</span>
-          </div>
+           )}
+           <div ref={avatarRef} className="w-full h-full relative z-10" />
+           
+           {/* Subtitles Overlay */}
+           <AnimatePresence>
+             {subtitles && (
+               <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="absolute bottom-4 left-0 right-0 flex justify-center px-4 pointer-events-none z-50"
+               >
+                  <span className="bg-black/60 text-cyan-50 px-3 py-1.5 rounded-lg text-sm shadow-xl backdrop-blur-md border border-white/10 text-center">
+                    {subtitles}
+                  </span>
+               </motion.div>
+             )}
+           </AnimatePresence>
         </div>
-        <div className="flex-1 overflow-y-auto px-10 pb-32 space-y-6 custom-scrollbar scroll-smooth mask-image-b">
-          <span className="font-mono text-[10px] text-gray-600 mb-2 block tracking-widest sticky top-0 bg-[#050505]/95 backdrop-blur py-2 z-10">[TRANSCRIPT]</span>
-          {messages.map((msg, idx) => (
-            <div key={msg.id} className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-              {msg.role === 'assistant' ? (
-                <div className="relative">
-                  <div className="absolute -left-4 top-1.5 w-1 h-1 bg-cyan-500 rounded-full" />
-                  <p className="text-lg font-light text-white leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                </div>
-              ) : (
-                <div className="flex justify-end mt-4 mb-4">
-                  <p className="text-gray-500 font-light text-sm italic border-r-2 border-gray-700 pr-4 text-right max-w-[80%]">"{msg.content}"</p>
-                </div>
-              )}
-            </div>
-          ))}
-          <div ref={transcriptEndRef} />
-        </div>
-      </div>
 
-      <div className={`flex-1 flex flex-col ${COLORS.panelBg} relative overflow-hidden transition-all duration-500`}>
-        <header className={`h-16 border-b ${COLORS.border} flex items-center justify-between px-8 bg-[#080808]/90 backdrop-blur z-30`}>
-          <div className="flex gap-8">
-            {['CONCEPT_MODE', 'SPLIT_MODE', 'FOCUS_MODE', 'VISUAL_MODE'].map((mode) => (
-                <div key={mode} className={`relative py-5 text-xs font-medium tracking-wider uppercase flex items-center gap-2 transition-colors duration-300 ${layoutMode === mode ? 'text-white' : 'text-gray-600'}`}>
-                    {mode === 'CONCEPT_MODE' && <Layout size={14} />}
-                    {mode === 'SPLIT_MODE' && <Columns size={14} />}
-                    {mode === 'FOCUS_MODE' && <Code2 size={14} />}
-                    {mode === 'VISUAL_MODE' && <Eye size={14} />}
-                    {mode.replace('_MODE', '')}
-                    {layoutMode === mode && <span className={`absolute bottom-0 left-0 w-full h-0.5 ${COLORS.cyanBg} shadow-[0_0_10px_rgba(6,182,212,0.8)]`} />}
-                </div>
+        {/* Chat Transcript */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6 custom-scrollbar scroll-smooth">
+          <span className="font-mono text-[10px] text-gray-600 block tracking-widest text-center opacity-50 mb-6">- BEGIN SESSION -</span>
+          {messages.map((msg) => (
+            <motion.div 
+              key={msg.id} 
+              initial={{ opacity: 0, x: msg.role === 'assistant' ? -10 : 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}
+            >
+              <div className={cn(
+                "max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed border",
+                msg.role === 'assistant' 
+                  ? "bg-[#111] border-white/5 text-gray-200 rounded-tl-none" 
+                  : "bg-cyan-950/20 border-cyan-500/20 text-cyan-100 rounded-tr-none"
+              )}>
+                {msg.role === 'assistant' && (
+                  <div className="flex items-center gap-2 mb-2 opacity-50">
+                    <Terminal size={10} />
+                    <span className="text-[10px] font-mono uppercase">Assistant</span>
+                  </div>
+                )}
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+              </div>
+            </motion.div>
+          ))}
+          <div ref={transcriptEndRef} className="h-4" />
+        </div>
+      </motion.div>
+
+      {/* --- MAIN CONTENT AREA --- */}
+      <div className="flex-1 flex flex-col bg-[#050505] relative overflow-hidden">
+        
+        {/* Navigation / Toolbar */}
+        <header className="h-16 flex items-center justify-between px-8 border-b border-white/5 bg-[#080808]/50 backdrop-blur z-30">
+          <div className="flex gap-1 bg-[#111] p-1 rounded-lg border border-white/5">
+            {[
+              { id: 'CONCEPT_MODE', icon: Layout, label: 'Concept' },
+              { id: 'SPLIT_MODE', icon: Columns, label: 'Split' },
+              { id: 'FOCUS_MODE', icon: Code2, label: 'Code' },
+              { id: 'VISUAL_MODE', icon: Eye, label: 'Visual' }
+            ].map((m) => (
+               <button
+                 key={m.id}
+                 onClick={() => {
+                   setLayoutMode(m.id as LayoutMode);
+                   if (m.id !== 'SPLIT_MODE' && m.id !== 'FOCUS_MODE') setHighlightQuery(null);
+                 }}
+                 className={cn(
+                   "px-4 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-all",
+                   layoutMode === m.id 
+                    ? "bg-[#222] text-white shadow-sm ring-1 ring-white/10" 
+                    : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                 )}
+               >
+                 <m.icon size={14} />
+                 {m.label}
+               </button>
             ))}
           </div>
           <div className="flex gap-4 text-gray-600">
-             <Share size={16} /> <Settings size={16} />
+             <Settings size={18} className="hover:text-white transition-colors cursor-pointer" />
           </div>
         </header>
 
-        <main className="flex-1 relative p-8 flex gap-6 overflow-hidden">
-          
-          {/* 1. CONCEPT CARD (LEFT IN SPLIT) */}
-          <div className={`
-             relative flex flex-col ${COLORS.cardBg} border ${COLORS.border} rounded-2xl overflow-hidden transition-all duration-700 ease-in-out
-             ${layoutMode === 'CONCEPT_MODE' ? 'flex-[100%] opacity-100 translate-x-0' : ''}
-             ${layoutMode === 'SPLIT_MODE' ? 'flex-[40%] opacity-100 translate-x-0' : ''} 
-             ${layoutMode === 'FOCUS_MODE' || layoutMode === 'VISUAL_MODE' ? 'flex-[0%] opacity-0 -translate-x-10 w-0 border-0 p-0 pointer-events-none' : ''}
-          `}>
-            <div className="p-8 min-w-[400px]">
-              <h1 className="text-3xl font-light text-white tracking-tight mb-2">Concept <span className="text-gray-500">View</span></h1>
-              <div className={`w-12 h-0.5 ${COLORS.cyanBg} mb-8`} />
-              <h2 className={`text-xl font-medium mb-4 ${COLORS.cyanText}`}>{conceptData.title}</h2>
-              <p className="text-gray-300 leading-relaxed text-sm max-w-xl">{conceptData.text}</p>
+        {/* Dynamic Panels */}
+        <main className="flex-1 relative p-6 flex gap-6 overflow-hidden">
+          <LayoutGroup>
+            
+            {/* CONCEPT CARD */}
+            {(layoutMode === 'CONCEPT_MODE' || layoutMode === 'SPLIT_MODE') && (
+              <motion.div 
+                layoutId="panel-concept"
+                className={cn(
+                  "relative flex flex-col bg-[#0e0e0e] border border-white/5 rounded-2xl overflow-hidden shadow-2xl",
+                  layoutMode === 'CONCEPT_MODE' ? "flex-1" : "w-[40%] min-w-[400px]"
+                )}
+              >
+                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-purple-500 opacity-50" />
+                 <div className="p-10 flex flex-col h-full justify-center">
+                    <motion.div 
+                      key={conceptData.title}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-6"
+                    >
+                      <h1 className="text-4xl font-light text-white tracking-tight">
+                        {conceptData.title}
+                        <span className="text-cyan-500 block text-lg font-mono font-normal mt-2 tracking-widest uppercase opacity-70">Core Concept</span>
+                      </h1>
+                      <p className="text-gray-400 leading-relaxed text-lg font-light max-w-2xl border-l-2 border-white/10 pl-6">
+                        {conceptData.text}
+                      </p>
+                    </motion.div>
+                 </div>
+              </motion.div>
+            )}
+
+        {/* CODE EDITOR */}
+{(layoutMode === 'SPLIT_MODE' || layoutMode === 'FOCUS_MODE') && (
+  <motion.div 
+    layoutId="panel-code"
+    className={cn(
+      "relative flex flex-col bg-[#1e1e1e] border border-white/10 rounded-2xl overflow-hidden shadow-2xl",
+      layoutMode === 'FOCUS_MODE' ? "flex-1" : "flex-1"
+    )}
+  >
+      {/* Dynamic Header */}
+      {(() => {
+        const lang = detectLanguage(activeCode);
+        const ext = lang === 'javascript' ? 'js' : 'py';
+        const label = lang === 'javascript' ? 'JavaScript' : 'Python 3.11';
+        
+        return (
+          <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-black/20 select-none">
+            <div className="flex items-center gap-3">
+               {/* Traffic Lights */}
+               <div className="flex gap-1.5 opacity-50 hover:opacity-100 transition-opacity">
+                 <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
+                 <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+                 <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
+               </div>
+               
+               {/* File Tab */}
+               <div className="flex items-center gap-2 bg-[#1e1e1e] px-3 py-1 rounded-t-md border-t border-x border-white/5 relative top-1">
+                 {lang === 'javascript' 
+                    ? <span className="text-yellow-400 font-bold text-xs">JS</span> 
+                    : <span className="text-blue-400 font-bold text-xs">Py</span>
+                 }
+                 <span className="text-xs font-mono text-gray-300">script.{ext}</span>
+                 <span className="w-2 h-2 rounded-full bg-white/10 ml-2 hover:bg-white/30 cursor-pointer text-[8px] flex items-center justify-center">x</span>
+               </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+               <span className="text-[10px] font-mono text-gray-500">{label}</span>
+               <span className="text-[10px] font-mono text-cyan-500/50 uppercase border border-cyan-500/20 px-1.5 rounded">Read Only</span>
             </div>
           </div>
+        );
+      })()}
 
-          {/* 2. CODE EDITOR (RIGHT IN SPLIT, FULL IN FOCUS) */}
-          <div className={`
-             relative flex flex-col ${COLORS.cardBg} border ${COLORS.border} rounded-2xl overflow-hidden transition-all duration-700 ease-in-out
-             ${layoutMode === 'CONCEPT_MODE' || layoutMode === 'VISUAL_MODE' ? 'flex-[0%] opacity-0 translate-x-10 w-0 border-0 p-0 pointer-events-none' : ''}
-             ${layoutMode === 'SPLIT_MODE' ? 'flex-[60%] opacity-100 translate-x-0' : ''}
-             ${layoutMode === 'FOCUS_MODE' ? 'flex-[100%] opacity-100 translate-x-0' : ''}
-          `}>
-             <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#121212]">
-                <span className="text-xs font-mono text-gray-500">live_script.py</span>
-                <span className="text-xs font-mono text-gray-600">Python</span>
-             </div>
-             <div ref={codeContainerRef} className="flex-1 font-mono text-xs leading-6 overflow-auto relative bg-[#0B0B0B] custom-scrollbar py-4">
-                {renderCode()}
-             </div>
-          </div>
+      {/* Code Viewer Body */}
+      <div ref={codeContainerRef} className="flex-1 overflow-auto custom-scrollbar relative">
+         <CodeViewer code={activeCode} highlightQuery={highlightQuery} />
+      </div>
+  </motion.div>
+)}
 
-          {/* 3. VISUAL / CONTEXT PANEL (FULL IN VISUAL, HIDDEN IN SPLIT) */}
-          <div className={`
-             relative flex flex-col ${COLORS.cardBg} border ${COLORS.border} rounded-2xl overflow-hidden transition-all duration-700 ease-in-out
-             ${layoutMode === 'CONCEPT_MODE' || layoutMode === 'FOCUS_MODE' || layoutMode === 'SPLIT_MODE' ? 'flex-[0%] opacity-0 translate-x-10 w-0 border-0 p-0 pointer-events-none' : ''}
-             ${layoutMode === 'VISUAL_MODE' ? 'flex-[100%] opacity-100 translate-x-0' : ''}
-          `}>
-              <div className="flex-1 p-6 flex flex-col">
-                  {visualData ? renderVisualContent() : (
-                      <div className="p-4">
-                          <h2 className={`text-xl font-medium mb-4 ${COLORS.cyanText}`}>{conceptData.title}</h2>
-                          <p className="text-gray-300 leading-relaxed text-sm">{conceptData.text}</p>
-                      </div>
-                  )}
-              </div>
-          </div>
+            {/* VISUALIZER */}
+            {(layoutMode === 'VISUAL_MODE') && (
+              <motion.div 
+                layoutId="panel-visual"
+                className="flex-1 flex flex-col bg-[#0e0e0e] border border-white/5 rounded-2xl overflow-hidden shadow-2xl p-6"
+              >
+                 {renderVisualContent()}
+              </motion.div>
+            )}
 
+          </LayoutGroup>
         </main>
 
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full max-w-lg z-40 px-4">
-          <div className={`bg-[#121212]/80 backdrop-blur-md border ${isProcessing || isPlaying ? 'border-cyan-500/30' : 'border-white/10'} rounded-full p-1.5 pl-5 flex items-center shadow-2xl transition-all duration-300`}>
-            <Mic size={16} className={`mr-3 ${isProcessing ? 'text-cyan-500 animate-pulse' : 'text-gray-500'}`} />
+        {/* Input Area */}
+        <div className="absolute bottom-8 left-0 right-0 flex justify-center z-40 px-4 pointer-events-none">
+          <div className="pointer-events-auto bg-[#121212]/90 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 flex items-center shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full max-w-2xl group focus-within:border-cyan-500/50 transition-colors">
+            <Mic size={18} className={cn("mr-4 transition-colors", isProcessing ? "text-cyan-400 animate-pulse" : "text-gray-500")} />
             <input 
               type="text" 
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
               disabled={isProcessing}
-              placeholder={isProcessing ? "Reasoning..." : isPlaying ? "Explaining..." : "Ask about the code..."}
-              className="bg-transparent border-none outline-none text-xs text-white placeholder-gray-600 flex-1 h-9 font-light"
+              placeholder={isProcessing ? "Processing Neural Input..." : isPlaying ? "System explaining..." : "Ask a follow-up question..."}
+              className="bg-transparent border-none outline-none text-sm text-white placeholder-gray-600 flex-1 h-10 font-light tracking-wide"
             />
-            <button onClick={handleSendMessage} disabled={!input.trim()} className="h-8 w-8 bg-white/5 rounded-full flex items-center justify-center hover:bg-white/10">
-              {isProcessing ? <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" /> : <ChevronRight size={14} />}
+            <button 
+              onClick={handleSendMessage} 
+              disabled={!input.trim() || isProcessing} 
+              className="h-10 w-10 bg-white/5 rounded-full flex items-center justify-center hover:bg-cyan-500 hover:text-black transition-all disabled:opacity-30 disabled:hover:bg-white/5 disabled:hover:text-gray-500"
+            >
+              {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <ChevronRight size={18} />}
             </button>
           </div>
         </div>
+
       </div>
     </div>
   );
