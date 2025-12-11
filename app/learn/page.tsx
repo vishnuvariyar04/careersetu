@@ -475,6 +475,22 @@ const ImmersiveLearningPlatform: React.FC = () => {
     }
   };
 
+
+  const handleTestSpeech = () => {
+    // 1. Safety check
+    if (isPlaying || avatarStatus !== "Online") return;
+    
+    // 2. Queue the SPEAK command
+    // This uses the exact same pipeline as your AI responses
+    commandQueueRef.current.push({
+      type: 'SPEAK',
+      text: "Audio check. Synchronization complete. Ready for input."
+    });
+
+    // 3. Trigger the queue processor
+    processQueue();
+  };
+
 // --- NEW COMPONENT: Code Viewer ---
 // Place this outside or inside your main component. 
 // If inside, remove the 'const CodeViewer = ...' and just use the logic directly.
@@ -595,18 +611,32 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
         className="w-[30%] min-w-[340px] max-w-[450px] flex flex-col border-r border-white/5 relative z-20 bg-[#080808]/80 backdrop-blur-xl"
       >
         {/* Header */}
+       {/* Header */}
         <div className="h-16 px-6 flex justify-between items-center border-b border-white/5">
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${avatarStatus === "Online" ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-red-500"}`} />
             <span className="text-[10px] font-mono tracking-[0.2em] text-gray-500 uppercase">SYS_ONLINE</span>
           </div>
-          <button 
-            onClick={() => setIsTTSActive(!isTTSActive)} 
-            className="p-2 hover:bg-white/5 rounded-full transition-colors group"
-            title={isTTSActive ? "Mute Voice" : "Enable Voice"}
-          >
-              {isTTSActive ? <Volume2 size={16} className="text-cyan-500 group-hover:text-cyan-400" /> : <VolumeX size={16} className="text-gray-600" />}
-          </button>
+
+          <div className="flex items-center gap-3">
+            {/* --- NEW TEST BUTTON --- */}
+            <button 
+              onClick={handleTestSpeech}
+              disabled={avatarStatus !== "Online" || isPlaying}
+              className="px-2 py-1 bg-white/5 hover:bg-cyan-500/20 border border-white/10 rounded text-[10px] font-mono text-cyan-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:border-cyan-500/50"
+            >
+              TEST_AUDIO
+            </button>
+            {/* ----------------------- */}
+
+            <button 
+              onClick={() => setIsTTSActive(!isTTSActive)} 
+              className="p-2 hover:bg-white/5 rounded-full transition-colors group"
+              title={isTTSActive ? "Mute Voice" : "Enable Voice"}
+            >
+                {isTTSActive ? <Volume2 size={16} className="text-cyan-500 group-hover:text-cyan-400" /> : <VolumeX size={16} className="text-gray-600" />}
+            </button>
+          </div>
         </div>
 
         {/* 3D Avatar Stage */}
