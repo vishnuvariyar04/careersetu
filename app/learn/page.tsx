@@ -1,12 +1,12 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import mermaid from 'mermaid';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { createClient } from '@supabase/supabase-js'; 
-import { useRouter, useSearchParams, usePathname } from 'next/navigation'; // Added for URL management
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { 
   Mic, ChevronRight, Share, Settings, Layout, Code2, Columns, 
   Volume2, VolumeX, Eye, Table as TableIcon, List, GitGraph, 
@@ -88,9 +88,28 @@ const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
     setError(null);
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password });
+        // NOTE: For this to work seamlessly without email confirmation, 
+        // you must disable "Enable email confirmations" in your Supabase Dashboard:
+        // Authentication -> Providers -> Email -> [Uncheck] Enable Email Confirmations
+        const { data, error } = await supabase.auth.signUp({ 
+            email, 
+            password,
+            options: {
+                data: { display_name: email.split('@')[0] } 
+            }
+        });
         if (error) throw error;
-        alert("Check your email for confirmation!");
+        
+        // Seamless Flow: If session exists immediately (confirm disabled), close modal
+        if (data.session) {
+            onClose();
+            window.location.reload();
+
+        } else {
+            // Fallback if confirm is enabled (still requires check)
+            alert("Account created! Please sign in.");
+            setIsSignUp(false);
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -386,33 +405,25 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
 // --- MAIN COMPONENT ---
 
 const ImmersiveLearningPlatform: React.FC = () => {
-  // Navigation Hooks
   const router = useRouter();
   const searchParams = useSearchParams();
-  const pathname = usePathname();
 
   // State
   const [user, setUser] = useState<any>(null);
-  const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
+  // Core UI State
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('SPLIT_MODE');
   const [activeCode, setActiveCode] = useState("");
   const [highlightQuery, setHighlightQuery] = useState<string | null>(null);
-  
   const [conceptData, setConceptData] = useState({ title: "Initializing System", text: "Establishing secure connection..." });
   const [visualData, setVisualData] = useState<VisualState>(null);
   const [subtitles, setSubtitles] = useState("");
   
-  // --- SESSION MANAGEMENT STATE ---
+  // Session State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
-  // Initial state is null to prevent hydration mismatch, syncs with URL in effect
   const [activeSessionId, setActiveSessionId] = useState<string>(""); 
-  
-  // Sessions fetched from DB
   const [sessions, setSessions] = useState<Session[]>([]);
-  
-  // Local message history
   const [sessionHistories, setSessionHistories] = useState<Record<string, Message[]>>({});
   const [messages, setMessages] = useState<Message[]>([{ id: 'init', role: 'assistant', content: "System Online. Ready for input.", timestamp: Date.now() }]);
 
@@ -423,6 +434,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
   const [avatarStatus, setAvatarStatus] = useState("Initializing...");
 
   // Refs
+  const hasInitializedRef = useRef(false); 
   const avatarRef = useRef<HTMLDivElement>(null);
   const headRef = useRef<any>(null);
   const headTTSRef = useRef<any>(null);
@@ -435,9 +447,10 @@ const ImmersiveLearningPlatform: React.FC = () => {
   const totalPartsRef = useRef(0);
   const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // --- LOGIC: Fetch Sessions & Init ---
+  // --- LOGIC: Session Adoption & Init ---
   const fetchSessionsAndInit = async (userId: string) => {
-    const { data, error } = await supabase
+    // 1. Fetch existing sessions
+    const { data: userSessions, error } = await supabase
       .from('chat_sessions')
       .select('*')
       .eq('user_id', userId)
@@ -448,24 +461,58 @@ const ImmersiveLearningPlatform: React.FC = () => {
       return;
     } 
 
-    const userSessions = data || [];
-    setSessions(userSessions);
-
-    // URL Logic: Check if ID exists in URL
+    const existingSessions = userSessions || [];
     const urlSessionId = searchParams.get('session_id');
 
     if (urlSessionId) {
-      // Logic: If URL has ID, we try to use it.
-      // Even if it's not in the DB list (maybe new or cache delay), we respect the URL.
-      setActiveSessionId(urlSessionId);
-      
-      // If it's a valid old session, maybe load history? (Skipped for now per instructions)
-      if (!sessionHistories[urlSessionId]) {
-         setMessages([{ id: 'init', role: 'assistant', content: "Session loaded. (History is ephemeral)", timestamp: Date.now() }]);
+      // Case A: URL has an ID.
+      // Check if this ID already exists in the user's history
+      const exists = existingSessions.find(s => s.session_id === urlSessionId);
+
+      if (exists) {
+        // A1: It exists -> Load list and active session
+        setSessions(existingSessions);
+        setActiveSessionId(urlSessionId);
+        if (!sessionHistories[urlSessionId]) {
+            setMessages([{ id: 'init', role: 'assistant', content: "Session loaded.", timestamp: Date.now() }]);
+        }
+      } else {
+        // A2: It does NOT exist (Guest session -> User session ADOPTION)
+        // We must create it in DB so it shows in the sidebar
+        const adoptedSession: Session = {
+             session_id: urlSessionId,
+             title: `Session ${existingSessions.length + 1}`,
+             created_at: new Date().toISOString()
+        };
+
+        // Update state to include OLD list + NEW adopted one
+        const updatedList = [adoptedSession, ...existingSessions];
+        setSessions(updatedList);
+        setActiveSessionId(urlSessionId);
+
+        // Save to DB
+        await supabase.from('chat_sessions').insert({
+            session_id: urlSessionId,
+            user_id: userId,
+            title: adoptedSession.title
+        });
+
+        // Init messages if empty
+        if (!sessionHistories[urlSessionId]) {
+            setMessages([{ id: 'init', role: 'assistant', content: "Session context preserved.", timestamp: Date.now() }]);
+        }
       }
+
+    } else if (existingSessions.length > 0) {
+      // Case B: No URL ID, but existing sessions -> Load most recent
+      setSessions(existingSessions);
+      const mostRecent = existingSessions[0];
+      setActiveSessionId(mostRecent.session_id);
+      router.replace(`?session_id=${mostRecent.session_id}`);
+      setMessages([{ id: 'init', role: 'assistant', content: "Welcome back.", timestamp: Date.now() }]);
     } else {
-      // Logic: No ID in URL -> Create NEW session automatically
-      await createNewSessionForUser(userId, userSessions);
+      // Case C: No URL, No History -> New Session
+      await createNewSessionForUser(userId, []);
     }
   };
 
@@ -473,24 +520,27 @@ const ImmersiveLearningPlatform: React.FC = () => {
       const newId = `session_${Date.now()}`;
       const newTitle = `Session ${currentSessions.length + 1}`;
       
-      // Update local state first
       const newSession: Session = { 
           session_id: newId, 
           title: newTitle, 
           created_at: new Date().toISOString() 
       };
-      setSessions(prev => [newSession, ...prev]);
-      setActiveSessionId(newId);
+
+      // Explicitly construct the new array
+      const updatedList = [newSession, ...currentSessions];
+      setSessions(updatedList);
       
-      // Update URL without reload
+      setActiveSessionId(newId);
       router.push(`?session_id=${newId}`);
 
       // Persist
-      await supabase.from('chat_sessions').insert({
+      const { error } = await supabase.from('chat_sessions').insert({
           session_id: newId,
           user_id: userId,
           title: newTitle
       });
+
+      if (error) console.error("DB Create Error", error);
 
       // Reset View
       const initMsg: Message = { id: 'init', role: 'assistant', content: "New session started. How can I assist?", timestamp: Date.now() };
@@ -503,14 +553,15 @@ const ImmersiveLearningPlatform: React.FC = () => {
 
   // --- LOGIC: Auth Check ---
   useEffect(() => {
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      setIsAuthChecking(false);
       if (session?.user) {
          fetchSessionsAndInit(session.user.id);
       } else {
-         // Guest Mode: If URL has session, keep it? Or force new local session?
-         // For now, if guest, we just generate a local ID if none exists
+         // Guest Logic
          const urlId = searchParams.get('session_id');
          if (!urlId) {
             const newId = `session_${Date.now()}`;
@@ -526,10 +577,11 @@ const ImmersiveLearningPlatform: React.FC = () => {
       setUser(session?.user ?? null);
       if (session?.user) {
         setShowAuthModal(false);
+        // Reset and re-fetch only if necessary to avoid flicker
+        // But we must fetch if transitioning from guest to user
         fetchSessionsAndInit(session.user.id);
       } else {
         setSessions([]); 
-        // Force new session ID for guest on logout
         const newId = `session_${Date.now()}`;
         setActiveSessionId(newId);
         router.push(`?session_id=${newId}`);
@@ -550,6 +602,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setIsSidebarOpen(false);
+    hasInitializedRef.current = false; 
   };
 
   // --- LOGIC: Sync Messages to History ---
@@ -567,11 +620,11 @@ const ImmersiveLearningPlatform: React.FC = () => {
       if (isProcessing || isPlaying) return; 
       
       setActiveSessionId(sessionId);
-      router.push(`?session_id=${sessionId}`); // Update URL
+      router.push(`?session_id=${sessionId}`); 
       
       const history = sessionHistories[sessionId] || [];
       if (history.length === 0) {
-          setMessages([{ id: Date.now().toString(), role: 'assistant', content: "Session loaded from database.", timestamp: Date.now() }]);
+          setMessages([{ id: Date.now().toString(), role: 'assistant', content: "Session loaded.", timestamp: Date.now() }]);
       } else {
           setMessages(history);
       }
