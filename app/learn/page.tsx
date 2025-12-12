@@ -5,22 +5,30 @@ import mermaid from 'mermaid';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { createClient } from '@supabase/supabase-js'; 
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'; // Added for URL management
 import { 
   Mic, ChevronRight, Share, Settings, Layout, Code2, Columns, 
   Volume2, VolumeX, Eye, Table as TableIcon, List, GitGraph, 
-  Terminal, Cpu, AlertCircle, Loader2
+  Terminal, Cpu, AlertCircle, Loader2, Plus, MessageSquare, Menu, X,
+  LogOut, User as UserIcon, Lock
 } from 'lucide-react';
 
 // --- External Imports (Preserved) ---
 import { TalkingHead } from "../../lib/modules/talkinghead.mjs"; 
 import { HeadTTS } from "../../lib/modules/headtts.mjs";
-// Add these imports
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
 // --- UTILS ---
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+// --- SUPABASE SETUP ---
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // --- TYPES ---
 type LayoutMode = 'CONCEPT_MODE' | 'SPLIT_MODE' | 'FOCUS_MODE' | 'VISUAL_MODE';
@@ -37,6 +45,12 @@ interface Message {
   role: 'user' | 'assistant';
   content: string; 
   timestamp: number;
+}
+
+interface Session {
+  session_id: string;
+  title: string;
+  created_at?: string;
 }
 
 type PlaybackAction = 
@@ -60,6 +74,100 @@ mermaid.initialize({
 });
 
 // --- SUB-COMPONENTS ---
+
+const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        alert("Check your email for confirmation!");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        onClose(); 
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
+            onClick={onClose}
+          />
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+            className="relative bg-[#111] border border-white/10 p-8 rounded-2xl w-full max-w-md shadow-2xl"
+          >
+            <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={20}/></button>
+            
+            <div className="text-center mb-8">
+              <div className="w-12 h-12 bg-cyan-900/30 text-cyan-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-cyan-500/30">
+                <Lock size={24} />
+              </div>
+              <h2 className="text-2xl font-light text-white">Authentication Required</h2>
+              <p className="text-sm text-gray-400 mt-2">Sign in to access the Neural Interface</p>
+            </div>
+
+            <form onSubmit={handleAuth} className="space-y-4">
+              {error && <div className="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-200 text-xs">{error}</div>}
+              
+              <div className="space-y-2">
+                <label className="text-xs uppercase tracking-wider text-gray-500">Email</label>
+                <input 
+                  type="email" required 
+                  value={email} onChange={e => setEmail(e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white focus:border-cyan-500 focus:outline-none transition-colors"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs uppercase tracking-wider text-gray-500">Password</label>
+                <input 
+                  type="password" required 
+                  value={password} onChange={e => setPassword(e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white focus:border-cyan-500 focus:outline-none transition-colors"
+                />
+              </div>
+
+              <button 
+                type="submit" disabled={loading}
+                className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 mt-4"
+              >
+                {loading ? <Loader2 className="animate-spin mx-auto" size={20}/> : (isSignUp ? "Create Account" : "Access System")}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <button 
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="text-xs text-gray-500 hover:text-cyan-400 transition-colors"
+              >
+                {isSignUp ? "Already have an account? Sign In" : "Need an account? Sign Up"}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+};
 
 const MermaidChart = ({ chart }: { chart: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -230,10 +338,64 @@ const TableVisualizer = ({ payload }: { payload: any }) => {
   );
 };
 
+const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: string | null }) => {
+  const language = detectLanguage(code);
+  const codeLines = code.split('\n');
+
+  return (
+    <div className="text-sm font-mono h-full w-full">
+      <SyntaxHighlighter
+        language={language}
+        style={vscDarkPlus}
+        customStyle={{
+          margin: 0,
+          padding: '1.5rem',
+          background: 'transparent',
+          height: '100%',
+          fontSize: '13px',
+          lineHeight: '1.6',
+        }}
+        showLineNumbers={true}
+        lineNumberStyle={{
+          minWidth: '2.5em',
+          paddingRight: '1em',
+          color: '#6e7681', // VS Code gutter color
+          textAlign: 'right'
+        }}
+        wrapLines={true}
+        lineProps={(lineNumber) => {
+          const style: React.CSSProperties = { display: 'block', width: '100%' };
+          // Check for highlighting match
+          if (highlightQuery) {
+            const lineContent = codeLines[lineNumber - 1] || '';
+            if (lineContent.includes(highlightQuery.trim())) {
+              style.backgroundColor = 'rgba(6, 182, 212, 0.15)'; 
+              style.borderLeft = '3px solid #22d3ee';
+              style.marginLeft = '-3px'; // Fix border offset
+            }
+          }
+          return { style };
+        }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  );
+};
+
 // --- MAIN COMPONENT ---
 
 const ImmersiveLearningPlatform: React.FC = () => {
+  // Navigation Hooks
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
   // State
+  const [user, setUser] = useState<any>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('SPLIT_MODE');
   const [activeCode, setActiveCode] = useState("");
   const [highlightQuery, setHighlightQuery] = useState<string | null>(null);
@@ -241,8 +403,19 @@ const ImmersiveLearningPlatform: React.FC = () => {
   const [conceptData, setConceptData] = useState({ title: "Initializing System", text: "Establishing secure connection..." });
   const [visualData, setVisualData] = useState<VisualState>(null);
   const [subtitles, setSubtitles] = useState("");
-  const [messages, setMessages] = useState<Message[]>([{ id: 'init', role: 'assistant', content: "System Online. Ready for input.", timestamp: Date.now() }]);
   
+  // --- SESSION MANAGEMENT STATE ---
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
+  // Initial state is null to prevent hydration mismatch, syncs with URL in effect
+  const [activeSessionId, setActiveSessionId] = useState<string>(""); 
+  
+  // Sessions fetched from DB
+  const [sessions, setSessions] = useState<Session[]>([]);
+  
+  // Local message history
+  const [sessionHistories, setSessionHistories] = useState<Record<string, Message[]>>({});
+  const [messages, setMessages] = useState<Message[]>([{ id: 'init', role: 'assistant', content: "System Online. Ready for input.", timestamp: Date.now() }]);
+
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false); 
   const [isPlaying, setIsPlaying] = useState(false);        
@@ -261,6 +434,159 @@ const ImmersiveLearningPlatform: React.FC = () => {
   const onEndCountRef = useRef(0);
   const totalPartsRef = useRef(0);
   const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // --- LOGIC: Fetch Sessions & Init ---
+  const fetchSessionsAndInit = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('chat_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching sessions:', error);
+      return;
+    } 
+
+    const userSessions = data || [];
+    setSessions(userSessions);
+
+    // URL Logic: Check if ID exists in URL
+    const urlSessionId = searchParams.get('session_id');
+
+    if (urlSessionId) {
+      // Logic: If URL has ID, we try to use it.
+      // Even if it's not in the DB list (maybe new or cache delay), we respect the URL.
+      setActiveSessionId(urlSessionId);
+      
+      // If it's a valid old session, maybe load history? (Skipped for now per instructions)
+      if (!sessionHistories[urlSessionId]) {
+         setMessages([{ id: 'init', role: 'assistant', content: "Session loaded. (History is ephemeral)", timestamp: Date.now() }]);
+      }
+    } else {
+      // Logic: No ID in URL -> Create NEW session automatically
+      await createNewSessionForUser(userId, userSessions);
+    }
+  };
+
+  const createNewSessionForUser = async (userId: string, currentSessions: Session[]) => {
+      const newId = `session_${Date.now()}`;
+      const newTitle = `Session ${currentSessions.length + 1}`;
+      
+      // Update local state first
+      const newSession: Session = { 
+          session_id: newId, 
+          title: newTitle, 
+          created_at: new Date().toISOString() 
+      };
+      setSessions(prev => [newSession, ...prev]);
+      setActiveSessionId(newId);
+      
+      // Update URL without reload
+      router.push(`?session_id=${newId}`);
+
+      // Persist
+      await supabase.from('chat_sessions').insert({
+          session_id: newId,
+          user_id: userId,
+          title: newTitle
+      });
+
+      // Reset View
+      const initMsg: Message = { id: 'init', role: 'assistant', content: "New session started. How can I assist?", timestamp: Date.now() };
+      setMessages([initMsg]);
+      setSessionHistories(prev => ({ ...prev, [newId]: [initMsg] }));
+      setActiveCode("");
+      setConceptData({ title: "Ready", text: "Awaiting input..." });
+      setVisualData(null);
+  };
+
+  // --- LOGIC: Auth Check ---
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setIsAuthChecking(false);
+      if (session?.user) {
+         fetchSessionsAndInit(session.user.id);
+      } else {
+         // Guest Mode: If URL has session, keep it? Or force new local session?
+         // For now, if guest, we just generate a local ID if none exists
+         const urlId = searchParams.get('session_id');
+         if (!urlId) {
+            const newId = `session_${Date.now()}`;
+            setActiveSessionId(newId);
+            router.replace(`?session_id=${newId}`);
+         } else {
+            setActiveSessionId(urlId);
+         }
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        setShowAuthModal(false);
+        fetchSessionsAndInit(session.user.id);
+      } else {
+        setSessions([]); 
+        // Force new session ID for guest on logout
+        const newId = `session_${Date.now()}`;
+        setActiveSessionId(newId);
+        router.push(`?session_id=${newId}`);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const requireAuth = () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return false;
+    }
+    return true;
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setIsSidebarOpen(false);
+  };
+
+  // --- LOGIC: Sync Messages to History ---
+  useEffect(() => {
+    if(activeSessionId) {
+        setSessionHistories(prev => ({
+            ...prev,
+            [activeSessionId]: messages
+        }));
+    }
+  }, [messages, activeSessionId]);
+
+  // --- LOGIC: Session Switching ---
+  const handleSwitchSession = (sessionId: string) => {
+      if (isProcessing || isPlaying) return; 
+      
+      setActiveSessionId(sessionId);
+      router.push(`?session_id=${sessionId}`); // Update URL
+      
+      const history = sessionHistories[sessionId] || [];
+      if (history.length === 0) {
+          setMessages([{ id: Date.now().toString(), role: 'assistant', content: "Session loaded from database.", timestamp: Date.now() }]);
+      } else {
+          setMessages(history);
+      }
+      
+      setActiveCode("");
+      setConceptData({ title: "Session Resumed", text: "Context restored." });
+      setVisualData(null);
+  };
+
+  const handleCreateSessionClick = async () => {
+      if (!requireAuth()) return;
+      if (isProcessing || isPlaying) return;
+      await createNewSessionForUser(user.id, sessions);
+  };
+
 
   // --- LOGIC: Scrolling & Highlights ---
   useEffect(() => {
@@ -297,7 +623,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
         headTTSRef.current = headtts;
         
         headtts.onmessage = (message: any) => {
-             if (message.type === "audio") {
+              if (message.type === "audio") {
                 kickWatchdog();
                 const { partsTotal } = message.metaData || { partsTotal: 1 };
                 if (partsTotal > 0) totalPartsRef.current = partsTotal;
@@ -319,7 +645,6 @@ const ImmersiveLearningPlatform: React.FC = () => {
             }
         };
 
-        // Mock loading for demo if assets fail, usually wrap in try/catch real assets
         try {
             await Promise.all([
                  head.showAvatar({ url: "/avatars/david.glb", body: "F", avatarMood: "neutral" }),
@@ -347,7 +672,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
       watchdogTimerRef.current = setTimeout(() => {
           audioResolverRef.current?.();
           audioResolverRef.current = null;
-      }, 15000); 
+      }, 60000); 
   };
 
   const processQueue = async () => {
@@ -436,6 +761,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
   };
 
   const handleSendMessage = async () => {
+    if (!requireAuth()) return;
     if (!input.trim() || isProcessing) return;
     
     setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: input, timestamp: Date.now() }]);
@@ -445,10 +771,11 @@ const ImmersiveLearningPlatform: React.FC = () => {
     setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '', timestamp: Date.now() }]);
 
     try {
+      // UPDATED: Using activeSessionId from state (which is synced with URL)
       const response = await fetch('https://avatar-tutor-6uih.onrender.com/api/chat', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: currentInput, session_id:'session_prod_v1' })
+        body: JSON.stringify({ message: currentInput, session_id: activeSessionId })
       });
       
       if (!response.body) throw new Error('No response body');
@@ -477,68 +804,15 @@ const ImmersiveLearningPlatform: React.FC = () => {
 
 
   const handleTestSpeech = () => {
-    // 1. Safety check
+    if (!requireAuth()) return;
     if (isPlaying || avatarStatus !== "Online") return;
-    
-    // 2. Queue the SPEAK command
-    // This uses the exact same pipeline as your AI responses
     commandQueueRef.current.push({
       type: 'SPEAK',
       text: "Audio check. Synchronization complete. Ready for input."
     });
-
-    // 3. Trigger the queue processor
     processQueue();
   };
 
-// --- NEW COMPONENT: Code Viewer ---
-// Place this outside or inside your main component. 
-// If inside, remove the 'const CodeViewer = ...' and just use the logic directly.
-
-const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: string | null }) => {
-  const language = detectLanguage(code);
-  const codeLines = code.split('\n');
-
-  return (
-    <div className="text-sm font-mono h-full w-full">
-      <SyntaxHighlighter
-        language={language}
-        style={vscDarkPlus}
-        customStyle={{
-          margin: 0,
-          padding: '1.5rem',
-          background: 'transparent',
-          height: '100%',
-          fontSize: '13px',
-          lineHeight: '1.6',
-        }}
-        showLineNumbers={true}
-        lineNumberStyle={{
-          minWidth: '2.5em',
-          paddingRight: '1em',
-          color: '#6e7681', // VS Code gutter color
-          textAlign: 'right'
-        }}
-        wrapLines={true}
-        lineProps={(lineNumber) => {
-          const style: React.CSSProperties = { display: 'block', width: '100%' };
-          // Check for highlighting match
-          if (highlightQuery) {
-            const lineContent = codeLines[lineNumber - 1] || '';
-            if (lineContent.includes(highlightQuery.trim())) {
-              style.backgroundColor = 'rgba(6, 182, 212, 0.15)'; 
-              style.borderLeft = '3px solid #22d3ee';
-              style.marginLeft = '-3px'; // Fix border offset
-            }
-          }
-          return { style };
-        }}
-      >
-        {code}
-      </SyntaxHighlighter>
-    </div>
-  );
-};
   const renderVisualContent = () => {
     if (!visualData) return (
       <div className="flex flex-col items-center justify-center h-full text-gray-600 space-y-4">
@@ -557,7 +831,7 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
           <div className="flex-1 flex items-center justify-center p-6 bg-[#0a0a0a] rounded-xl border border-white/10 relative overflow-hidden shadow-inner group">
              <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:24px_24px]" />
              <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button className="p-1.5 hover:bg-white/10 rounded-md text-gray-400 hover:text-white"><Share size={14}/></button>
+               <button className="p-1.5 hover:bg-white/10 rounded-md text-gray-400 hover:text-white"><Share size={14}/></button>
              </div>
              
              <div className="relative z-10 w-full h-full flex justify-center items-center">
@@ -575,11 +849,11 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
                 )}
                 {visualData.type === 'MERMAID_FLOWCHART' && (
                   <div className="w-full h-full flex flex-col items-center">
-                     <div className="flex items-center gap-2 mb-4 bg-black/40 px-3 py-1 rounded-full border border-white/5">
-                        <GitGraph size={14} className="text-cyan-500" />
-                        <span className="text-[10px] text-gray-400 font-mono uppercase">Flowchart Visualization</span>
-                     </div>
-                     <MermaidChart chart={visualData.payload.chart} />
+                      <div className="flex items-center gap-2 mb-4 bg-black/40 px-3 py-1 rounded-full border border-white/5">
+                         <GitGraph size={14} className="text-cyan-500" />
+                         <span className="text-[10px] text-gray-400 font-mono uppercase">Flowchart Visualization</span>
+                      </div>
+                      <MermaidChart chart={visualData.payload.chart} />
                   </div>
                 )}
              </div>
@@ -604,6 +878,82 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
   return (
     <div className="flex h-screen w-full bg-[#050505] text-gray-300 font-sans overflow-hidden selection:bg-cyan-500/30 selection:text-white">
       
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+
+      {/* --- LEFT MENU BAR (SESSIONS) --- */}
+      <motion.div 
+        initial={{ width: 0, opacity: 0 }}
+        animate={{ width: isSidebarOpen ? 240 : 0, opacity: isSidebarOpen ? 1 : 0 }}
+        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        className="flex flex-col border-r border-white/5 bg-[#030303] relative z-30 overflow-hidden whitespace-nowrap"
+      >
+        
+        {/* New Chat Button */}
+        <div className="p-4 border-b border-white/5">
+            <button 
+                onClick={handleCreateSessionClick}
+                disabled={isProcessing || isPlaying}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-[#111] hover:bg-[#1a1a1a] border border-white/10 rounded-xl transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                <div className="p-1 rounded bg-cyan-900/20 group-hover:bg-cyan-500 text-cyan-500 group-hover:text-black transition-colors">
+                    <Plus size={16} />
+                </div>
+                <span className="text-sm font-medium text-gray-300 group-hover:text-white">New Chat</span>
+            </button>
+        </div>
+
+        {/* Sessions List */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
+            <div className="px-3 py-2 text-[10px] font-mono text-gray-600 uppercase tracking-widest">History</div>
+            {sessions.map(session => (
+                <button
+                    key={session.session_id}
+                    onClick={() => handleSwitchSession(session.session_id)}
+                    disabled={isProcessing || isPlaying}
+                    className={cn(
+                        "w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-colors text-sm",
+                        activeSessionId === session.session_id 
+                            ? "bg-[#111] text-cyan-400 border border-white/5" 
+                            : "text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent"
+                    )}
+                >
+                    <MessageSquare size={14} className={activeSessionId === session.session_id ? "text-cyan-500" : "text-gray-600"} />
+                    <span className="truncate">{session.title}</span>
+                </button>
+            ))}
+        </div>
+
+        {/* User / Footer */}
+        <div className="p-4 border-t border-white/5 bg-[#050505]">
+            {user ? (
+               <div className="flex flex-col gap-3">
+                   <div className="flex items-center gap-3 px-1">
+                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-900 to-purple-900 border border-white/10 flex items-center justify-center text-xs font-bold text-white">
+                          {user.email?.[0].toUpperCase()}
+                       </div>
+                       <div className="flex flex-col overflow-hidden">
+                           <span className="text-xs font-medium text-gray-300 truncate w-32">{user.email}</span>
+                           <span className="text-[10px] text-green-500">Connected</span>
+                       </div>
+                   </div>
+                   <button 
+                     onClick={handleLogout}
+                     className="flex items-center gap-2 text-xs text-gray-500 hover:text-red-400 px-1 py-1 rounded transition-colors"
+                   >
+                     <LogOut size={12} /> Sign Out
+                   </button>
+               </div>
+            ) : (
+                <button 
+                  onClick={() => setShowAuthModal(true)}
+                  className="w-full py-2 bg-white/5 hover:bg-white/10 text-gray-300 text-xs rounded border border-white/5 transition-colors flex items-center justify-center gap-2"
+                >
+                  <UserIcon size={12}/> Sign In
+                </button>
+            )}
+        </div>
+      </motion.div>
+
       {/* --- SIDEBAR (CHAT) --- */}
       <motion.div 
         initial={{ x: -50, opacity: 0 }}
@@ -611,30 +961,37 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
         className="w-[30%] min-w-[340px] max-w-[450px] flex flex-col border-r border-white/5 relative z-20 bg-[#080808]/80 backdrop-blur-xl"
       >
         {/* Header */}
-       {/* Header */}
         <div className="h-16 px-6 flex justify-between items-center border-b border-white/5">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${avatarStatus === "Online" ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-red-500"}`} />
-            <span className="text-[10px] font-mono tracking-[0.2em] text-gray-500 uppercase">SYS_ONLINE</span>
+          <div className="flex items-center gap-3">
+            {/* TOGGLE BUTTON */}
+            <button 
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-1.5 hover:bg-white/10 rounded-md text-gray-500 hover:text-white transition-colors"
+                title={isSidebarOpen ? "Close Menu" : "Open Menu"}
+            >
+                {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+
+            <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${avatarStatus === "Online" ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-red-500"}`} />
+                <span className="text-[10px] font-mono tracking-[0.2em] text-gray-500 uppercase">SYS_ONLINE</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* --- NEW TEST BUTTON --- */}
-            <button 
+             <button 
               onClick={handleTestSpeech}
               disabled={avatarStatus !== "Online" || isPlaying}
               className="px-2 py-1 bg-white/5 hover:bg-cyan-500/20 border border-white/10 rounded text-[10px] font-mono text-cyan-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:border-cyan-500/50"
             >
               TEST_AUDIO
             </button>
-            {/* ----------------------- */}
-
             <button 
               onClick={() => setIsTTSActive(!isTTSActive)} 
               className="p-2 hover:bg-white/5 rounded-full transition-colors group"
               title={isTTSActive ? "Mute Voice" : "Enable Voice"}
             >
-                {isTTSActive ? <Volume2 size={16} className="text-cyan-500 group-hover:text-cyan-400" /> : <VolumeX size={16} className="text-gray-600" />}
+              {isTTSActive ? <Volume2 size={16} className="text-cyan-500 group-hover:text-cyan-400" /> : <VolumeX size={16} className="text-gray-600" />}
             </button>
           </div>
         </div>
@@ -667,7 +1024,6 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
 
         {/* Chat Transcript */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6 custom-scrollbar scroll-smooth">
-          <span className="font-mono text-[10px] text-gray-600 block tracking-widest text-center opacity-50 mb-6">- BEGIN SESSION -</span>
           {messages.map((msg) => (
             <motion.div 
               key={msg.id} 
@@ -763,56 +1119,56 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
               </motion.div>
             )}
 
-        {/* CODE EDITOR */}
-{(layoutMode === 'SPLIT_MODE' || layoutMode === 'FOCUS_MODE') && (
-  <motion.div 
-    layoutId="panel-code"
-    className={cn(
-      "relative flex flex-col bg-[#1e1e1e] border border-white/10 rounded-2xl overflow-hidden shadow-2xl",
-      layoutMode === 'FOCUS_MODE' ? "flex-1" : "flex-1"
-    )}
-  >
-      {/* Dynamic Header */}
-      {(() => {
-        const lang = detectLanguage(activeCode);
-        const ext = lang === 'javascript' ? 'js' : 'py';
-        const label = lang === 'javascript' ? 'JavaScript' : 'Python 3.11';
-        
-        return (
-          <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-black/20 select-none">
-            <div className="flex items-center gap-3">
-               {/* Traffic Lights */}
-               <div className="flex gap-1.5 opacity-50 hover:opacity-100 transition-opacity">
-                 <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
-                 <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
-                 <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
-               </div>
-               
-               {/* File Tab */}
-               <div className="flex items-center gap-2 bg-[#1e1e1e] px-3 py-1 rounded-t-md border-t border-x border-white/5 relative top-1">
-                 {lang === 'javascript' 
-                    ? <span className="text-yellow-400 font-bold text-xs">JS</span> 
-                    : <span className="text-blue-400 font-bold text-xs">Py</span>
-                 }
-                 <span className="text-xs font-mono text-gray-300">script.{ext}</span>
-                 <span className="w-2 h-2 rounded-full bg-white/10 ml-2 hover:bg-white/30 cursor-pointer text-[8px] flex items-center justify-center">x</span>
-               </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-               <span className="text-[10px] font-mono text-gray-500">{label}</span>
-               <span className="text-[10px] font-mono text-cyan-500/50 uppercase border border-cyan-500/20 px-1.5 rounded">Read Only</span>
-            </div>
-          </div>
-        );
-      })()}
+            {/* CODE EDITOR */}
+            {(layoutMode === 'SPLIT_MODE' || layoutMode === 'FOCUS_MODE') && (
+              <motion.div 
+                layoutId="panel-code"
+                className={cn(
+                  "relative flex flex-col bg-[#1e1e1e] border border-white/10 rounded-2xl overflow-hidden shadow-2xl",
+                  layoutMode === 'FOCUS_MODE' ? "flex-1" : "flex-1"
+                )}
+              >
+                  {/* Dynamic Header */}
+                  {(() => {
+                    const lang = detectLanguage(activeCode);
+                    const ext = lang === 'javascript' ? 'js' : 'py';
+                    const label = lang === 'javascript' ? 'JavaScript' : 'Python 3.11';
+                    
+                    return (
+                      <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-black/20 select-none">
+                        <div className="flex items-center gap-3">
+                           {/* Traffic Lights */}
+                           <div className="flex gap-1.5 opacity-50 hover:opacity-100 transition-opacity">
+                             <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
+                             <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+                             <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
+                           </div>
+                           
+                           {/* File Tab */}
+                           <div className="flex items-center gap-2 bg-[#1e1e1e] px-3 py-1 rounded-t-md border-t border-x border-white/5 relative top-1">
+                             {lang === 'javascript' 
+                                ? <span className="text-yellow-400 font-bold text-xs">JS</span> 
+                                : <span className="text-blue-400 font-bold text-xs">Py</span>
+                             }
+                             <span className="text-xs font-mono text-gray-300">script.{ext}</span>
+                             <span className="w-2 h-2 rounded-full bg-white/10 ml-2 hover:bg-white/30 cursor-pointer text-[8px] flex items-center justify-center">x</span>
+                           </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
+                           <span className="text-[10px] font-mono text-gray-500">{label}</span>
+                           <span className="text-[10px] font-mono text-cyan-500/50 uppercase border border-cyan-500/20 px-1.5 rounded">Read Only</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
-      {/* Code Viewer Body */}
-      <div ref={codeContainerRef} className="flex-1 overflow-auto custom-scrollbar relative">
-         <CodeViewer code={activeCode} highlightQuery={highlightQuery} />
-      </div>
-  </motion.div>
-)}
+                  {/* Code Viewer Body */}
+                  <div ref={codeContainerRef} className="flex-1 overflow-auto custom-scrollbar relative">
+                     <CodeViewer code={activeCode} highlightQuery={highlightQuery} />
+                  </div>
+              </motion.div>
+            )}
 
             {/* VISUALIZER */}
             {(layoutMode === 'VISUAL_MODE') && (
@@ -830,15 +1186,20 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
         {/* Input Area */}
         <div className="absolute bottom-8 left-0 right-0 flex justify-center z-40 px-4 pointer-events-none">
           <div className="pointer-events-auto bg-[#121212]/90 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 flex items-center shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full max-w-2xl group focus-within:border-cyan-500/50 transition-colors">
-            <Mic size={18} className={cn("mr-4 transition-colors", isProcessing ? "text-cyan-400 animate-pulse" : "text-gray-500")} />
+            <Mic 
+                size={18} 
+                onClick={() => !user && setShowAuthModal(true)}
+                className={cn("mr-4 transition-colors cursor-pointer", isProcessing ? "text-cyan-400 animate-pulse" : "text-gray-500")} 
+            />
             <input 
               type="text" 
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+              onClick={() => !user && setShowAuthModal(true)}
               disabled={isProcessing}
-              placeholder={isProcessing ? "Processing Neural Input..." : isPlaying ? "System explaining..." : "Ask a follow-up question..."}
-              className="bg-transparent border-none outline-none text-sm text-white placeholder-gray-600 flex-1 h-10 font-light tracking-wide"
+              placeholder={!user ? "Sign in to chat..." : isProcessing ? "Processing Neural Input..." : isPlaying ? "System explaining..." : "Ask a follow-up question..."}
+              className="bg-transparent border-none outline-none text-sm text-white placeholder-gray-600 flex-1 h-10 font-light tracking-wide disabled:cursor-not-allowed"
             />
             <button 
               onClick={handleSendMessage} 
