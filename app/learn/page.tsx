@@ -445,7 +445,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
     setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '', timestamp: Date.now() }]);
 
     try {
-      const response = await fetch('http://localhost:5000/api/chat', { 
+      const response = await fetch('https://avatar-tutor-6uih.onrender.com/api/chat', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: currentInput, session_id:'session_prod_v1' })
