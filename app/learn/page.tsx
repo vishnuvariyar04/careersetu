@@ -76,48 +76,32 @@ mermaid.initialize({
 // --- SUB-COMPONENTS ---
 
 const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setLoading(true);
     setError(null);
-    try {
-      if (isSignUp) {
-        // NOTE: For this to work seamlessly without email confirmation, 
-        // you must disable "Enable email confirmations" in your Supabase Dashboard:
-        // Authentication -> Providers -> Email -> [Uncheck] Enable Email Confirmations
-        const { data, error } = await supabase.auth.signUp({ 
-            email, 
-            password,
-            options: {
-                data: { display_name: email.split('@')[0] } 
-            }
-        });
-        if (error) throw error;
-        
-        // Seamless Flow: If session exists immediately (confirm disabled), close modal
-        if (data.session) {
-            onClose();
-            window.location.reload();
+    
+    // 1. Snapshot the EXACT current URL (Deep Link)
+    if (typeof window !== 'undefined') {
+        localStorage.setItem('auth_return_url', window.location.href);
+    }
 
-        } else {
-            // Fallback if confirm is enabled (still requires check)
-            alert("Account created! Please sign in.");
-            setIsSignUp(false);
-        }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        onClose(); 
-      }
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.href, 
+          queryParams: {
+            access_type: 'offline', 
+            prompt: 'consent',
+          },
+        },
+      });
+      if (error) throw error;
     } catch (err: any) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -125,61 +109,48 @@ const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
+            className="absolute inset-0 bg-black/60 backdrop-blur-md" 
             onClick={onClose}
           />
           <motion.div 
-            initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-            className="relative bg-[#111] border border-white/10 p-8 rounded-2xl w-full max-w-md shadow-2xl"
+            initial={{ scale: 0.95, opacity: 0, y: 20 }} 
+            animate={{ scale: 1, opacity: 1, y: 0 }} 
+            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            transition={{ type: "spring", duration: 0.5, bounce: 0 }}
+            className="relative bg-[#09090b] border border-white/10 w-full max-w-[380px] rounded-2xl shadow-2xl overflow-hidden"
           >
-            <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={20}/></button>
-            
-            <div className="text-center mb-8">
-              <div className="w-12 h-12 bg-cyan-900/30 text-cyan-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-cyan-500/30">
-                <Lock size={24} />
-              </div>
-              <h2 className="text-2xl font-light text-white">Authentication Required</h2>
-              <p className="text-sm text-gray-400 mt-2">Sign in to access the Neural Interface</p>
-            </div>
+            <button onClick={onClose} className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white transition-colors rounded-full hover:bg-white/5">
+              <X size={16}/>
+            </button>
 
-            <form onSubmit={handleAuth} className="space-y-4">
-              {error && <div className="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-200 text-xs">{error}</div>}
+            <div className="p-8 pt-10 flex flex-col items-center text-center">
+              <div className="  mb-6">
+                <img src="/images/outlrn-fav.png" alt="Outlrn Logo" className="w-12 h-12"/>
+              </div>
+              <h2 className="text-xl font-medium text-white tracking-tight mb-2">Authentication Required</h2>
+              <p className="text-sm text-zinc-500 px-4 mb-8 leading-relaxed">Sign in to synchronize your sessions and access the interface.</p>
+
+              {error && (
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="w-full mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs font-medium">
+                  {error}
+                </motion.div>
+              )}
               
-              <div className="space-y-2">
-                <label className="text-xs uppercase tracking-wider text-gray-500">Email</label>
-                <input 
-                  type="email" required 
-                  value={email} onChange={e => setEmail(e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white focus:border-cyan-500 focus:outline-none transition-colors"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs uppercase tracking-wider text-gray-500">Password</label>
-                <input 
-                  type="password" required 
-                  value={password} onChange={e => setPassword(e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white focus:border-cyan-500 focus:outline-none transition-colors"
-                />
-              </div>
-
               <button 
-                type="submit" disabled={loading}
-                className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 mt-4"
+                onClick={handleGoogleLogin} disabled={loading}
+                className="group hover:cursor-pointer w-full relative flex items-center justify-center gap-3 py-3 bg-white hover:bg-zinc-200 text-black rounded-xl font-semibold text-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:shadow-[0_0_25px_rgba(255,255,255,0.15)]"
               >
-                {loading ? <Loader2 className="animate-spin mx-auto" size={20}/> : (isSignUp ? "Create Account" : "Access System")}
+                {loading ? <Loader2 className="animate-spin text-zinc-600" size={18}/> : (
+                  <>
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                    <span>Continue with Google</span>
+                  </>
+                )}
               </button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <button 
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="text-xs text-gray-500 hover:text-cyan-400 transition-colors"
-              >
-                {isSignUp ? "Already have an account? Sign In" : "Need an account? Sign Up"}
-              </button>
+              <p className="mt-6 text-[10px] text-zinc-600">By continuing, you agree to our Terms of Service.</p>
             </div>
           </motion.div>
         </div>
@@ -422,7 +393,9 @@ const ImmersiveLearningPlatform: React.FC = () => {
   
   // Session State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
-  const [activeSessionId, setActiveSessionId] = useState<string>(""); 
+  
+  // NOTE: activeSessionId is null for "New Chat" state
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null); 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionHistories, setSessionHistories] = useState<Record<string, Message[]>>({});
   const [messages, setMessages] = useState<Message[]>([{ id: 'init', role: 'assistant', content: "System Online. Ready for input.", timestamp: Date.now() }]);
@@ -447,9 +420,9 @@ const ImmersiveLearningPlatform: React.FC = () => {
   const totalPartsRef = useRef(0);
   const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // --- LOGIC: Session Adoption & Init ---
+  // --- LOGIC: Initialize App ---
   const fetchSessionsAndInit = async (userId: string) => {
-    // 1. Fetch existing sessions
+    // 1. Fetch existing sessions from DB
     const { data: userSessions, error } = await supabase
       .from('chat_sessions')
       .select('*')
@@ -462,93 +435,38 @@ const ImmersiveLearningPlatform: React.FC = () => {
     } 
 
     const existingSessions = userSessions || [];
+    setSessions(existingSessions);
+
+    // 2. Check URL for session_id
     const urlSessionId = searchParams.get('session_id');
 
     if (urlSessionId) {
-      // Case A: URL has an ID.
-      // Check if this ID already exists in the user's history
+      // Case A: URL has ID. Check if it exists.
       const exists = existingSessions.find(s => s.session_id === urlSessionId);
 
       if (exists) {
-        // A1: It exists -> Load list and active session
-        setSessions(existingSessions);
+        // A1: Exists in DB -> Load it
         setActiveSessionId(urlSessionId);
-        if (!sessionHistories[urlSessionId]) {
+        if (!sessionHistories[urlSessionId] && messages.length <= 1) {
             setMessages([{ id: 'init', role: 'assistant', content: "Session loaded.", timestamp: Date.now() }]);
         }
       } else {
-        // A2: It does NOT exist (Guest session -> User session ADOPTION)
-        // We must create it in DB so it shows in the sidebar
-        const adoptedSession: Session = {
-             session_id: urlSessionId,
-             title: `Session ${existingSessions.length + 1}`,
-             created_at: new Date().toISOString()
-        };
-
-        // Update state to include OLD list + NEW adopted one
-        const updatedList = [adoptedSession, ...existingSessions];
-        setSessions(updatedList);
+        // A2: ID in URL but NOT in DB (Adoption Case for Guest -> User)
+        // We only "adopt" it if we have messages. If it's a blank ID, we ignore.
+        // Actually, for "Lazy" logic, we should probably just treat it as a new session request
+        // that hasn't been saved yet.
+        // We will set it as active, but NOT save to DB yet until they chat.
         setActiveSessionId(urlSessionId);
-
-        // Save to DB
-        await supabase.from('chat_sessions').insert({
-            session_id: urlSessionId,
-            user_id: userId,
-            title: adoptedSession.title
-        });
-
-        // Init messages if empty
-        if (!sessionHistories[urlSessionId]) {
-            setMessages([{ id: 'init', role: 'assistant', content: "Session context preserved.", timestamp: Date.now() }]);
-        }
+        // We do NOT call DB insert here. Wait for interaction.
       }
-
-    } else if (existingSessions.length > 0) {
-      // Case B: No URL ID, but existing sessions -> Load most recent
-      setSessions(existingSessions);
-      const mostRecent = existingSessions[0];
-      setActiveSessionId(mostRecent.session_id);
-      router.replace(`?session_id=${mostRecent.session_id}`);
-      setMessages([{ id: 'init', role: 'assistant', content: "Welcome back.", timestamp: Date.now() }]);
     } else {
-      // Case C: No URL, No History -> New Session
-      await createNewSessionForUser(userId, []);
-    }
-  };
-
-  const createNewSessionForUser = async (userId: string, currentSessions: Session[]) => {
-      const newId = `session_${Date.now()}`;
-      const newTitle = `Session ${currentSessions.length + 1}`;
-      
-      const newSession: Session = { 
-          session_id: newId, 
-          title: newTitle, 
-          created_at: new Date().toISOString() 
-      };
-
-      // Explicitly construct the new array
-      const updatedList = [newSession, ...currentSessions];
-      setSessions(updatedList);
-      
-      setActiveSessionId(newId);
-      router.push(`?session_id=${newId}`);
-
-      // Persist
-      const { error } = await supabase.from('chat_sessions').insert({
-          session_id: newId,
-          user_id: userId,
-          title: newTitle
-      });
-
-      if (error) console.error("DB Create Error", error);
-
-      // Reset View
-      const initMsg: Message = { id: 'init', role: 'assistant', content: "New session started. How can I assist?", timestamp: Date.now() };
-      setMessages([initMsg]);
-      setSessionHistories(prev => ({ ...prev, [newId]: [initMsg] }));
+      // Case B: No URL ID -> "New Chat" State
+      setActiveSessionId(null);
+      setMessages([{ id: 'init', role: 'assistant', content: "New session. History will save after your first message.", timestamp: Date.now() }]);
       setActiveCode("");
       setConceptData({ title: "Ready", text: "Awaiting input..." });
       setVisualData(null);
+    }
   };
 
   // --- LOGIC: Auth Check ---
@@ -556,35 +474,51 @@ const ImmersiveLearningPlatform: React.FC = () => {
     if (hasInitializedRef.current) return;
     hasInitializedRef.current = true;
 
+    // 1. Initial Auth Check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
          fetchSessionsAndInit(session.user.id);
       } else {
-         // Guest Logic
+         // Guest Logic: Keep URL ID if exists, else NULL
          const urlId = searchParams.get('session_id');
-         if (!urlId) {
-            const newId = `session_${Date.now()}`;
-            setActiveSessionId(newId);
-            router.replace(`?session_id=${newId}`);
-         } else {
-            setActiveSessionId(urlId);
-         }
+         if (urlId) setActiveSessionId(urlId);
+         else setActiveSessionId(null);
       }
     });
 
+    // 2. Auth State Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      
       if (session?.user) {
         setShowAuthModal(false);
-        // Reset and re-fetch only if necessary to avoid flicker
-        // But we must fetch if transitioning from guest to user
+        
+        // Clean Hash
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+             const cleanUrl = window.location.pathname + window.location.search;
+             window.history.replaceState(null, '', cleanUrl);
+        }
+
+        // Restore Deep Link
+        const returnUrl = localStorage.getItem('auth_return_url');
+        if (returnUrl) {
+            localStorage.removeItem('auth_return_url'); 
+            const currentPath = window.location.href.split('#')[0];
+            const targetPath = returnUrl.split('#')[0];
+            if (currentPath !== targetPath) {
+                window.location.href = returnUrl; 
+                return; 
+            }
+        }
+        
         fetchSessionsAndInit(session.user.id);
       } else {
+        // Logout -> Reset to New Chat
         setSessions([]); 
-        const newId = `session_${Date.now()}`;
-        setActiveSessionId(newId);
-        router.push(`?session_id=${newId}`);
+        setActiveSessionId(null);
+        window.history.replaceState(null, '', window.location.pathname); // Clear Query Params
+        setMessages([{ id: 'init', role: 'assistant', content: "Signed out. System reset.", timestamp: Date.now() }]);
       }
     });
 
@@ -603,9 +537,10 @@ const ImmersiveLearningPlatform: React.FC = () => {
     await supabase.auth.signOut();
     setIsSidebarOpen(false);
     hasInitializedRef.current = false; 
+    window.location.href = "/learn";
   };
 
-  // --- LOGIC: Sync Messages to History ---
+  // --- LOGIC: Sync Messages ---
   useEffect(() => {
     if(activeSessionId) {
         setSessionHistories(prev => ({
@@ -615,12 +550,13 @@ const ImmersiveLearningPlatform: React.FC = () => {
     }
   }, [messages, activeSessionId]);
 
-  // --- LOGIC: Session Switching ---
+  // --- LOGIC: UI Interaction ---
   const handleSwitchSession = (sessionId: string) => {
       if (isProcessing || isPlaying) return; 
       
       setActiveSessionId(sessionId);
-      router.push(`?session_id=${sessionId}`); 
+      const newPath = `${window.location.pathname}?session_id=${sessionId}`;
+      window.history.pushState(null, '', newPath);
       
       const history = sessionHistories[sessionId] || [];
       if (history.length === 0) {
@@ -634,20 +570,25 @@ const ImmersiveLearningPlatform: React.FC = () => {
       setVisualData(null);
   };
 
-  const handleCreateSessionClick = async () => {
-      if (!requireAuth()) return;
+  const handleCreateSessionClick = () => {
+      // Just reset UI to "New Chat" mode. Do NOT create DB row yet.
       if (isProcessing || isPlaying) return;
-      await createNewSessionForUser(user.id, sessions);
+      
+      setActiveSessionId(null);
+      setMessages([{ id: 'init', role: 'assistant', content: "New session started.", timestamp: Date.now() }]);
+      setActiveCode("");
+      setConceptData({ title: "Ready", text: "Awaiting input..." });
+      setVisualData(null);
+      
+      // Clear URL
+      window.history.replaceState(null, '', window.location.pathname);
   };
 
-
-  // --- LOGIC: Scrolling & Highlights ---
+  // --- SCROLLING ---
   useEffect(() => {
     if (highlightQuery && codeContainerRef.current) {
       const highlightedElement = codeContainerRef.current.querySelector('.highlight-active');
-      if (highlightedElement) {
-        highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      if (highlightedElement) highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [highlightQuery, activeCode]);
 
@@ -655,7 +596,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, subtitles]);
 
-  // --- LOGIC: Avatar Setup ---
+  // --- AVATAR INIT ---
   useEffect(() => {
     if (headRef.current) return;
     const initAvatar = async () => {
@@ -719,13 +660,12 @@ const ImmersiveLearningPlatform: React.FC = () => {
     return () => { if (headRef.current) headRef.current.stop(); };
   }, []);
 
-  // --- LOGIC: Execution Queue ---
   const kickWatchdog = () => {
       if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
       watchdogTimerRef.current = setTimeout(() => {
           audioResolverRef.current?.();
           audioResolverRef.current = null;
-      }, 60000); 
+      }, 60000); // 60 seconds timeout
   };
 
   const processQueue = async () => {
@@ -780,12 +720,10 @@ const ImmersiveLearningPlatform: React.FC = () => {
                  catch (e) { resolve(); }
              });
           } else {
-            // Fallback reading time
             await new Promise(resolve => setTimeout(resolve, action.text.length * 50)); 
           }
           break;
       }
-      // Small buffer between actions
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     setIsPlaying(false);
@@ -813,22 +751,50 @@ const ImmersiveLearningPlatform: React.FC = () => {
     } catch (e) { console.warn("Parse Error:", line); }
   };
 
+  // --- SEND MESSAGE LOGIC (LAZY CREATION) ---
   const handleSendMessage = async () => {
     if (!requireAuth()) return;
     if (!input.trim() || isProcessing) return;
     
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: input, timestamp: Date.now() }]);
+    // UI Update (Optimistic)
     const currentInput = input;
     setInput('');
     setIsProcessing(true);
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '', timestamp: Date.now() }]);
+    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: currentInput, timestamp: Date.now() }]);
+    setMessages(prev => [...prev, { id: (Date.now()+1).toString(), role: 'assistant', content: '', timestamp: Date.now() }]);
+
+    let targetSessionId = activeSessionId;
+
+    // LAZY CREATION CHECK: If no active session, create one NOW.
+    if (!targetSessionId) {
+        const newId = `session_${Date.now()}`;
+        const newTitle = currentInput.slice(0, 30) + (currentInput.length > 30 ? '...' : '');
+        
+        // 1. Set State
+        targetSessionId = newId;
+        setActiveSessionId(newId);
+        
+        // 2. Update Sessions List UI
+        const newSession: Session = { session_id: newId, title: newTitle, created_at: new Date().toISOString() };
+        setSessions(prev => [newSession, ...prev]);
+        
+        // 3. Update URL
+        const newPath = `${window.location.pathname}?session_id=${newId}`;
+        window.history.replaceState(null, '', newPath);
+
+        // 4. Save to DB
+        await supabase.from('chat_sessions').insert({
+            session_id: newId,
+            user_id: user.id,
+            title: newTitle
+        });
+    }
 
     try {
-      // UPDATED: Using activeSessionId from state (which is synced with URL)
       const response = await fetch('https://avatar-tutor-6uih.onrender.com/api/chat', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: currentInput, session_id: activeSessionId })
+        body: JSON.stringify({ message: currentInput, session_id: targetSessionId })
       });
       
       if (!response.body) throw new Error('No response body');
@@ -849,12 +815,11 @@ const ImmersiveLearningPlatform: React.FC = () => {
       if (buffer.trim()) parseAndEnqueue(buffer);
     } catch (error) { 
       console.error(error);
-      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: "Connection to core disrupted. Please verify local server.", timestamp: Date.now() }]);
+      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: "Connection disrupted.", timestamp: Date.now() }]);
     } finally { 
       setIsProcessing(false); 
     }
   };
-
 
   const handleTestSpeech = () => {
     if (!requireAuth()) return;
@@ -864,68 +829,6 @@ const ImmersiveLearningPlatform: React.FC = () => {
       text: "Audio check. Synchronization complete. Ready for input."
     });
     processQueue();
-  };
-
-  const renderVisualContent = () => {
-    if (!visualData) return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-600 space-y-4">
-        <Cpu size={48} className="opacity-20" />
-        <span className="text-xs font-mono uppercase tracking-widest opacity-50">Awaiting visual input data</span>
-      </div>
-    );
-
-    return (
-       <motion.div 
-         initial={{ opacity: 0, scale: 0.95 }}
-         animate={{ opacity: 1, scale: 1 }}
-         transition={{ duration: 0.5 }}
-         className="w-full h-full flex flex-col"
-       >
-          <div className="flex-1 flex items-center justify-center p-6 bg-[#0a0a0a] rounded-xl border border-white/10 relative overflow-hidden shadow-inner group">
-             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:24px_24px]" />
-             <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-               <button className="p-1.5 hover:bg-white/10 rounded-md text-gray-400 hover:text-white"><Share size={14}/></button>
-             </div>
-             
-             <div className="relative z-10 w-full h-full flex justify-center items-center">
-                {visualData.type === 'ARRAY' && <ArrayVisualizer payload={visualData.payload} />}
-                {visualData.type === 'TABLE' && <TableVisualizer payload={visualData.payload} />}
-                {visualData.type === 'KEY_VALUE' && (
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl">
-                     {visualData.payload?.items?.map((item: any, i: number) => (
-                       <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="bg-[#151515] p-5 rounded-lg border border-white/5 flex justify-between items-center hover:border-cyan-500/30 transition-colors">
-                          <span className="text-gray-500 font-mono text-xs uppercase tracking-wider">{item.key}</span>
-                          <span className="text-cyan-400 font-mono font-bold text-lg">{item.value}</span>
-                       </motion.div>
-                     ))}
-                   </div>
-                )}
-                {visualData.type === 'MERMAID_FLOWCHART' && (
-                  <div className="w-full h-full flex flex-col items-center">
-                      <div className="flex items-center gap-2 mb-4 bg-black/40 px-3 py-1 rounded-full border border-white/5">
-                         <GitGraph size={14} className="text-cyan-500" />
-                         <span className="text-[10px] text-gray-400 font-mono uppercase">Flowchart Visualization</span>
-                      </div>
-                      <MermaidChart chart={visualData.payload.chart} />
-                  </div>
-                )}
-             </div>
-          </div>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-4 px-1"
-          >
-             <div className="flex items-center gap-2 mb-1">
-                {visualData.type === 'ARRAY' && <List size={14} className="text-cyan-400" />}
-                {visualData.type === 'TABLE' && <TableIcon size={14} className="text-cyan-400" />}
-                <span className="text-[10px] font-bold text-cyan-400 tracking-wider uppercase">{visualData.type} VIEW</span>
-             </div>
-             <p className="text-sm text-gray-400 font-light">{visualData.caption}</p>
-          </motion.div>
-       </motion.div>
-    );
   };
 
   return (
@@ -940,8 +843,6 @@ const ImmersiveLearningPlatform: React.FC = () => {
         transition={{ duration: 0.3, ease: 'easeInOut' }}
         className="flex flex-col border-r border-white/5 bg-[#030303] relative z-30 overflow-hidden whitespace-nowrap"
       >
-        
-        {/* New Chat Button */}
         <div className="p-4 border-b border-white/5">
             <button 
                 onClick={handleCreateSessionClick}
@@ -955,7 +856,6 @@ const ImmersiveLearningPlatform: React.FC = () => {
             </button>
         </div>
 
-        {/* Sessions List */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
             <div className="px-3 py-2 text-[10px] font-mono text-gray-600 uppercase tracking-widest">History</div>
             {sessions.map(session => (
@@ -976,7 +876,6 @@ const ImmersiveLearningPlatform: React.FC = () => {
             ))}
         </div>
 
-        {/* User / Footer */}
         <div className="p-4 border-t border-white/5 bg-[#050505]">
             {user ? (
                <div className="flex flex-col gap-3">
@@ -1013,10 +912,8 @@ const ImmersiveLearningPlatform: React.FC = () => {
         animate={{ x: 0, opacity: 1 }}
         className="w-[30%] min-w-[340px] max-w-[450px] flex flex-col border-r border-white/5 relative z-20 bg-[#080808]/80 backdrop-blur-xl"
       >
-        {/* Header */}
         <div className="h-16 px-6 flex justify-between items-center border-b border-white/5">
           <div className="flex items-center gap-3">
-            {/* TOGGLE BUTTON */}
             <button 
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 className="p-1.5 hover:bg-white/10 rounded-md text-gray-500 hover:text-white transition-colors"
@@ -1057,8 +954,6 @@ const ImmersiveLearningPlatform: React.FC = () => {
              </div>
            )}
            <div ref={avatarRef} className="w-full h-full relative z-10" />
-           
-           {/* Subtitles Overlay */}
            <AnimatePresence>
              {subtitles && (
                <motion.div 
@@ -1107,7 +1002,6 @@ const ImmersiveLearningPlatform: React.FC = () => {
       {/* --- MAIN CONTENT AREA --- */}
       <div className="flex-1 flex flex-col bg-[#050505] relative overflow-hidden">
         
-        {/* Navigation / Toolbar */}
         <header className="h-16 flex items-center justify-between px-8 border-b border-white/5 bg-[#080808]/50 backdrop-blur z-30">
           <div className="flex gap-1 bg-[#111] p-1 rounded-lg border border-white/5">
             {[
@@ -1135,15 +1029,18 @@ const ImmersiveLearningPlatform: React.FC = () => {
             ))}
           </div>
           <div className="flex gap-4 text-gray-600">
-             <Settings size={18} className="hover:text-white transition-colors cursor-pointer" />
+             {!user&&<button 
+                  onClick={() => setShowAuthModal(true)}
+                  className="w-full py-2 px-3 bg-white/5 hover:bg-white/10 text-gray-300 text-xs rounded border border-white/5 transition-colors flex items-center justify-center gap-2"
+                >
+                  <UserIcon size={12}/> Sign In
+                </button>}
           </div>
         </header>
 
-        {/* Dynamic Panels */}
         <main className="flex-1 relative p-6 flex gap-6 overflow-hidden">
           <LayoutGroup>
             
-            {/* CONCEPT CARD */}
             {(layoutMode === 'CONCEPT_MODE' || layoutMode === 'SPLIT_MODE') && (
               <motion.div 
                 layoutId="panel-concept"
@@ -1172,7 +1069,6 @@ const ImmersiveLearningPlatform: React.FC = () => {
               </motion.div>
             )}
 
-            {/* CODE EDITOR */}
             {(layoutMode === 'SPLIT_MODE' || layoutMode === 'FOCUS_MODE') && (
               <motion.div 
                 layoutId="panel-code"
@@ -1181,7 +1077,6 @@ const ImmersiveLearningPlatform: React.FC = () => {
                   layoutMode === 'FOCUS_MODE' ? "flex-1" : "flex-1"
                 )}
               >
-                  {/* Dynamic Header */}
                   {(() => {
                     const lang = detectLanguage(activeCode);
                     const ext = lang === 'javascript' ? 'js' : 'py';
@@ -1190,14 +1085,12 @@ const ImmersiveLearningPlatform: React.FC = () => {
                     return (
                       <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-black/20 select-none">
                         <div className="flex items-center gap-3">
-                           {/* Traffic Lights */}
                            <div className="flex gap-1.5 opacity-50 hover:opacity-100 transition-opacity">
                              <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
                              <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
                              <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
                            </div>
                            
-                           {/* File Tab */}
                            <div className="flex items-center gap-2 bg-[#1e1e1e] px-3 py-1 rounded-t-md border-t border-x border-white/5 relative top-1">
                              {lang === 'javascript' 
                                 ? <span className="text-yellow-400 font-bold text-xs">JS</span> 
@@ -1216,14 +1109,12 @@ const ImmersiveLearningPlatform: React.FC = () => {
                     );
                   })()}
 
-                  {/* Code Viewer Body */}
                   <div ref={codeContainerRef} className="flex-1 overflow-auto custom-scrollbar relative">
                      <CodeViewer code={activeCode} highlightQuery={highlightQuery} />
                   </div>
               </motion.div>
             )}
 
-            {/* VISUALIZER */}
             {(layoutMode === 'VISUAL_MODE') && (
               <motion.div 
                 layoutId="panel-visual"
@@ -1236,7 +1127,6 @@ const ImmersiveLearningPlatform: React.FC = () => {
           </LayoutGroup>
         </main>
 
-        {/* Input Area */}
         <div className="absolute bottom-8 left-0 right-0 flex justify-center z-40 px-4 pointer-events-none">
           <div className="pointer-events-auto bg-[#121212]/90 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 flex items-center shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full max-w-2xl group focus-within:border-cyan-500/50 transition-colors">
             <Mic 

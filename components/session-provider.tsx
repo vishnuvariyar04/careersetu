@@ -64,8 +64,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         console.log('User signed in, refreshing router')
         router.refresh()
       } else if (event === 'SIGNED_OUT') {
-        console.log('User signed out, redirecting to auth')
-        router.push('/auth')
+        console.log('User signed out')
+        // router.push('/auth')
       } else if (event === 'TOKEN_REFRESHED') {
         console.log('Token refreshed')
         router.refresh()
@@ -80,7 +80,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     console.log('SessionProvider: Signing out')
     await supabase.auth.signOut()
-    router.push('/auth')
+    // window.location.reload()
+    // router.push('/auth')
   }
 
   return (
