@@ -7,6 +7,17 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { createClient } from '@supabase/supabase-js'; 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+// ... existing imports
+// import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import dynamic from 'next/dynamic'; // <--- ADD THIS
+
+// ... existing imports
+
+// --- DYNAMIC IMPORT FOR GRAPH ---
+const ForceGraph = dynamic(() => import('@/components/ForceGraph'), { 
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-full text-cyan-500 font-mono text-xs">INITIALIZING PHYSICS ENGINE...</div>
+});
 import { 
   Mic, ChevronRight, Share, Settings, Layout, Code2, Columns, 
   Volume2, VolumeX, Eye, Table as TableIcon, List, GitGraph, 
@@ -33,7 +44,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // --- TYPES ---
 type LayoutMode = 'CONCEPT_MODE' | 'SPLIT_MODE' | 'FOCUS_MODE' | 'VISUAL_MODE';
-type VisualType = 'ARRAY' | 'TABLE' | 'KEY_VALUE' | 'MERMAID_FLOWCHART';
+type VisualType = 'ARRAY' | 'TABLE' | 'KEY_VALUE' | 'MERMAID_FLOWCHART' | "NETWORK";
 
 interface VisualState {
   type: VisualType;
@@ -715,6 +726,11 @@ const ImmersiveLearningPlatform: React.FC = () => {
           case 'ARRAY': return <ArrayVisualizer payload={visualData.payload} />;
           case 'TABLE': return <TableVisualizer payload={visualData.payload} />;
           case 'MERMAID_FLOWCHART': return <MermaidChart chart={visualData.payload.chart} />;
+          case 'NETWORK': 
+            // The backend sends { visual_graph_data: { nodes:[], links:[] } }
+            // So we pass visualData.payload directly if you structure it right in server.py
+            // Assuming server.py sends: payload = { "nodes": [...], "links": [...] }
+            return <ForceGraph data={visualData.payload} />;
           default: return null;
       }
   };
