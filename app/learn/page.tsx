@@ -670,7 +670,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
         });
         headRef.current = head;
 
-        const adapter = new KokoroAdapter("http://localhost:5000");
+        const adapter = new KokoroAdapter("https://ocellar-inclusively-delsie.ngrok-free.dev");
         adapterRef.current = adapter;
         
         try {
