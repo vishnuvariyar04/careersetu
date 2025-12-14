@@ -196,18 +196,35 @@ const MermaidChart = ({ chart }: { chart: string }) => {
 
   useEffect(() => {
     let mounted = true;
-    const renderChart = async () => {
-      if (!chart || !containerRef.current) return;
-      setError(null);
-      const id = `${MERMAID_ID_PREFIX}${Date.now()}`;
-      try {
-        const { svg } = await mermaid.render(id, chart);
-        if (mounted) setSvgContent(svg);
-      } catch (err) {
-        console.error("Mermaid Render Error:", err);
-        if (mounted) setError("Diagram syntax error");
-      }
-    };
+  const renderChart = async () => {
+  if (!chart || !containerRef.current) return;
+
+  // 1. Remove markdown
+  let cleanChart = chart.replace(/```mermaid/g, '').replace(/```/g, '');
+
+  // 2. Replace Non-Breaking Spaces (Causes "Parse error on line 2")
+  cleanChart = cleanChart.replace(/\u00A0/g, ' ');
+
+  // 3. FIX: Quote the Node Labels manually using Regex
+  // Matches: AnyWord[ContentWithParens] and wraps Content in " "
+  cleanChart = cleanChart.replace(/(\w+)\[(.*?)\]/g, (match, id, content) => {
+    // If it's already quoted, leave it alone
+    if (content.startsWith('"') && content.endsWith('"')) return match;
+    return `${id}["${content}"]`;
+  });
+
+  cleanChart = cleanChart.replace(/-->\|([^"\|]+?)\|/g, '-->|"$1"|');
+
+  setError(null);
+  const id = `${MERMAID_ID_PREFIX}${Date.now()}`;
+  try {
+    const { svg } = await mermaid.render(id, cleanChart.trim());
+    if (mounted) setSvgContent(svg);
+  } catch (err) {
+    console.error("Mermaid Render Error:", err);
+    // ... error handling
+  }
+};
     renderChart();
     return () => { mounted = false; };
   }, [chart]);
@@ -233,7 +250,7 @@ const MermaidChart = ({ chart }: { chart: string }) => {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
         ref={containerRef} 
-        className="relative z-10 w-full h-full flex items-center justify-center p-4 overflow-auto mermaid-container"
+        className="relative  z-10 w-full h-full flex items-center justify-center p-4 overflow-auto mermaid-container"
         dangerouslySetInnerHTML={{ __html: svgContent || '' }}
       />
     </div>
