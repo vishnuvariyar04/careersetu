@@ -1,117 +1,59 @@
 'use client'
 import React, { useEffect, useRef, useState } from 'react';
-import { TalkingHead } from "../../lib/modules/talkinghead.mjs"; 
-import { HeadTTS } from "../../lib/modules/headtts.mjs";
+// Adjust these imports to match your actual folder structure
+import { TalkingHead } from "@/lib/modules/talkinghead.mjs"; 
+import { KokoroAdapter } from "@/lib/modules/KokoroAdapter"; 
 import './TalkingHead.css'; 
 
 const TalkingHeadComponent = () => {
   const avatarRef = useRef(null);
   const headRef = useRef(null);
-  const headTTSRef = useRef(null);
-
+  const adapterRef = useRef(null); 
   const subtitleTimerRef = useRef(null);
 
-  // LATENCY
+  // Metrics
   const startTimeRef = useRef(0);
   const isFirstChunkRef = useRef(false);
 
-  // --- NEW: Chunk counting ---
-  const chunkCountRef = useRef(0);
-  const totalPartsRef = useRef(0);
-
-  // UI STATE
+  // UI State
   const [inputText, setInputText] = useState("Life is like a box of chocolates. You never know what you're gonna get.");
   const [selectedPerson, setSelectedPerson] = useState("julia");
   const [loadingStatus, setLoadingStatus] = useState("Initializing...");
   const [subtitles, setSubtitles] = useState("");
   const [latency, setLatency] = useState(null);
 
-  const handleSpeechFinished = () => {
-    console.log("🔥 FULL SENTENCE FINISHED (all chunks spoken)");
-    clearSubtitles();
-  };
-
   const persons = {
     "julia": {
-      avatar: { url: "/avatars/julia.glb", body: "F", avatarMood: "neutral" },
+      avatar: { url: "https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb?morphTargets=ARKit,Oculus Visemes", body: "F", avatarMood: "neutral" },
       view: { cameraY: 0 },
-      setup: { voice: "af_bella", language: "en-us", speed: 1, audioEncoding: "wav" }
+      voiceId: "af_bella"
     },
     "david": {
-      avatar: { url: "/avatars/david.glb", body: "M", avatarMood: "neutral" },
+      avatar: { url: "https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb?morphTargets=ARKit,Oculus Visemes", body: "M", avatarMood: "neutral" },
       view: { cameraY: -20 },
-      setup: { voice: "am_fenrir", language: "en-us", speed: 1, audioEncoding: "wav" }
+      voiceId: "am_fenrir"
     }
   };
 
+  // --- INITIALIZATION ---
   useEffect(() => {
     if (headRef.current) return;
 
     const init = async () => {
       try {
+        // 1. Setup Avatar
         const head = new TalkingHead(avatarRef.current, {
           ttsEndpoint: "N/A",
           cameraView: "upper",
-          mixerGainSpeech: 3,
+          mixerGainSpeech: 3.0, // Increase volume
           cameraRotateEnable: false
         });
         headRef.current = head;
 
-        const headtts = new HeadTTS({
-          endpoints: ["webgpu", "wasm"],
-          languages: ["en-us"],
-          voices: ["af_bella", "am_fenrir"],
-          voiceURL: window.location.origin + "/voices",
-          workerModule: window.location.origin + "/modules/worker-tts.mjs",
-          dictionaryURL: window.location.origin + "/dictionaries",
-          audioCtx: head.audioCtx,
-          trace: 0,
-        });
-        headTTSRef.current = headtts;
+        // 2. Setup Adapter
+        adapterRef.current = new KokoroAdapter("http://localhost:5000");
 
-        headtts.onmessage = (message) => {
-          if (message.type === "audio") {
-            const data = message.data;
-
-            // --- store PARTS TOTAL only once ---
-            if (totalPartsRef.current === 0) {
-              totalPartsRef.current = message.metaData.partsTotal;
-              console.log("Total chunks for this sentence:", totalPartsRef.current);
-            }
-
-            // --- LATENCY on first chunk ---
-            if (isFirstChunkRef.current) {
-              setLatency(Math.round(performance.now() - startTimeRef.current));
-              isFirstChunkRef.current = false;
-            }
-
-            // --- On chunk finish callback ---
-            const onChunkFinished = () => {
-              chunkCountRef.current++;
-
-              console.log("Chunk finished:", chunkCountRef.current, "/", totalPartsRef.current);
-
-              if (chunkCountRef.current === totalPartsRef.current) {
-                console.log("🔥 Entire sentence finished!");
-                handleSpeechFinished();
-              }
-            };
-
-            // --- Play audio with chunk-end callback ---
-            head.speakMarker(() => clearSubtitles());
-            head.speakAudio(
-              data,
-              {},
-              (word) => addSubtitle(word),
-              onChunkFinished   // <-- NEW
-            );
-          }
-
-          else if (message.type === "error") {
-            setLoadingStatus("Error: " + message.data?.error);
-          }
-        };
-
+        // 3. Load Person
         await loadPerson("julia");
         head.start();
 
@@ -123,63 +65,74 @@ const TalkingHeadComponent = () => {
 
     init();
     return () => { if (headRef.current) headRef.current.stop(); };
-
   }, []);
 
   const loadPerson = async (name) => {
     const head = headRef.current;
-    const headtts = headTTSRef.current;
     const person = persons[name];
+    if (!head) return;
 
-    if (!head || !headtts) return;
     setLoadingStatus(`Loading ${name}...`);
-
     try {
-      await Promise.all([
-        head.showAvatar(person.avatar),
-        headtts.connect()
-      ]);
-      
+      await head.showAvatar(person.avatar);
       head.setView(head.viewName, person.view);
-      head.cameraClock = 999;
-      headtts.setup(person.setup);
       setLoadingStatus("");
-
     } catch (err) {
       setLoadingStatus("Error: " + err.message);
     }
   };
 
-  const addSubtitle = (word, ms = 2000) => {
-    if (word) setSubtitles(prev => prev + word);
-
+  // --- SUBTITLES ---
+  const addSubtitle = (word) => {
+    if (word) setSubtitles(prev => prev + word + " ");
     if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
-
-    subtitleTimerRef.current = setTimeout(() => clearSubtitles(), ms);
+    subtitleTimerRef.current = setTimeout(() => setSubtitles(""), 3000);
   };
 
-  const clearSubtitles = () => {
-    if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
-    setSubtitles("");
-  };
+  // --- SPEAK BUTTON ---
+  const handleSpeak = async () => {
+    const head = headRef.current;
+    const adapter = adapterRef.current;
+    const person = persons[selectedPerson];
 
-  const handleSpeak = () => {
-    if (headTTSRef.current && inputText) {
-
-      // --- RESET CHUNK COUNTERS ---
-      chunkCountRef.current = 0;
-      totalPartsRef.current = 0;
-
-      // resume audio ctx
-      if (headRef.current.audioCtx.state === 'suspended') {
-        headRef.current.audioCtx.resume();
-      }
-
+    if (head && adapter && inputText) {
+      setLoadingStatus("Speaking..."); // Disable button
+      setSubtitles("");
       setLatency(null);
+      
+      // Metrics reset
       startTimeRef.current = performance.now();
       isFirstChunkRef.current = true;
 
-      headTTSRef.current.synthesize({ input: inputText });
+      try {
+        await adapter.streamToAvatar(
+          head, 
+          inputText, 
+          person.voiceId,
+          
+          // 1. On Chunk (Latency Check)
+          (index) => {
+             if (isFirstChunkRef.current) {
+                const lat = Math.round(performance.now() - startTimeRef.current);
+                setLatency(lat);
+                isFirstChunkRef.current = false;
+             }
+          },
+
+          // 2. On Subtitle (Display words)
+          (word) => addSubtitle(word),
+
+          // 3. On All Finished (Reset UI)
+          () => {
+             console.log("✅ Avatar finished speaking.");
+             setLoadingStatus(""); // Re-enable button
+             setSubtitles("");
+          }
+        );
+      } catch (e) {
+        console.error("Stream error:", e);
+        setLoadingStatus("Error");
+      }
     }
   };
 
@@ -191,21 +144,24 @@ const TalkingHeadComponent = () => {
 
   return (
     <div className="th-container">
+      {/* 3D Viewport */}
       <div id="avatar" ref={avatarRef} className="th-avatar-viewport" />
 
+      {/* Controls UI */}
       <div className="th-controls">
         <input 
           type="text"
           className="th-input"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
+          placeholder="Type something..."
         />
 
         <select 
           className="th-select"
           value={selectedPerson}
           onChange={handlePersonChange}
-          disabled={loadingStatus !== ""}
+          disabled={loadingStatus === "Speaking..."}
         >
           <option value="julia">Julia</option>
           <option value="david">David</option>
@@ -214,32 +170,30 @@ const TalkingHeadComponent = () => {
         <button 
           className="th-button"
           onClick={handleSpeak}
-          disabled={loadingStatus !== ""}
+          disabled={loadingStatus === "Speaking..." || loadingStatus.startsWith("Loading")}
         >
-          {loadingStatus !== "" ? "Wait" : "Speak"}
+          {loadingStatus === "Speaking..." ? "Speaking..." : "Speak"}
         </button>
       </div>
 
+      {/* Latency Badge */}
       {latency && (
         <div style={{
-          position: 'absolute',
-          top: '80px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'rgba(0,0,0,0.7)',
-          color: '#4CAF50',
-          padding: '5px 10px',
-          borderRadius: '5px',
-          fontSize: '14px',
-          fontWeight: 'bold',
-          zIndex: 90
+          position: 'absolute', top: '20px', left: '20px',
+          background: 'rgba(0,0,0,0.6)', color: '#0f0',
+          padding: '4px 8px', borderRadius: '4px', fontSize: '12px',
+          fontFamily: 'monospace'
         }}>
-          Response Time: {latency}ms
+          Latency: {latency}ms
         </div>
       )}
 
-      {loadingStatus && <div className="th-info">Status: {loadingStatus}</div>}
+      {/* Loading/Status Overlay */}
+      {loadingStatus && loadingStatus !== "Speaking..." && (
+        <div className="th-info">{loadingStatus}</div>
+      )}
 
+      {/* Subtitles */}
       <div className="th-subtitles">{subtitles}</div>
     </div>
   );

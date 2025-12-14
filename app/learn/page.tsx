@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import mermaid from 'mermaid';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup, Variants } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { createClient } from '@supabase/supabase-js'; 
@@ -14,9 +14,10 @@ import {
   LogOut, User as UserIcon, Lock
 } from 'lucide-react';
 
-// --- External Imports (Preserved) ---
+// --- External Imports ---
 import { TalkingHead } from "../../lib/modules/talkinghead.mjs"; 
-import { HeadTTS } from "../../lib/modules/headtts.mjs";
+import { KokoroAdapter } from "../../lib/modules/KokoroAdapter.js"; 
+
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -66,6 +67,34 @@ type PlaybackAction =
 const ANIMATION_SPRING = { type: "spring", stiffness: 300, damping: 30 };
 const MERMAID_ID_PREFIX = 'immersive-mermaid-';
 
+// UI Animation Variants
+const PANEL_VARIANTS: Variants = {
+  hidden: { opacity: 0, scale: 0.98, filter: "blur(10px)" },
+  visible: { 
+    opacity: 1, 
+    scale: 1, 
+    filter: "blur(0px)",
+    transition: { duration: 0.4, ease: "easeOut" }
+  },
+  exit: { opacity: 0, scale: 0.98, filter: "blur(10px)", transition: { duration: 0.2 } }
+};
+
+const STAGGER_CONTAINER: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
+      delayChildren: 0.1
+    }
+  }
+};
+
+const FADE_UP: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 200, damping: 20 } }
+};
+
 mermaid.initialize({ 
   startOnLoad: false, 
   theme: 'dark', 
@@ -82,12 +111,9 @@ const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError(null);
-    
-    // 1. Snapshot the EXACT current URL (Deep Link)
     if (typeof window !== 'undefined') {
         localStorage.setItem('auth_return_url', window.location.href);
     }
-
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -112,26 +138,30 @@ const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-md" 
+            className="absolute inset-0 bg-black/80 backdrop-blur-md" 
             onClick={onClose}
           />
           <motion.div 
-            initial={{ scale: 0.95, opacity: 0, y: 20 }} 
+            initial={{ scale: 0.9, opacity: 0, y: 20 }} 
             animate={{ scale: 1, opacity: 1, y: 0 }} 
-            exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            transition={{ type: "spring", duration: 0.5, bounce: 0 }}
-            className="relative bg-[#09090b] border border-white/10 w-full max-w-[380px] rounded-2xl shadow-2xl overflow-hidden"
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            transition={{ type: "spring", duration: 0.5, bounce: 0.3 }}
+            className="relative bg-[#09090b] border border-white/10 w-full max-w-[380px] rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden"
           >
-            <button onClick={onClose} className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white transition-colors rounded-full hover:bg-white/5">
+            {/* Background Gradient */}
+            <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+            
+            <button onClick={onClose} className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white transition-colors rounded-full hover:bg-white/5 z-20">
               <X size={16}/>
             </button>
 
-            <div className="p-8 pt-10 flex flex-col items-center text-center">
-              <div className="  mb-6">
-                <img src="/images/outlrn-fav.png" alt="Outlrn Logo" className="w-12 h-12"/>
+            <div className="p-8 pt-10 flex flex-col items-center text-center relative z-10">
+              <div className="mb-6 relative">
+                <div className="absolute inset-0 bg-cyan-500/20 blur-xl rounded-full" />
+                <img src="/images/outlrn-fav.png" alt="Outlrn Logo" className="w-14 h-14 relative z-10 drop-shadow-lg"/>
               </div>
               <h2 className="text-xl font-medium text-white tracking-tight mb-2">Authentication Required</h2>
-              <p className="text-sm text-zinc-500 px-4 mb-8 leading-relaxed">Sign in to synchronize your sessions and access the interface.</p>
+              <p className="text-sm text-zinc-400 px-4 mb-8 leading-relaxed">Sign in to synchronize your sessions and access the interface.</p>
 
               {error && (
                 <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="w-full mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs font-medium">
@@ -141,7 +171,7 @@ const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
               
               <button 
                 onClick={handleGoogleLogin} disabled={loading}
-                className="group hover:cursor-pointer w-full relative flex items-center justify-center gap-3 py-3 bg-white hover:bg-zinc-200 text-black rounded-xl font-semibold text-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:shadow-[0_0_25px_rgba(255,255,255,0.15)]"
+                className="group hover:cursor-pointer w-full relative flex items-center justify-center gap-3 py-3 bg-white hover:bg-zinc-200 text-black rounded-xl font-semibold text-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)]"
               >
                 {loading ? <Loader2 className="animate-spin text-zinc-600" size={18}/> : (
                   <>
@@ -184,36 +214,41 @@ const MermaidChart = ({ chart }: { chart: string }) => {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-red-400 space-y-2">
-        <AlertCircle size={24} />
-        <span className="text-xs font-mono">{error}</span>
+      <div className="relative w-full h-full flex flex-col items-center justify-center bg-[#0a0a0a] overflow-hidden text-red-400 space-y-2">
+         <div className="absolute inset-0 bg-[radial-gradient(#80808012_1px,transparent_1px)] [background-size:16px_16px]" />
+        <AlertCircle size={24} className="relative z-10" />
+        <span className="text-xs font-mono relative z-10">{error}</span>
       </div>
     );
   }
 
   return (
-    <div 
-      ref={containerRef} 
-      className="w-full h-full flex items-center justify-center p-4 overflow-auto mermaid-container"
-      dangerouslySetInnerHTML={{ __html: svgContent || '' }}
-    />
+    <div className="relative w-full h-full bg-[#0a0a0a] overflow-hidden flex items-center justify-center">
+      {/* GRID BACKGROUND */}
+      <div className="absolute inset-0 bg-[radial-gradient(#80808012_1px,transparent_1px)] [background-size:20px_20px] opacity-50" />
+      
+      <motion.div 
+        key={svgContent ? 'loaded' : 'loading'}
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        ref={containerRef} 
+        className="relative z-10 w-full h-full flex items-center justify-center p-4 overflow-auto mermaid-container"
+        dangerouslySetInnerHTML={{ __html: svgContent || '' }}
+      />
+    </div>
   );
 };
 
 
 const detectLanguage = (code: string): 'python' | 'javascript' => {
-  if (!code) return 'python'; // Default
-  
-  // Simple heuristics
+  if (!code) return 'python'; 
   const jsIndicators = ['const ', 'let ', 'var ', 'function ', '=>', 'console.log', '===', 'import React'];
   const pyIndicators = ['def ', 'import ', 'print(', 'class ', 'elif ', 'None', 'True', 'False'];
-
   let jsScore = 0;
   let pyScore = 0;
-
   jsIndicators.forEach(i => { if (code.includes(i)) jsScore++; });
   pyIndicators.forEach(i => { if (code.includes(i)) pyScore++; });
-
   return jsScore > pyScore ? 'javascript' : 'python';
 };
 
@@ -224,69 +259,77 @@ const ArrayVisualizer = ({ payload }: { payload: any }) => {
   const dimmed_indices = payload?.dimmed_indices || []; 
 
   return (
-    <div className="flex flex-col items-center justify-center w-full overflow-x-auto py-12 px-4 scrollbar-hide">
-      <div className="flex gap-4">
-        <AnimatePresence mode='popLayout'>
-          {data.map((val: any, idx: number) => {
-            const isHighlighted = highlights.includes(idx);
-            const isDimmed = dimmed_indices.includes(idx);
-            const activePointers = Object.entries(pointers)
-              .filter(([_, ptrIdx]) => ptrIdx === idx)
-              .map(([name]) => name);
+    <div className="relative flex-1 w-full flex flex-col items-center justify-center bg-[#0a0a0a] overflow-hidden">
+      
+      {/* GRID BACKGROUND */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent opacity-80" />
 
-            return (
-              <motion.div 
-                layout
-                initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                animate={{ 
-                  opacity: isDimmed ? 0.3 : 1, 
-                  scale: isHighlighted ? 1.1 : 1,
-                  y: 0,
-                  filter: isDimmed ? 'blur(2px)' : 'blur(0px)'
-                }}
-                exit={{ opacity: 0, scale: 0 }}
-                transition={ANIMATION_SPRING}
-                key={`item-${idx}`} 
-                className="relative flex flex-col items-center group"
-              >
-                {/* Pointers Section */}
-                <div className="h-8 w-full absolute -top-10 flex flex-col-reverse items-center">
-                  <AnimatePresence>
-                    {activePointers.map((p: string) => (
-                      <motion.div 
-                        key={p}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
-                        className="flex flex-col items-center"
-                      >
-                         <span className="text-[10px] font-bold font-mono text-cyan-400 bg-cyan-950/50 px-1.5 rounded uppercase tracking-wider mb-1">
-                          {p}
-                        </span>
-                        <div className="w-0.5 h-3 bg-cyan-400" />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
+      {/* CONTENT CONTAINER */}
+      <div className="relative z-10 w-full overflow-x-auto py-20 px-4 flex justify-center scrollbar-hide">
+        <div className="flex gap-6">
+          <AnimatePresence mode='popLayout'>
+            {data.map((val: any, idx: number) => {
+              const isHighlighted = highlights.includes(idx);
+              const isDimmed = dimmed_indices.includes(idx);
+              const activePointers = Object.entries(pointers)
+                .filter(([_, ptrIdx]) => ptrIdx === idx)
+                .map(([name]) => name);
 
-                {/* Memory Block */}
-                <div className={cn(
-                  "w-16 h-16 flex items-center justify-center rounded-xl border-2 text-xl font-bold font-mono shadow-lg transition-colors duration-300 backdrop-blur-sm",
-                  isHighlighted 
-                    ? "bg-cyan-500/20 border-cyan-400 text-cyan-50 shadow-[0_0_30px_rgba(6,182,212,0.3)] z-10" 
-                    : "bg-[#1a1a1a]/80 border-white/10 text-gray-400"
-                )}>
-                  {val}
-                </div>
+              return (
+                <motion.div 
+                  layout
+                  initial={{ opacity: 0, scale: 0.5, y: 50, filter: 'blur(10px)' }}
+                  animate={{ 
+                    opacity: isDimmed ? 0.3 : 1, 
+                    scale: isHighlighted ? 1.1 : 1,
+                    y: 0,
+                    filter: isDimmed ? 'blur(2px)' : 'blur(0px)'
+                  }}
+                  exit={{ opacity: 0, scale: 0, filter: 'blur(10px)' }}
+                  transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                  key={`item-${idx}`} 
+                  className="relative flex flex-col items-center group"
+                >
+                  {/* Pointers Section (Top) */}
+                  <div className="h-8 w-full absolute -top-12 flex flex-col-reverse items-center">
+                    <AnimatePresence>
+                      {activePointers.map((p: string) => (
+                        <motion.div 
+                          key={p}
+                          initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 5, scale: 0.8 }}
+                          className="flex flex-col items-center"
+                        >
+                           <span className="text-[10px] font-bold font-mono text-cyan-400 bg-cyan-950/80 backdrop-blur px-2 py-0.5 rounded-full uppercase tracking-wider mb-1 shadow-lg border border-cyan-500/30">
+                            {p}
+                          </span>
+                          <div className="w-0.5 h-3 bg-cyan-400" />
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
 
-                {/* Index */}
-                <span className="mt-3 text-[10px] text-gray-600 font-mono group-hover:text-gray-400 transition-colors">
-                  index: {idx}
-                </span>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
+                  {/* Memory Block */}
+                  <div className={cn(
+                    "w-20 h-20 flex items-center justify-center rounded-2xl border text-2xl font-bold font-mono shadow-xl transition-all duration-300 backdrop-blur-md",
+                    isHighlighted 
+                      ? "bg-cyan-500/10 border-cyan-400 text-cyan-50 shadow-[0_0_40px_rgba(6,182,212,0.2)] z-10" 
+                      : "bg-[#151515]/60 border-white/5 text-gray-400 hover:bg-[#202020] hover:border-white/10"
+                  )}>
+                    {val}
+                  </div>
+
+                  {/* Index (Bottom) */}
+                  <span className="mt-4 text-[10px] text-gray-600 font-mono group-hover:text-gray-400 transition-colors">
+                    INDEX {idx}
+                  </span>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
@@ -298,32 +341,45 @@ const TableVisualizer = ({ payload }: { payload: any }) => {
   const highlight_row = payload?.highlight_row ?? -1;
 
   return (
-    <div className="w-full overflow-hidden rounded-xl border border-white/10 bg-[#0a0a0a]">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-white/5 text-gray-400 uppercase font-mono text-xs tracking-wider">
-            <tr>{headers.map((h: string, i: number) => <th key={i} className="px-6 py-4 font-medium">{h}</th>)}</tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {rows.map((row: any[], i: number) => (
-              <motion.tr 
-                key={i} 
-                initial={{ backgroundColor: 'transparent' }}
-                animate={{ 
-                  backgroundColor: highlight_row === i ? 'rgba(6,182,212, 0.15)' : 'transparent',
-                }}
-                className="transition-colors hover:bg-white/5"
-              >
-                 {row.map((cell: any, j: number) => (
-                   <td key={j} className={cn("px-6 py-4 font-mono text-gray-300", highlight_row === i && "text-cyan-200")}>
-                     {cell}
-                   </td>
-                 ))}
-              </motion.tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="w-full h-full flex items-center justify-center p-8 bg-[#0a0a0a] relative overflow-hidden">
+       {/* GRID BACKGROUND for Table */}
+       <div className="absolute inset-0 bg-[radial-gradient(#80808012_1px,transparent_1px)] [background-size:20px_20px]" />
+       
+       <motion.div 
+         initial="hidden" animate="visible" variants={PANEL_VARIANTS}
+         className="w-full max-w-4xl overflow-hidden rounded-2xl border border-white/5 bg-[#0e0e0e]/80 backdrop-blur-xl relative z-10 shadow-2xl"
+       >
+        <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+            <thead className="bg-white/5 text-gray-500 uppercase font-mono text-xs tracking-wider border-b border-white/5">
+                <tr>{headers.map((h: string, i: number) => <th key={i} className="px-6 py-4 font-semibold">{h}</th>)}</tr>
+            </thead>
+            <motion.tbody 
+              variants={STAGGER_CONTAINER}
+              initial="hidden"
+              animate="visible"
+              className="divide-y divide-white/5"
+            >
+                {rows.map((row: any[], i: number) => (
+                <motion.tr 
+                    variants={FADE_UP}
+                    key={i} 
+                    animate={{ 
+                        backgroundColor: highlight_row === i ? 'rgba(6,182,212, 0.1)' : 'transparent',
+                    }}
+                    className="transition-colors hover:bg-white/5"
+                >
+                    {row.map((cell: any, j: number) => (
+                    <td key={j} className={cn("px-6 py-4 font-mono text-gray-400", highlight_row === i && "text-cyan-200 font-bold")}>
+                        {cell}
+                    </td>
+                    ))}
+                </motion.tr>
+                ))}
+            </motion.tbody>
+            </table>
+        </div>
+       </motion.div>
     </div>
   );
 };
@@ -333,7 +389,13 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
   const codeLines = code.split('\n');
 
   return (
-    <div className="text-sm font-mono h-full w-full">
+    <motion.div 
+      key={code} 
+      initial={{ opacity: 0, filter: 'blur(5px)' }} 
+      animate={{ opacity: 1, filter: 'blur(0px)' }} 
+      transition={{ duration: 0.3 }}
+      className="text-sm font-mono h-full w-full"
+    >
       <SyntaxHighlighter
         language={language}
         style={vscDarkPlus}
@@ -349,7 +411,7 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
         lineNumberStyle={{
           minWidth: '2.5em',
           paddingRight: '1em',
-          color: '#6e7681', // VS Code gutter color
+          color: '#6e7681', 
           textAlign: 'right'
         }}
         wrapLines={true}
@@ -361,7 +423,8 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
             if (lineContent.includes(highlightQuery.trim())) {
               style.backgroundColor = 'rgba(6, 182, 212, 0.15)'; 
               style.borderLeft = '3px solid #22d3ee';
-              style.marginLeft = '-3px'; // Fix border offset
+              style.marginLeft = '-3px'; 
+              style.boxShadow = 'inset 0 0 20px rgba(6, 182, 212, 0.05)';
             }
           }
           return { style };
@@ -369,7 +432,7 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
       >
         {code}
       </SyntaxHighlighter>
-    </div>
+    </motion.div>
   );
 };
 
@@ -394,7 +457,6 @@ const ImmersiveLearningPlatform: React.FC = () => {
   // Session State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
   
-  // NOTE: activeSessionId is null for "New Chat" state
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null); 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionHistories, setSessionHistories] = useState<Record<string, Message[]>>({});
@@ -410,15 +472,15 @@ const ImmersiveLearningPlatform: React.FC = () => {
   const hasInitializedRef = useRef(false); 
   const avatarRef = useRef<HTMLDivElement>(null);
   const headRef = useRef<any>(null);
-  const headTTSRef = useRef<any>(null);
+  
+  const adapterRef = useRef<any>(null); 
+  const currentVoiceIdRef = useRef<string>("af_bella"); 
+
   const codeContainerRef = useRef<HTMLDivElement>(null);
-  const audioResolverRef = useRef<(() => void) | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const commandQueueRef = useRef<PlaybackAction[]>([]);
   const isExecutingRef = useRef(false);
-  const onEndCountRef = useRef(0);
-  const totalPartsRef = useRef(0);
-  const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const subtitleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // --- LOGIC: Initialize App ---
   const fetchSessionsAndInit = async (userId: string) => {
@@ -452,12 +514,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
         }
       } else {
         // A2: ID in URL but NOT in DB (Adoption Case for Guest -> User)
-        // We only "adopt" it if we have messages. If it's a blank ID, we ignore.
-        // Actually, for "Lazy" logic, we should probably just treat it as a new session request
-        // that hasn't been saved yet.
-        // We will set it as active, but NOT save to DB yet until they chat.
         setActiveSessionId(urlSessionId);
-        // We do NOT call DB insert here. Wait for interaction.
       }
     } else {
       // Case B: No URL ID -> "New Chat" State
@@ -496,8 +553,8 @@ const ImmersiveLearningPlatform: React.FC = () => {
         
         // Clean Hash
         if (window.location.hash && window.location.hash.includes('access_token')) {
-             const cleanUrl = window.location.pathname + window.location.search;
-             window.history.replaceState(null, '', cleanUrl);
+              const cleanUrl = window.location.pathname + window.location.search;
+              window.history.replaceState(null, '', cleanUrl);
         }
 
         // Restore Deep Link
@@ -517,7 +574,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
         // Logout -> Reset to New Chat
         setSessions([]); 
         setActiveSessionId(null);
-        window.history.replaceState(null, '', window.location.pathname); // Clear Query Params
+        window.history.replaceState(null, '', window.location.pathname); 
         setMessages([{ id: 'init', role: 'assistant', content: "Signed out. System reset.", timestamp: Date.now() }]);
       }
     });
@@ -584,6 +641,13 @@ const ImmersiveLearningPlatform: React.FC = () => {
       window.history.replaceState(null, '', window.location.pathname);
   };
 
+  // --- SUBTITLES HELPER ---
+  const setSubtitleText = (text: string) => {
+      setSubtitles(prev => prev.length > 80 ? "..." + text + " " : prev + text + " ");
+      if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
+      subtitleTimerRef.current = setTimeout(() => setSubtitles(""), 2000);
+  };
+
   // --- SCROLLING ---
   useEffect(() => {
     if (highlightQuery && codeContainerRef.current) {
@@ -605,49 +669,16 @@ const ImmersiveLearningPlatform: React.FC = () => {
           ttsEndpoint: "N/A", cameraView: "upper", mixerGainSpeech: 3, cameraRotateEnable: false
         });
         headRef.current = head;
-        const headtts = new HeadTTS({
-          endpoints: ["webgpu", "wasm"],
-          languages: ["en-us"],
-          voices: ["af_bella", "am_fenrir"], 
-          voiceURL: window.location.origin + "/voices", 
-          workerModule: window.location.origin + "/modules/worker-tts.mjs",
-          dictionaryURL: window.location.origin + "/dictionaries",
-          audioCtx: head.audioCtx,
-        });
-        headTTSRef.current = headtts;
-        
-        headtts.onmessage = (message: any) => {
-              if (message.type === "audio") {
-                kickWatchdog();
-                const { partsTotal } = message.metaData || { partsTotal: 1 };
-                if (partsTotal > 0) totalPartsRef.current = partsTotal;
-                
-                head.speakAudio(message.data, { volume: 1 }, 
-                    (word: string) => setSubtitles(prev => prev.length > 80 ? "..." + word : prev + word),
-                    () => {
-                        onEndCountRef.current += 1;
-                        if (totalPartsRef.current > 0 && onEndCountRef.current >= totalPartsRef.current) {
-                            if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
-                            audioResolverRef.current?.();
-                            audioResolverRef.current = null;
-                            setTimeout(() => setSubtitles(""), 1000);
-                        } else {
-                            kickWatchdog();
-                        }
-                    }
-                );
-            }
-        };
 
+        const adapter = new KokoroAdapter("http://localhost:5000");
+        adapterRef.current = adapter;
+        
         try {
-            await Promise.all([
-                 head.showAvatar({ url: "/avatars/david.glb", body: "F", avatarMood: "neutral" }),
-                 headtts.connect()
-            ]);
+            await head.showAvatar({ url: "/avatars/david.glb", body: "F", avatarMood: "neutral" });
             head.setView(head.viewName, { cameraY: 0 });
-            headtts.setup({ voice: "am_fenrir", language: "en-us", speed: 1.1, audioEncoding: "wav" });
             head.start();
             setAvatarStatus("Online");
+            currentVoiceIdRef.current = "am_fenrir"; 
         } catch (innerErr) {
              console.warn("Avatar assets missing, running in headless mode", innerErr);
              setAvatarStatus("Headless Mode");
@@ -660,12 +691,15 @@ const ImmersiveLearningPlatform: React.FC = () => {
     return () => { if (headRef.current) headRef.current.stop(); };
   }, []);
 
-  const kickWatchdog = () => {
-      if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
-      watchdogTimerRef.current = setTimeout(() => {
-          audioResolverRef.current?.();
-          audioResolverRef.current = null;
-      }, 60000); // 60 seconds timeout
+  // --- VISUAL RENDER HELPER ---
+  const renderVisualContent = () => {
+      if (!visualData) return null;
+      switch (visualData.type) {
+          case 'ARRAY': return <ArrayVisualizer payload={visualData.payload} />;
+          case 'TABLE': return <TableVisualizer payload={visualData.payload} />;
+          case 'MERMAID_FLOWCHART': return <MermaidChart chart={visualData.payload.chart} />;
+          default: return null;
+      }
   };
 
   const processQueue = async () => {
@@ -708,18 +742,32 @@ const ImmersiveLearningPlatform: React.FC = () => {
             }
           });
           
-          if (isTTSActive && headTTSRef.current && avatarStatus !== "Offline") {
-             setSubtitles("");
-             onEndCountRef.current = 0;
-             totalPartsRef.current = 0;
-             if (headRef.current?.audioCtx?.state === 'suspended') await headRef.current.audioCtx.resume();
-             kickWatchdog();
-             await new Promise<void>((resolve) => {
-                 audioResolverRef.current = resolve;
-                 try { headTTSRef.current.synthesize({ input: action.text }); } 
-                 catch (e) { resolve(); }
-             });
+          if (isTTSActive && adapterRef.current && avatarStatus !== "Offline") {
+              setSubtitles("");
+              
+              // Ensure Audio Context is Running
+              if (headRef.current?.audioCtx?.state === 'suspended') await headRef.current.audioCtx.resume();
+              
+              await new Promise<void>((resolve) => {
+                  try {
+                      adapterRef.current.streamToAvatar(
+                          headRef.current,
+                          action.text,
+                          currentVoiceIdRef.current,
+                          null, // onChunk
+                          (word: string) => setSubtitleText(word), // onSubtitle
+                          () => { // onAllFinished
+                              setSubtitles("");
+                              resolve();
+                          }
+                      );
+                  } catch (e) {
+                      console.error("TTS Error", e);
+                      resolve();
+                  }
+              });
           } else {
+            // Fallback delay if TTS is off
             await new Promise(resolve => setTimeout(resolve, action.text.length * 50)); 
           }
           break;
@@ -840,7 +888,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
       <motion.div 
         initial={{ width: 0, opacity: 0 }}
         animate={{ width: isSidebarOpen ? 240 : 0, opacity: isSidebarOpen ? 1 : 0 }}
-        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        transition={{ duration: 0.3, ease: [0.33, 1, 0.68, 1] }}
         className="flex flex-col border-r border-white/5 bg-[#030303] relative z-30 overflow-hidden whitespace-nowrap"
       >
         <div className="p-4 border-b border-white/5">
@@ -880,7 +928,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
             {user ? (
                <div className="flex flex-col gap-3">
                    <div className="flex items-center gap-3 px-1">
-                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-900 to-purple-900 border border-white/10 flex items-center justify-center text-xs font-bold text-white">
+                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-900 to-purple-900 border border-white/10 flex items-center justify-center text-xs font-bold text-white shadow-lg">
                           {user.email?.[0].toUpperCase()}
                        </div>
                        <div className="flex flex-col overflow-hidden">
@@ -910,7 +958,8 @@ const ImmersiveLearningPlatform: React.FC = () => {
       <motion.div 
         initial={{ x: -50, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
-        className="w-[30%] min-w-[340px] max-w-[450px] flex flex-col border-r border-white/5 relative z-20 bg-[#080808]/80 backdrop-blur-xl"
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="w-[30%] min-w-[340px] max-w-[450px] flex flex-col border-r border-white/5 relative z-20 bg-[#080808]/90 backdrop-blur-xl"
       >
         <div className="h-16 px-6 flex justify-between items-center border-b border-white/5">
           <div className="flex items-center gap-3">
@@ -929,13 +978,13 @@ const ImmersiveLearningPlatform: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
-             <button 
-              onClick={handleTestSpeech}
-              disabled={avatarStatus !== "Online" || isPlaying}
-              className="px-2 py-1 bg-white/5 hover:bg-cyan-500/20 border border-white/10 rounded text-[10px] font-mono text-cyan-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:border-cyan-500/50"
-            >
-              TEST_AUDIO
-            </button>
+              <button 
+               onClick={handleTestSpeech}
+               disabled={avatarStatus !== "Online" || isPlaying}
+               className="px-2 py-1 bg-white/5 hover:bg-cyan-500/20 border border-white/10 rounded text-[10px] font-mono text-cyan-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:border-cyan-500/50"
+              >
+               TEST_AUDIO
+              </button>
             <button 
               onClick={() => setIsTTSActive(!isTTSActive)} 
               className="p-2 hover:bg-white/5 rounded-full transition-colors group"
@@ -957,12 +1006,12 @@ const ImmersiveLearningPlatform: React.FC = () => {
            <AnimatePresence>
              {subtitles && (
                <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="absolute bottom-4 left-0 right-0 flex justify-center px-4 pointer-events-none z-50"
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                className="absolute bottom-6 left-0 right-0 flex justify-center px-4 pointer-events-none z-50"
                >
-                  <span className="bg-black/60 text-cyan-50 px-3 py-1.5 rounded-lg text-sm shadow-xl backdrop-blur-md border border-white/10 text-center">
+                  <span className="bg-black/60 text-cyan-50 px-4 py-2 rounded-2xl text-sm shadow-2xl backdrop-blur-xl border border-white/10 text-center leading-relaxed">
                     {subtitles}
                   </span>
                </motion.div>
@@ -975,12 +1024,13 @@ const ImmersiveLearningPlatform: React.FC = () => {
           {messages.map((msg) => (
             <motion.div 
               key={msg.id} 
-              initial={{ opacity: 0, x: msg.role === 'assistant' ? -10 : 10 }}
+              initial={{ opacity: 0, x: msg.role === 'assistant' ? -20 : 20 }}
               animate={{ opacity: 1, x: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}
             >
               <div className={cn(
-                "max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed border",
+                "max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed border shadow-md",
                 msg.role === 'assistant' 
                   ? "bg-[#111] border-white/5 text-gray-200 rounded-tl-none" 
                   : "bg-cyan-950/20 border-cyan-500/20 text-cyan-100 rounded-tr-none"
@@ -1003,7 +1053,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
       <div className="flex-1 flex flex-col bg-[#050505] relative overflow-hidden">
         
         <header className="h-16 flex items-center justify-between px-8 border-b border-white/5 bg-[#080808]/50 backdrop-blur z-30">
-          <div className="flex gap-1 bg-[#111] p-1 rounded-lg border border-white/5">
+          <div className="flex gap-1 bg-[#111] p-1 rounded-lg border border-white/5 shadow-inner">
             {[
               { id: 'CONCEPT_MODE', icon: Layout, label: 'Concept' },
               { id: 'SPLIT_MODE', icon: Columns, label: 'Split' },
@@ -1017,10 +1067,10 @@ const ImmersiveLearningPlatform: React.FC = () => {
                    if (m.id !== 'SPLIT_MODE' && m.id !== 'FOCUS_MODE') setHighlightQuery(null);
                  }}
                  className={cn(
-                   "px-4 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-all",
+                   "px-4 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-all duration-200",
                    layoutMode === m.id 
-                    ? "bg-[#222] text-white shadow-sm ring-1 ring-white/10" 
-                    : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                    ? "bg-[#222] text-white shadow-sm ring-1 ring-white/10 scale-100" 
+                    : "text-gray-500 hover:text-gray-300 hover:bg-white/5 scale-95 hover:scale-100"
                  )}
                >
                  <m.icon size={14} />
@@ -1029,7 +1079,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
             ))}
           </div>
           <div className="flex gap-4 text-gray-600">
-             {!user&&<button 
+              {!user&&<button 
                   onClick={() => setShowAuthModal(true)}
                   className="w-full py-2 px-3 bg-white/5 hover:bg-white/10 text-gray-300 text-xs rounded border border-white/5 transition-colors flex items-center justify-center gap-2"
                 >
@@ -1040,40 +1090,64 @@ const ImmersiveLearningPlatform: React.FC = () => {
 
         <main className="flex-1 relative p-6 flex gap-6 overflow-hidden">
           <LayoutGroup>
+            <AnimatePresence mode="popLayout">
             
             {(layoutMode === 'CONCEPT_MODE' || layoutMode === 'SPLIT_MODE') && (
               <motion.div 
+                key="concept-panel"
+                variants={PANEL_VARIANTS}
+                initial="hidden" animate="visible" exit="exit"
                 layoutId="panel-concept"
                 className={cn(
-                  "relative flex flex-col bg-[#0e0e0e] border border-white/5 rounded-2xl overflow-hidden shadow-2xl",
+                  "relative flex flex-col bg-[#0e0e0e] border border-white/5 rounded-3xl overflow-hidden shadow-2xl",
                   layoutMode === 'CONCEPT_MODE' ? "flex-1" : "w-[40%] min-w-[400px]"
                 )}
               >
-                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-purple-500 opacity-50" />
-                 <div className="p-10 flex flex-col h-full justify-center">
-                    <motion.div 
-                      key={conceptData.title}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-6"
-                    >
-                      <h1 className="text-4xl font-light text-white tracking-tight">
-                        {conceptData.title}
-                        <span className="text-cyan-500 block text-lg font-mono font-normal mt-2 tracking-widest uppercase opacity-70">Core Concept</span>
-                      </h1>
-                      <p className="text-gray-400 leading-relaxed text-lg font-light max-w-2xl border-l-2 border-white/10 pl-6">
-                        {conceptData.text}
-                      </p>
-                    </motion.div>
-                 </div>
+                  {/* Subtle Gradient BG */}
+                  <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-900/10 blur-[100px] rounded-full pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-cyan-900/10 blur-[100px] rounded-full pointer-events-none" />
+                  
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-transparent opacity-50" />
+                  
+                  <div className="p-10 flex flex-col h-full justify-center relative z-10">
+                     <AnimatePresence mode='wait'>
+                        <motion.div 
+                          key={conceptData.title}
+                          initial={{ opacity: 0, y: 10, filter: 'blur(5px)' }}
+                          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                          exit={{ opacity: 0, y: -10, filter: 'blur(5px)' }}
+                          transition={{ duration: 0.4 }}
+                          className="space-y-8"
+                        >
+                          <motion.h1 
+                            initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
+                            className="text-5xl font-light text-white tracking-tight"
+                          >
+                            {conceptData.title}
+                            <span className="text-cyan-500 block text-sm font-mono font-bold mt-4 tracking-[0.2em] uppercase opacity-70 flex items-center gap-2">
+                               <div className="w-8 h-[1px] bg-cyan-500"></div> Core Concept
+                            </span>
+                          </motion.h1>
+                          <motion.p 
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
+                            className="text-gray-400 leading-relaxed text-lg font-light max-w-2xl border-l-2 border-white/10 pl-6"
+                          >
+                            {conceptData.text}
+                          </motion.p>
+                        </motion.div>
+                     </AnimatePresence>
+                  </div>
               </motion.div>
             )}
 
             {(layoutMode === 'SPLIT_MODE' || layoutMode === 'FOCUS_MODE') && (
               <motion.div 
+                key="code-panel"
+                variants={PANEL_VARIANTS}
+                initial="hidden" animate="visible" exit="exit"
                 layoutId="panel-code"
                 className={cn(
-                  "relative flex flex-col bg-[#1e1e1e] border border-white/10 rounded-2xl overflow-hidden shadow-2xl",
+                  "relative flex flex-col bg-[#1e1e1e] border border-white/10 rounded-3xl overflow-hidden shadow-2xl",
                   layoutMode === 'FOCUS_MODE' ? "flex-1" : "flex-1"
                 )}
               >
@@ -1083,52 +1157,60 @@ const ImmersiveLearningPlatform: React.FC = () => {
                     const label = lang === 'javascript' ? 'JavaScript' : 'Python 3.11';
                     
                     return (
-                      <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-black/20 select-none">
-                        <div className="flex items-center gap-3">
-                           <div className="flex gap-1.5 opacity-50 hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-between px-4 py-3 bg-[#252526]/90 backdrop-blur border-b border-black/20 select-none z-20">
+                        <div className="flex items-center gap-4">
+                           <div className="flex gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
                              <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
                              <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
                              <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
                            </div>
                            
-                           <div className="flex items-center gap-2 bg-[#1e1e1e] px-3 py-1 rounded-t-md border-t border-x border-white/5 relative top-1">
+                           <div className="flex items-center gap-2 bg-[#1e1e1e] px-4 py-1.5 rounded-t-lg border-t border-x border-white/5 relative top-1.5 shadow-sm">
                              {lang === 'javascript' 
                                 ? <span className="text-yellow-400 font-bold text-xs">JS</span> 
                                 : <span className="text-blue-400 font-bold text-xs">Py</span>
                              }
                              <span className="text-xs font-mono text-gray-300">script.{ext}</span>
-                             <span className="w-2 h-2 rounded-full bg-white/10 ml-2 hover:bg-white/30 cursor-pointer text-[8px] flex items-center justify-center">x</span>
                            </div>
                         </div>
                         
                         <div className="flex items-center gap-3">
                            <span className="text-[10px] font-mono text-gray-500">{label}</span>
-                           <span className="text-[10px] font-mono text-cyan-500/50 uppercase border border-cyan-500/20 px-1.5 rounded">Read Only</span>
+                           <span className="text-[10px] font-mono text-cyan-500/60 uppercase border border-cyan-500/20 px-1.5 rounded bg-cyan-500/5">Read Only</span>
                         </div>
                       </div>
                     );
                   })()}
 
-                  <div ref={codeContainerRef} className="flex-1 overflow-auto custom-scrollbar relative">
-                     <CodeViewer code={activeCode} highlightQuery={highlightQuery} />
+                  <div ref={codeContainerRef} className="flex-1 overflow-auto custom-scrollbar relative bg-[#1e1e1e]">
+                      {/* Inner shadow for depth */}
+                      <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] z-10" />
+                      <CodeViewer code={activeCode} highlightQuery={highlightQuery} />
                   </div>
               </motion.div>
             )}
 
             {(layoutMode === 'VISUAL_MODE') && (
               <motion.div 
+                key="visual-panel"
+                variants={PANEL_VARIANTS}
+                initial="hidden" animate="visible" exit="exit"
                 layoutId="panel-visual"
-                className="flex-1 flex flex-col bg-[#0e0e0e] border border-white/5 rounded-2xl overflow-hidden shadow-2xl p-6"
+                className="flex-1 flex flex-col bg-[#0e0e0e] border border-white/5 rounded-3xl overflow-hidden shadow-2xl p-0"
               >
-                 {renderVisualContent()}
+                  {renderVisualContent()}
               </motion.div>
             )}
-
+            </AnimatePresence>
           </LayoutGroup>
         </main>
 
         <div className="absolute bottom-8 left-0 right-0 flex justify-center z-40 px-4 pointer-events-none">
-          <div className="pointer-events-auto bg-[#121212]/90 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 flex items-center shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full max-w-2xl group focus-within:border-cyan-500/50 transition-colors">
+          <motion.div 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="pointer-events-auto bg-[#121212]/80 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 flex items-center shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full max-w-2xl group focus-within:border-cyan-500/50 focus-within:bg-[#121212] transition-all duration-300"
+          >
             <Mic 
                 size={18} 
                 onClick={() => !user && setShowAuthModal(true)}
@@ -1147,11 +1229,11 @@ const ImmersiveLearningPlatform: React.FC = () => {
             <button 
               onClick={handleSendMessage} 
               disabled={!input.trim() || isProcessing} 
-              className="h-10 w-10 bg-white/5 rounded-full flex items-center justify-center hover:bg-cyan-500 hover:text-black transition-all disabled:opacity-30 disabled:hover:bg-white/5 disabled:hover:text-gray-500"
+              className="h-10 w-10 bg-white/5 rounded-full flex items-center justify-center hover:bg-cyan-500 hover:text-black transition-all transform active:scale-95 disabled:opacity-30 disabled:hover:bg-white/5 disabled:hover:text-gray-500 disabled:transform-none"
             >
               {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <ChevronRight size={18} />}
             </button>
-          </div>
+          </motion.div>
         </div>
 
       </div>
