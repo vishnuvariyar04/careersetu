@@ -520,6 +520,7 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
 
   // Refs
   const hasInitializedRef = useRef(false); 
+  const lastAuthUserRef = useRef<string | null>(null); // <--- ADD THIS
   const avatarRef = useRef<HTMLDivElement>(null);
   const headRef = useRef<any>(null);
   
@@ -667,9 +668,9 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
     }
   }, [shareInteractionId]);
 
-  // --- LOGIC: Auth Check ---
+// --- LOGIC: Auth Check ---
   useEffect(() => {
-    if (hasInitializedRef.current || shareInteractionId) return; // Don't auth if sharing
+    if (hasInitializedRef.current || shareInteractionId) return; 
     hasInitializedRef.current = true;
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -684,7 +685,17 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const currentUserId = session?.user?.id;
+
+      // --- THE FIX: Prevent Re-run on Tab Focus ---
+      // If the user ID hasn't changed, do nothing. 
+      // This stops the stale "fetchSessionsAndInit" from firing and resetting your chat.
+      if (currentUserId === lastAuthUserRef.current) return;
+      lastAuthUserRef.current = currentUserId ?? null;
+      // --------------------------------------------
+
       setUser(session?.user ?? null);
+      
       if (session?.user) {
         setShowAuthModal(false);
         if (window.location.hash && window.location.hash.includes('access_token')) {
@@ -711,7 +722,7 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
     });
 
     return () => subscription.unsubscribe();
-  }, [shareInteractionId]);
+  }, [shareInteractionId]); // Keep dependency array minimal
 
   const requireAuth = () => {
     if (!user) {
