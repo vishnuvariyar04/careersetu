@@ -669,39 +669,48 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
   }, [shareInteractionId]);
 
 // --- LOGIC: Auth Check ---
+// --- LOGIC: Auth Check ---
   useEffect(() => {
-    if (hasInitializedRef.current || shareInteractionId) return; 
-    hasInitializedRef.current = true;
+    // 1. REMOVE the early return check for hasInitializedRef here.
+    // We only skip if we are in "Share Mode".
+    if (shareInteractionId) return; 
 
+    // Note: We don't use hasInitializedRef to block the listener anymore.
+    // The clean-up function handles the subscription correctly.
+
+    // 2. Initial Session Check
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
+      // Only set user if we haven't processed this user yet to prevent flicker
+      if (session?.user && session.user.id !== lastAuthUserRef.current) {
+         setUser(session.user);
          fetchSessionsAndInit(session.user.id);
-      } else {
+      } else if (!session?.user) {
+         // Handle case where user loads page but is not logged in
          const urlId = searchParams.get('session_id');
          if (urlId) setActiveSessionId(urlId);
          else setActiveSessionId(null);
       }
     });
 
+    // 3. The Listener (Must remain active)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const currentUserId = session?.user?.id;
 
-      // --- THE FIX: Prevent Re-run on Tab Focus ---
-      // If the user ID hasn't changed, do nothing. 
-      // This stops the stale "fetchSessionsAndInit" from firing and resetting your chat.
+      // This logic you added previously is good! It prevents double-fetching.
       if (currentUserId === lastAuthUserRef.current) return;
       lastAuthUserRef.current = currentUserId ?? null;
-      // --------------------------------------------
 
       setUser(session?.user ?? null);
       
       if (session?.user) {
         setShowAuthModal(false);
+        // Clean URL hash (access tokens)
         if (window.location.hash && window.location.hash.includes('access_token')) {
-              const cleanUrl = window.location.pathname + window.location.search;
-              window.history.replaceState(null, '', cleanUrl);
+             const cleanUrl = window.location.pathname + window.location.search;
+             window.history.replaceState(null, '', cleanUrl);
         }
+        
+        // Handle Return URL redirect
         const returnUrl = localStorage.getItem('auth_return_url');
         if (returnUrl) {
             localStorage.removeItem('auth_return_url'); 
@@ -714,9 +723,13 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
         }
         fetchSessionsAndInit(session.user.id);
       } else {
+        // Logout cleanup
         setSessions([]); 
         setActiveSessionId(null);
-        window.history.replaceState(null, '', window.location.pathname); 
+        // Only replace state if we aren't already at the root to avoid loops
+        if (window.location.search) {
+             window.history.replaceState(null, '', window.location.pathname); 
+        }
         setMessages([{ id: 'init', role: 'assistant', content: "Signed out. System reset.", timestamp: Date.now() }]);
       }
     });
