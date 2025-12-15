@@ -658,7 +658,7 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
                 
                 commandQueueRef.current = data.actions;
                 setShowShareOverlay(true); // <--- ADD THIS LINE (Show button instead)
-            } else {
+            } else {//this
                 // FIX: Update the History Array here too
                 setConceptHistory([{ title: "Error", text: "Replay not found." }]);
                 setConceptIndex(0);
