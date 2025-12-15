@@ -822,7 +822,7 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
           ttsEndpoint: "N/A", cameraView: "upper", mixerGainSpeech: 3, cameraRotateEnable: false
         });
         headRef.current = head;
-        const adapter = new KokoroAdapter("https://ocellar-inclusively-delsie.ngrok-free.dev");
+        const adapter = new KokoroAdapter("https://cloggy-oneirocritically-niki.ngrok-free.dev");
         adapterRef.current = adapter;
         try {
             await head.showAvatar({ url: "/avatars/david.glb", body: "F", avatarMood: "neutral" });
