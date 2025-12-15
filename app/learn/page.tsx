@@ -1,28 +1,26 @@
 'use client'
-
-import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import mermaid from 'mermaid';
 import { motion, AnimatePresence, LayoutGroup, Variants } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { createClient } from '@supabase/supabase-js'; 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-// ... existing imports
-// import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import dynamic from 'next/dynamic'; // <--- ADD THIS
-
-// ... existing imports
+import dynamic from 'next/dynamic';
 
 // --- DYNAMIC IMPORT FOR GRAPH ---
 const ForceGraph = dynamic(() => import('@/components/ForceGraph'), { 
   ssr: false,
   loading: () => <div className="flex items-center justify-center h-full text-cyan-500 font-mono text-xs">INITIALIZING PHYSICS ENGINE...</div>
 });
+
 import { 
   Mic, ChevronRight, Share, Settings, Layout, Code2, Columns, 
   Volume2, VolumeX, Eye, Table as TableIcon, List, GitGraph, 
   Terminal, Cpu, AlertCircle, Loader2, Plus, MessageSquare, Menu, X,
-  LogOut, User as UserIcon, Lock
+  LogOut, User as UserIcon, Lock, Play, Share2, Check
 } from 'lucide-react';
 
 // --- External Imports ---
@@ -57,6 +55,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string; 
   timestamp: number;
+  interaction_id?: string;
 }
 
 interface Session {
@@ -115,6 +114,48 @@ mermaid.initialize({
 
 // --- SUB-COMPONENTS ---
 
+const NavigationControls = ({ 
+    current, 
+    total, 
+    onPrev, 
+    onNext, 
+    label 
+  }: { 
+    current: number; 
+    total: number; 
+    onPrev: () => void; 
+    onNext: () => void; 
+    label?: string;
+  }) => {
+    if (total <= 1) return null; 
+  
+    return (
+      <div className="flex items-center gap-3 bg-[#1a1a1a] rounded-full px-3 py-1.5 border border-white/10 shadow-lg select-none z-50">
+        <button 
+          onClick={(e) => { e.stopPropagation(); onPrev(); }}
+          disabled={current === 0}
+          className="p-1 text-gray-400 hover:text-cyan-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight size={14} className="rotate-180" />
+        </button>
+        
+        <span className="text-[10px] font-mono text-gray-500 min-w-[30px] text-center">
+          {current + 1} / {total}
+        </span>
+        
+        <button 
+          onClick={(e) => { e.stopPropagation(); onNext(); }}
+          disabled={current === total - 1}
+          className="p-1 text-gray-400 hover:text-cyan-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight size={14} />
+        </button>
+        
+        {label && <span className="text-[10px] font-medium text-gray-600 border-l border-white/10 pl-3 ml-1">{label}</span>}
+      </div>
+    );
+};
+
 const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -159,13 +200,10 @@ const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
             transition={{ type: "spring", duration: 0.5, bounce: 0.3 }}
             className="relative bg-[#09090b] border border-white/10 w-full max-w-[380px] rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden"
           >
-            {/* Background Gradient */}
             <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-            
             <button onClick={onClose} className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white transition-colors rounded-full hover:bg-white/5 z-20">
               <X size={16}/>
             </button>
-
             <div className="p-8 pt-10 flex flex-col items-center text-center relative z-10">
               <div className="mb-6 relative">
                 <div className="absolute inset-0 bg-cyan-500/20 blur-xl rounded-full" />
@@ -173,13 +211,11 @@ const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
               </div>
               <h2 className="text-xl font-medium text-white tracking-tight mb-2">Authentication Required</h2>
               <p className="text-sm text-zinc-400 px-4 mb-8 leading-relaxed">Sign in to synchronize your sessions and access the interface.</p>
-
               {error && (
                 <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="w-full mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs font-medium">
                   {error}
                 </motion.div>
               )}
-              
               <button 
                 onClick={handleGoogleLogin} disabled={loading}
                 className="group hover:cursor-pointer w-full relative flex items-center justify-center gap-3 py-3 bg-white hover:bg-zinc-200 text-black rounded-xl font-semibold text-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(255,255,255,0.05)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)]"
@@ -209,23 +245,13 @@ const MermaidChart = ({ chart }: { chart: string }) => {
     let mounted = true;
   const renderChart = async () => {
   if (!chart || !containerRef.current) return;
-
-  // 1. Remove markdown
   let cleanChart = chart.replace(/```mermaid/g, '').replace(/```/g, '');
-
-  // 2. Replace Non-Breaking Spaces (Causes "Parse error on line 2")
   cleanChart = cleanChart.replace(/\u00A0/g, ' ');
-
-  // 3. FIX: Quote the Node Labels manually using Regex
-  // Matches: AnyWord[ContentWithParens] and wraps Content in " "
   cleanChart = cleanChart.replace(/(\w+)\[(.*?)\]/g, (match, id, content) => {
-    // If it's already quoted, leave it alone
     if (content.startsWith('"') && content.endsWith('"')) return match;
     return `${id}["${content}"]`;
   });
-
   cleanChart = cleanChart.replace(/-->\|([^"\|]+?)\|/g, '-->|"$1"|');
-
   setError(null);
   const id = `${MERMAID_ID_PREFIX}${Date.now()}`;
   try {
@@ -233,7 +259,6 @@ const MermaidChart = ({ chart }: { chart: string }) => {
     if (mounted) setSvgContent(svg);
   } catch (err) {
     console.error("Mermaid Render Error:", err);
-    // ... error handling
   }
 };
     renderChart();
@@ -252,9 +277,7 @@ const MermaidChart = ({ chart }: { chart: string }) => {
 
   return (
     <div className="relative w-full h-full bg-[#0a0a0a] overflow-hidden flex items-center justify-center">
-      {/* GRID BACKGROUND */}
       <div className="absolute inset-0 bg-[radial-gradient(#80808012_1px,transparent_1px)] [background-size:20px_20px] opacity-50" />
-      
       <motion.div 
         key={svgContent ? 'loaded' : 'loading'}
         initial={{ opacity: 0, scale: 0.95 }}
@@ -288,12 +311,8 @@ const ArrayVisualizer = ({ payload }: { payload: any }) => {
 
   return (
     <div className="relative flex-1 w-full flex flex-col items-center justify-center bg-[#0a0a0a] overflow-hidden">
-      
-      {/* GRID BACKGROUND */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
       <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent opacity-80" />
-
-      {/* CONTENT CONTAINER */}
       <div className="relative z-10 w-full overflow-x-auto py-20 px-4 flex justify-center scrollbar-hide">
         <div className="flex gap-6">
           <AnimatePresence mode='popLayout'>
@@ -319,7 +338,6 @@ const ArrayVisualizer = ({ payload }: { payload: any }) => {
                   key={`item-${idx}`} 
                   className="relative flex flex-col items-center group"
                 >
-                  {/* Pointers Section (Top) */}
                   <div className="h-8 w-full absolute -top-12 flex flex-col-reverse items-center">
                     <AnimatePresence>
                       {activePointers.map((p: string) => (
@@ -338,8 +356,6 @@ const ArrayVisualizer = ({ payload }: { payload: any }) => {
                       ))}
                     </AnimatePresence>
                   </div>
-
-                  {/* Memory Block */}
                   <div className={cn(
                     "w-20 h-20 flex items-center justify-center rounded-2xl border text-2xl font-bold font-mono shadow-xl transition-all duration-300 backdrop-blur-md",
                     isHighlighted 
@@ -348,8 +364,6 @@ const ArrayVisualizer = ({ payload }: { payload: any }) => {
                   )}>
                     {val}
                   </div>
-
-                  {/* Index (Bottom) */}
                   <span className="mt-4 text-[10px] text-gray-600 font-mono group-hover:text-gray-400 transition-colors">
                     INDEX {idx}
                   </span>
@@ -370,9 +384,7 @@ const TableVisualizer = ({ payload }: { payload: any }) => {
 
   return (
     <div className="w-full h-full flex items-center justify-center p-8 bg-[#0a0a0a] relative overflow-hidden">
-       {/* GRID BACKGROUND for Table */}
        <div className="absolute inset-0 bg-[radial-gradient(#80808012_1px,transparent_1px)] [background-size:20px_20px]" />
-       
        <motion.div 
          initial="hidden" animate="visible" variants={PANEL_VARIANTS}
          className="w-full max-w-4xl overflow-hidden rounded-2xl border border-white/5 bg-[#0e0e0e]/80 backdrop-blur-xl relative z-10 shadow-2xl"
@@ -428,24 +440,13 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
         language={language}
         style={vscDarkPlus}
         customStyle={{
-          margin: 0,
-          padding: '1.5rem',
-          background: 'transparent',
-          height: '100%',
-          fontSize: '13px',
-          lineHeight: '1.6',
+          margin: 0, padding: '1.5rem', background: 'transparent', height: '100%', fontSize: '13px', lineHeight: '1.6',
         }}
         showLineNumbers={true}
-        lineNumberStyle={{
-          minWidth: '2.5em',
-          paddingRight: '1em',
-          color: '#6e7681', 
-          textAlign: 'right'
-        }}
+        lineNumberStyle={{ minWidth: '2.5em', paddingRight: '1em', color: '#6e7681', textAlign: 'right' }}
         wrapLines={true}
         lineProps={(lineNumber) => {
           const style: React.CSSProperties = { display: 'block', width: '100%' };
-          // Check for highlighting match
           if (highlightQuery) {
             const lineContent = codeLines[lineNumber - 1] || '';
             if (lineContent.includes(highlightQuery.trim())) {
@@ -466,7 +467,11 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
 
 // --- MAIN COMPONENT ---
 
-const ImmersiveLearningPlatform: React.FC = () => {
+interface ImmersiveLearningPlatformProps {
+  shareInteractionId?: string; // Optional prop for Share Mode
+}
+
+const ImmersiveLearningPlatform: React.FC<ImmersiveLearningPlatformProps> = ({ shareInteractionId }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -474,20 +479,36 @@ const ImmersiveLearningPlatform: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // Core UI State
+  // --- HISTORY STATE MANAGEMENT ---
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('SPLIT_MODE');
-  const [activeCode, setActiveCode] = useState("");
-  const [highlightQuery, setHighlightQuery] = useState<string | null>(null);
-  const [conceptData, setConceptData] = useState({ title: "Initializing System", text: "Establishing secure connection..." });
-  const [visualData, setVisualData] = useState<VisualState>(null);
+
+  // Concept History
+  const [conceptHistory, setConceptHistory] = useState<{title: string, text: string}[]>([
+    { title: "Initializing System", text: "Establishing secure connection..." }
+  ]);
+  const [conceptIndex, setConceptIndex] = useState(0);
+  const currentConcept = conceptHistory[conceptIndex] || conceptHistory[0];
+
+  // ... other state
+const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THIS
+
+  // Code History
+  const [codeHistory, setCodeHistory] = useState<{code: string, highlight: string | null}[]>([
+    { code: "", highlight: null }
+  ]);
+  const [codeIndex, setCodeIndex] = useState(0);
+  const currentCodeState = codeHistory[codeIndex] || codeHistory[0];
+
+  // Visual History
+  const [visualHistory, setVisualHistory] = useState<(VisualState | null)[]>([null]);
+  const [visualIndex, setVisualIndex] = useState(0);
+  const currentVisual = visualHistory[visualIndex];
+
+  // Playback/Session State
   const [subtitles, setSubtitles] = useState("");
-  
-  // Session State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
-  
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null); 
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [sessionHistories, setSessionHistories] = useState<Record<string, Message[]>>({});
   const [messages, setMessages] = useState<Message[]>([{ id: 'init', role: 'assistant', content: "System Online. Ready for input.", timestamp: Date.now() }]);
 
   const [input, setInput] = useState('');
@@ -495,6 +516,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);        
   const [isTTSActive, setIsTTSActive] = useState(true);     
   const [avatarStatus, setAvatarStatus] = useState("Initializing...");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Refs
   const hasInitializedRef = useRef(false); 
@@ -509,83 +531,166 @@ const ImmersiveLearningPlatform: React.FC = () => {
   const commandQueueRef = useRef<PlaybackAction[]>([]);
   const isExecutingRef = useRef(false);
   const subtitleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // --- RECORDING BUFFER (For Saving Replays) ---
+  const recordingBufferRef = useRef<PlaybackAction[]>([]);
+
+  // --- PERSISTENCE: Save Snapshot State ---
+  const saveSessionState = useCallback(async () => {
+    if (!activeSessionId || shareInteractionId) return;
+    
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+    saveTimeoutRef.current = setTimeout(async () => {
+        try {
+            await supabase.from('session_states').upsert({
+                session_id: activeSessionId,
+                concept_history: conceptHistory,
+                code_history: codeHistory,
+                visual_history: visualHistory,
+                indices: { concept: conceptIndex, code: codeIndex, visual: visualIndex }
+            });
+        } catch (e) {
+            console.error("Failed to save state:", e);
+        }
+    }, 1000);
+  }, [activeSessionId, conceptHistory, codeHistory, visualHistory, conceptIndex, codeIndex, visualIndex, shareInteractionId]);
+
+  useEffect(() => {
+    if (activeSessionId && conceptHistory.length > 1) { 
+        saveSessionState();
+    }
+  }, [saveSessionState]);
+
 
   // --- LOGIC: Initialize App ---
   const fetchSessionsAndInit = async (userId: string) => {
-    // 1. Fetch existing sessions from DB
     const { data: userSessions, error } = await supabase
       .from('chat_sessions')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching sessions:', error);
-      return;
-    } 
+    if (!error) setSessions(userSessions || []);
 
-    const existingSessions = userSessions || [];
-    setSessions(existingSessions);
-
-    // 2. Check URL for session_id
     const urlSessionId = searchParams.get('session_id');
 
     if (urlSessionId) {
-      // Case A: URL has ID. Check if it exists.
-      const exists = existingSessions.find(s => s.session_id === urlSessionId);
-
+      const exists = (userSessions || []).find(s => s.session_id === urlSessionId);
       if (exists) {
-        // A1: Exists in DB -> Load it
         setActiveSessionId(urlSessionId);
-        if (!sessionHistories[urlSessionId] && messages.length <= 1) {
-            setMessages([{ id: 'init', role: 'assistant', content: "Session loaded.", timestamp: Date.now() }]);
+        
+        // --- NEW: FETCH PERSISTED MESSAGES ---
+        const { data: dbMessages } = await supabase
+            .from('chat_messages')
+            .select('*')
+            .eq('session_id', urlSessionId)
+            .order('created_at', { ascending: true });
+
+        if (dbMessages && dbMessages.length > 0) {
+            setMessages(dbMessages.map(m => ({
+                id: m.id,
+                role: m.role as 'user' | 'assistant',
+                content: m.content,
+                timestamp: new Date(m.created_at).getTime(),
+                interaction_id: m.interaction_id
+            })));
+        } else {
+            setMessages([{ id: 'init', role: 'assistant', content: "Session loaded. No history found.", timestamp: Date.now() }]);
+        }
+        // -------------------------------------
+
+        const { data: stateData } = await supabase
+            .from('session_states')
+            .select('*')
+            .eq('session_id', urlSessionId)
+            .single();
+
+        if (stateData) {
+            setConceptHistory(stateData.concept_history || [{ title: "Session Resumed", text: "Context restored." }]);
+            setCodeHistory(stateData.code_history || [{ code: "", highlight: null }]);
+            setVisualHistory(stateData.visual_history || [null]);
+            const indices = stateData.indices || {};
+            setConceptIndex(indices.concept ?? 0);
+            setCodeIndex(indices.code ?? 0);
+            setVisualIndex(indices.visual ?? 0);
         }
       } else {
-        // A2: ID in URL but NOT in DB (Adoption Case for Guest -> User)
         setActiveSessionId(urlSessionId);
       }
     } else {
-      // Case B: No URL ID -> "New Chat" State
       setActiveSessionId(null);
       setMessages([{ id: 'init', role: 'assistant', content: "New session. History will save after your first message.", timestamp: Date.now() }]);
-      setActiveCode("");
-      setConceptData({ title: "Ready", text: "Awaiting input..." });
-      setVisualData(null);
+      setConceptHistory([{ title: "Ready", text: "Awaiting input..." }]);
+      setCodeHistory([{ code: "", highlight: null }]);
+      setVisualHistory([null]);
     }
   };
 
+  const handleStartShare = async () => {
+    setShowShareOverlay(false);
+    
+    // Unlock Audio Context (Fixes "AudioContext was not allowed to start")
+    if (headRef.current?.audioCtx?.state === 'suspended') {
+        await headRef.current.audioCtx.resume();
+    }
+    
+    processQueue();
+  };
+
+ // --- LOGIC: Load Shared Interaction ---
+  useEffect(() => {
+    if (shareInteractionId && !hasInitializedRef.current) {
+        hasInitializedRef.current = true;
+        const loadShare = async () => {
+            const { data, error } = await supabase
+                .from('session_interactions')
+                .select('*')
+                .eq('id', shareInteractionId)
+                .single();
+            
+            if (data && data.actions) {
+                // FIX: Update the History Array, not the old state variable
+                setConceptHistory([{ title: "Shared Replay", text: `Playing answer for: "${data.user_query}"` }]);
+                setConceptIndex(0);
+                
+                commandQueueRef.current = data.actions;
+                setShowShareOverlay(true); // <--- ADD THIS LINE (Show button instead)
+            } else {
+                // FIX: Update the History Array here too
+                setConceptHistory([{ title: "Error", text: "Replay not found." }]);
+                setConceptIndex(0);
+            }
+        };
+        loadShare();
+    }
+  }, [shareInteractionId]);
+
   // --- LOGIC: Auth Check ---
   useEffect(() => {
-    if (hasInitializedRef.current) return;
+    if (hasInitializedRef.current || shareInteractionId) return; // Don't auth if sharing
     hasInitializedRef.current = true;
 
-    // 1. Initial Auth Check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
          fetchSessionsAndInit(session.user.id);
       } else {
-         // Guest Logic: Keep URL ID if exists, else NULL
          const urlId = searchParams.get('session_id');
          if (urlId) setActiveSessionId(urlId);
          else setActiveSessionId(null);
       }
     });
 
-    // 2. Auth State Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      
       if (session?.user) {
         setShowAuthModal(false);
-        
-        // Clean Hash
         if (window.location.hash && window.location.hash.includes('access_token')) {
               const cleanUrl = window.location.pathname + window.location.search;
               window.history.replaceState(null, '', cleanUrl);
         }
-
-        // Restore Deep Link
         const returnUrl = localStorage.getItem('auth_return_url');
         if (returnUrl) {
             localStorage.removeItem('auth_return_url'); 
@@ -596,10 +701,8 @@ const ImmersiveLearningPlatform: React.FC = () => {
                 return; 
             }
         }
-        
         fetchSessionsAndInit(session.user.id);
       } else {
-        // Logout -> Reset to New Chat
         setSessions([]); 
         setActiveSessionId(null);
         window.history.replaceState(null, '', window.location.pathname); 
@@ -608,7 +711,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [shareInteractionId]);
 
   const requireAuth = () => {
     if (!user) {
@@ -625,70 +728,81 @@ const ImmersiveLearningPlatform: React.FC = () => {
     window.location.href = "/learn";
   };
 
-  // --- LOGIC: Sync Messages ---
-  useEffect(() => {
-    if(activeSessionId) {
-        setSessionHistories(prev => ({
-            ...prev,
-            [activeSessionId]: messages
-        }));
-    }
-  }, [messages, activeSessionId]);
-
   // --- LOGIC: UI Interaction ---
-  const handleSwitchSession = (sessionId: string) => {
+  const handleSwitchSession = async (sessionId: string) => {
       if (isProcessing || isPlaying) return; 
       
       setActiveSessionId(sessionId);
       const newPath = `${window.location.pathname}?session_id=${sessionId}`;
       window.history.pushState(null, '', newPath);
       
-      const history = sessionHistories[sessionId] || [];
-      if (history.length === 0) {
-          setMessages([{ id: Date.now().toString(), role: 'assistant', content: "Session loaded.", timestamp: Date.now() }]);
+      // --- NEW: FETCH PERSISTED MESSAGES ---
+      const { data: dbMessages } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true });
+
+      if (dbMessages && dbMessages.length > 0) {
+        setMessages(dbMessages.map(m => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            timestamp: new Date(m.created_at).getTime(),
+            interaction_id: m.interaction_id
+        })));
       } else {
-          setMessages(history);
+        setMessages([{ id: Date.now().toString(), role: 'assistant', content: "Session loaded.", timestamp: Date.now() }]);
       }
       
-      setActiveCode("");
-      setConceptData({ title: "Session Resumed", text: "Context restored." });
-      setVisualData(null);
+      const { data: stateData } = await supabase.from('session_states').select('*').eq('session_id', sessionId).single();
+
+      if (stateData) {
+            setConceptHistory(stateData.concept_history || []);
+            setCodeHistory(stateData.code_history || []);
+            setVisualHistory(stateData.visual_history || []);
+            const indices = stateData.indices || {};
+            setConceptIndex(indices.concept ?? 0);
+            setCodeIndex(indices.code ?? 0);
+            setVisualIndex(indices.visual ?? 0);
+      } else {
+            setConceptHistory([{ title: "Session Resumed", text: "History not found." }]);
+            setCodeHistory([{ code: "", highlight: null }]);
+            setVisualHistory([null]);
+            setConceptIndex(0); setCodeIndex(0); setVisualIndex(0);
+      }
   };
 
   const handleCreateSessionClick = () => {
-      // Just reset UI to "New Chat" mode. Do NOT create DB row yet.
       if (isProcessing || isPlaying) return;
-      
       setActiveSessionId(null);
       setMessages([{ id: 'init', role: 'assistant', content: "New session started.", timestamp: Date.now() }]);
-      setActiveCode("");
-      setConceptData({ title: "Ready", text: "Awaiting input..." });
-      setVisualData(null);
-      
-      // Clear URL
+      setConceptHistory([{ title: "Ready", text: "Awaiting input..." }]);
+      setConceptIndex(0);
+      setCodeHistory([{ code: "", highlight: null }]);
+      setCodeIndex(0);
+      setVisualHistory([null]);
+      setVisualIndex(0);
       window.history.replaceState(null, '', window.location.pathname);
   };
 
-  // --- SUBTITLES HELPER ---
   const setSubtitleText = (text: string) => {
       setSubtitles(prev => prev.length > 80 ? "..." + text + " " : prev + text + " ");
       if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
       subtitleTimerRef.current = setTimeout(() => setSubtitles(""), 2000);
   };
 
-  // --- SCROLLING ---
   useEffect(() => {
-    if (highlightQuery && codeContainerRef.current) {
+    if (currentCodeState.highlight && codeContainerRef.current) {
       const highlightedElement = codeContainerRef.current.querySelector('.highlight-active');
       if (highlightedElement) highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [highlightQuery, activeCode]);
+  }, [currentCodeState.highlight, currentCodeState.code]);
 
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, subtitles]);
 
-  // --- AVATAR INIT ---
   useEffect(() => {
     if (headRef.current) return;
     const initAvatar = async () => {
@@ -697,10 +811,8 @@ const ImmersiveLearningPlatform: React.FC = () => {
           ttsEndpoint: "N/A", cameraView: "upper", mixerGainSpeech: 3, cameraRotateEnable: false
         });
         headRef.current = head;
-
         const adapter = new KokoroAdapter("https://ocellar-inclusively-delsie.ngrok-free.dev");
         adapterRef.current = adapter;
-        
         try {
             await head.showAvatar({ url: "/avatars/david.glb", body: "F", avatarMood: "neutral" });
             head.setView(head.viewName, { cameraY: 0 });
@@ -719,18 +831,13 @@ const ImmersiveLearningPlatform: React.FC = () => {
     return () => { if (headRef.current) headRef.current.stop(); };
   }, []);
 
-  // --- VISUAL RENDER HELPER ---
-  const renderVisualContent = () => {
-      if (!visualData) return null;
-      switch (visualData.type) {
-          case 'ARRAY': return <ArrayVisualizer payload={visualData.payload} />;
-          case 'TABLE': return <TableVisualizer payload={visualData.payload} />;
-          case 'MERMAID_FLOWCHART': return <MermaidChart chart={visualData.payload.chart} />;
-          case 'NETWORK': 
-            // The backend sends { visual_graph_data: { nodes:[], links:[] } }
-            // So we pass visualData.payload directly if you structure it right in server.py
-            // Assuming server.py sends: payload = { "nodes": [...], "links": [...] }
-            return <ForceGraph data={visualData.payload} />;
+  const renderVisualContent = (data: VisualState | null) => {
+      if (!data) return null;
+      switch (data.type) {
+          case 'ARRAY': return <ArrayVisualizer payload={data.payload} />;
+          case 'TABLE': return <TableVisualizer payload={data.payload} />;
+          case 'MERMAID_FLOWCHART': return <MermaidChart chart={data.payload.chart} />;
+          case 'NETWORK': return <ForceGraph data={data.payload} />;
           default: return null;
       }
   };
@@ -747,20 +854,36 @@ const ImmersiveLearningPlatform: React.FC = () => {
       switch (action.type) {
         case 'LAYOUT':
           setLayoutMode(action.mode);
-          if (action.mode !== 'SPLIT_MODE' && action.mode !== 'FOCUS_MODE') setHighlightQuery(null);
           break;
         case 'CODE':
-          setActiveCode(action.code.trim());
-          setHighlightQuery(null); 
+          setCodeHistory(prev => {
+             const newIndex = prev.length;
+             setCodeIndex(newIndex); 
+             return [...prev, { code: action.code.trim(), highlight: null }];
+          });
           break;
         case 'CONCEPT':
-          setConceptData({ title: action.title, text: action.text });
+          setConceptHistory(prev => {
+             const last = prev[prev.length - 1];
+             if (last.title === action.title && last.text === action.text) return prev;
+             return [...prev, { title: action.title, text: action.text }];
+          });
+          setConceptIndex(prev => prev + 1); 
           break;
         case 'VISUAL': 
-          setVisualData(action.state);
+          setVisualHistory(prev => {
+             const newIndex = prev.length;
+             setVisualIndex(newIndex); 
+             return [...prev, action.state];
+          });
           break;
         case 'HIGHLIGHT':
-          setHighlightQuery(action.code_to_highlight);
+          setCodeHistory(prev => {
+             const last = prev[prev.length - 1];
+             const newIndex = prev.length;
+             setCodeIndex(newIndex); 
+             return [...prev, { code: last.code, highlight: action.code_to_highlight }];
+          });
           break;
         case 'WAIT':
           await new Promise(resolve => setTimeout(resolve, action.ms));
@@ -777,30 +900,20 @@ const ImmersiveLearningPlatform: React.FC = () => {
           
           if (isTTSActive && adapterRef.current && avatarStatus !== "Offline") {
               setSubtitles("");
-              
-              // Ensure Audio Context is Running
               if (headRef.current?.audioCtx?.state === 'suspended') await headRef.current.audioCtx.resume();
-              
               await new Promise<void>((resolve) => {
                   try {
                       adapterRef.current.streamToAvatar(
                           headRef.current,
                           action.text,
                           currentVoiceIdRef.current,
-                          null, // onChunk
-                          (word: string) => setSubtitleText(word), // onSubtitle
-                          () => { // onAllFinished
-                              setSubtitles("");
-                              resolve();
-                          }
+                          null, 
+                          (word: string) => setSubtitleText(word), 
+                          () => { setSubtitles(""); resolve(); }
                       );
-                  } catch (e) {
-                      console.error("TTS Error", e);
-                      resolve();
-                  }
+                  } catch (e) { resolve(); }
               });
           } else {
-            // Fallback delay if TTS is off
             await new Promise(resolve => setTimeout(resolve, action.text.length * 50)); 
           }
           break;
@@ -826,53 +939,80 @@ const ImmersiveLearningPlatform: React.FC = () => {
       };
       
       if (map[data.type]) {
+        // 1. Add to live queue
         commandQueueRef.current.push(map[data.type]);
+        // 2. Add to recording buffer
+        recordingBufferRef.current.push(map[data.type]);
+        
         processQueue(); 
       }
     } catch (e) { console.warn("Parse Error:", line); }
   };
 
-  // --- SEND MESSAGE LOGIC (LAZY CREATION) ---
+  // --- REPLAY LOGIC ---
+  const handleReplay = async (interactionId: string) => {
+      if (isPlaying || !interactionId) return;
+      
+      const { data, error } = await supabase
+        .from('session_interactions')
+        .select('actions')
+        .eq('id', interactionId)
+        .single();
+
+      if (data && data.actions) {
+          // Force update concept to avoid duplicate skip
+          setConceptHistory(prev => [...prev]); 
+          // Load actions into queue
+          commandQueueRef.current = data.actions;
+          processQueue();
+      }
+  };
+
+  // --- SHARE LOGIC ---
+  const handleShare = (interactionId: string) => {
+      const url = `${window.location.origin}/share/${interactionId}`;
+      navigator.clipboard.writeText(url);
+      setCopiedId(interactionId);
+      setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const handleSendMessage = async () => {
     if (!requireAuth()) return;
     if (!input.trim() || isProcessing) return;
     
-    // UI Update (Optimistic)
     const currentInput = input;
     setInput('');
     setIsProcessing(true);
+    
+    // Clear Recording Buffer for new turn
+    recordingBufferRef.current = [];
+
     setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: currentInput, timestamp: Date.now() }]);
     setMessages(prev => [...prev, { id: (Date.now()+1).toString(), role: 'assistant', content: '', timestamp: Date.now() }]);
 
     let targetSessionId = activeSessionId;
 
-    // LAZY CREATION CHECK: If no active session, create one NOW.
     if (!targetSessionId) {
         const newId = `session_${Date.now()}`;
         const newTitle = currentInput.slice(0, 30) + (currentInput.length > 30 ? '...' : '');
-        
-        // 1. Set State
         targetSessionId = newId;
         setActiveSessionId(newId);
-        
-        // 2. Update Sessions List UI
         const newSession: Session = { session_id: newId, title: newTitle, created_at: new Date().toISOString() };
         setSessions(prev => [newSession, ...prev]);
-        
-        // 3. Update URL
         const newPath = `${window.location.pathname}?session_id=${newId}`;
         window.history.replaceState(null, '', newPath);
-
-        // 4. Save to DB
-        await supabase.from('chat_sessions').insert({
-            session_id: newId,
-            user_id: user.id,
-            title: newTitle
-        });
+        await supabase.from('chat_sessions').insert({ session_id: newId, user_id: user.id, title: newTitle });
     }
 
+    // --- SAVE USER MSG IMMEDIATELY ---
+    await supabase.from('chat_messages').insert({
+        session_id: targetSessionId,
+        role: 'user',
+        content: currentInput
+    });
+
     try {
-      const response = await fetch('https://avatar-tutor-6uih.onrender.com/api/chat', { 
+      const response = await fetch('http://localhost:8000/api/chat', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: currentInput, session_id: targetSessionId })
@@ -889,11 +1029,46 @@ const ImmersiveLearningPlatform: React.FC = () => {
         if (value) buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         if (!done) buffer = lines.pop() || ""; else buffer = "";
-        
         for (const line of lines) parseAndEnqueue(line);
         if (done) break;
       }
       if (buffer.trim()) parseAndEnqueue(buffer);
+
+      // --- SAVE ASSISTANT MSG & RECORDING ---
+      if (recordingBufferRef.current.length > 0) {
+          const { data: savedInteraction } = await supabase.from('session_interactions').insert({
+              session_id: targetSessionId,
+              user_query: currentInput,
+              actions: recordingBufferRef.current
+          }).select('id').single();
+
+          if (savedInteraction) {
+              // 1. Save msg to DB with link
+              // Reconstruct full text from buffer
+              const fullText = recordingBufferRef.current
+                .filter(a => a.type === 'SPEAK')
+                .map(a => (a as any).text)
+                .join(' ');
+
+              await supabase.from('chat_messages').insert({
+                  session_id: targetSessionId,
+                  role: 'assistant',
+                  content: fullText,
+                  interaction_id: savedInteraction.id
+              });
+
+              // 2. Update UI
+              setMessages(prev => {
+                  const newMsgs = [...prev];
+                  const lastMsg = newMsgs[newMsgs.length - 1];
+                  if (lastMsg.role === 'assistant') {
+                      lastMsg.interaction_id = savedInteraction.id;
+                  }
+                  return newMsgs;
+              });
+          }
+      }
+
     } catch (error) { 
       console.error(error);
       setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: "Connection disrupted.", timestamp: Date.now() }]);
@@ -905,24 +1080,26 @@ const ImmersiveLearningPlatform: React.FC = () => {
   const handleTestSpeech = () => {
     if (!requireAuth()) return;
     if (isPlaying || avatarStatus !== "Online") return;
-    commandQueueRef.current.push({
-      type: 'SPEAK',
-      text: "Audio check. Synchronization complete. Ready for input."
-    });
+    commandQueueRef.current.push({ type: 'SPEAK', text: "Audio check. Synchronization complete. Ready for input." });
     processQueue();
   };
 
+  // --- RENDER ---
   return (
     <div className="flex h-screen w-full bg-[#050505] text-gray-300 font-sans overflow-hidden selection:bg-cyan-500/30 selection:text-white">
       
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
 
-      {/* --- LEFT MENU BAR (SESSIONS) --- */}
+      {/* --- SIDEBAR (SESSIONS) --- */}
+      {/* We hide this via CSS in share mode so DOM node doesn't unmount if we move stuff */}
       <motion.div 
         initial={{ width: 0, opacity: 0 }}
-        animate={{ width: isSidebarOpen ? 240 : 0, opacity: isSidebarOpen ? 1 : 0 }}
+        animate={{ width: isSidebarOpen && !shareInteractionId ? 240 : 0, opacity: isSidebarOpen && !shareInteractionId ? 1 : 0 }}
         transition={{ duration: 0.3, ease: [0.33, 1, 0.68, 1] }}
-        className="flex flex-col border-r border-white/5 bg-[#030303] relative z-30 overflow-hidden whitespace-nowrap"
+        className={cn(
+            "flex flex-col border-r border-white/5 bg-[#030303] relative z-30 overflow-hidden whitespace-nowrap",
+            shareInteractionId && "hidden" // Just hide it via CSS class
+        )}
       >
         <div className="p-4 border-b border-white/5">
             <button 
@@ -988,6 +1165,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
       </motion.div>
 
       {/* --- SIDEBAR (CHAT) --- */}
+      {/* This holds the Avatar. We KEEP it rendered. */}
       <motion.div 
         initial={{ x: -50, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
@@ -996,13 +1174,13 @@ const ImmersiveLearningPlatform: React.FC = () => {
       >
         <div className="h-16 px-6 flex justify-between items-center border-b border-white/5">
           <div className="flex items-center gap-3">
-            <button 
+            {!shareInteractionId && <button 
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 className="p-1.5 hover:bg-white/10 rounded-md text-gray-500 hover:text-white transition-colors"
                 title={isSidebarOpen ? "Close Menu" : "Open Menu"}
             >
                 {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
-            </button>
+            </button>}
 
             <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${avatarStatus === "Online" ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-red-500"}`} />
@@ -1063,15 +1241,37 @@ const ImmersiveLearningPlatform: React.FC = () => {
               className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}
             >
               <div className={cn(
-                "max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed border shadow-md",
+                "max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed border shadow-md relative group",
                 msg.role === 'assistant' 
                   ? "bg-[#111] border-white/5 text-gray-200 rounded-tl-none" 
                   : "bg-cyan-950/20 border-cyan-500/20 text-cyan-100 rounded-tr-none"
               )}>
                 {msg.role === 'assistant' && (
-                  <div className="flex items-center gap-2 mb-2 opacity-50">
-                    <Terminal size={10} />
-                    <span className="text-[10px] font-mono uppercase">Assistant</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 opacity-50">
+                      <Terminal size={10} />
+                      <span className="text-[10px] font-mono uppercase">Assistant</span>
+                    </div>
+                    {/* REPLAY / SHARE ACTIONS */}
+                    {msg.interaction_id && (
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                                onClick={() => handleReplay(msg.interaction_id!)}
+                                disabled={isPlaying}
+                                title="Replay Explanation"
+                                className="p-1 hover:bg-white/10 rounded text-cyan-500 hover:text-cyan-400 disabled:opacity-50"
+                            >
+                                <Play size={12} />
+                            </button>
+                            <button 
+                                onClick={() => handleShare(msg.interaction_id!)}
+                                title="Share Explanation"
+                                className="p-1 hover:bg-white/10 rounded text-gray-500 hover:text-white"
+                            >
+                                {copiedId === msg.interaction_id ? <Check size={12} className="text-green-500" /> : <Share2 size={12} />}
+                            </button>
+                        </div>
+                    )}
                   </div>
                 )}
                 <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -1097,7 +1297,6 @@ const ImmersiveLearningPlatform: React.FC = () => {
                  key={m.id}
                  onClick={() => {
                    setLayoutMode(m.id as LayoutMode);
-                   if (m.id !== 'SPLIT_MODE' && m.id !== 'FOCUS_MODE') setHighlightQuery(null);
                  }}
                  className={cn(
                    "px-4 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-all duration-200",
@@ -1112,7 +1311,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
             ))}
           </div>
           <div className="flex gap-4 text-gray-600">
-              {!user&&<button 
+              {(!user && !shareInteractionId) && <button 
                   onClick={() => setShowAuthModal(true)}
                   className="w-full py-2 px-3 bg-white/5 hover:bg-white/10 text-gray-300 text-xs rounded border border-white/5 transition-colors flex items-center justify-center gap-2"
                 >
@@ -1136,16 +1335,23 @@ const ImmersiveLearningPlatform: React.FC = () => {
                   layoutMode === 'CONCEPT_MODE' ? "flex-1" : "w-[40%] min-w-[400px]"
                 )}
               >
-                  {/* Subtle Gradient BG */}
                   <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-900/10 blur-[100px] rounded-full pointer-events-none" />
                   <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-cyan-900/10 blur-[100px] rounded-full pointer-events-none" />
-                  
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-transparent opacity-50" />
                   
-                  <div className="p-10 flex flex-col h-full justify-center relative z-10">
-                     <AnimatePresence mode='wait'>
+                  <div className="absolute top-4 right-4 z-50">
+                     <NavigationControls 
+                        current={conceptIndex} 
+                        total={conceptHistory.length} 
+                        onPrev={() => setConceptIndex(i => Math.max(0, i - 1))}
+                        onNext={() => setConceptIndex(i => Math.min(conceptHistory.length - 1, i + 1))}
+                     />
+                  </div>
+
+                  <div className="p-10 flex flex-col h-full justify-center relative z-10 overflow-y-auto custom-scrollbar">
+                      <AnimatePresence mode='wait'>
                         <motion.div 
-                          key={conceptData.title}
+                          key={currentConcept.title}
                           initial={{ opacity: 0, y: 10, filter: 'blur(5px)' }}
                           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                           exit={{ opacity: 0, y: -10, filter: 'blur(5px)' }}
@@ -1154,21 +1360,37 @@ const ImmersiveLearningPlatform: React.FC = () => {
                         >
                           <motion.h1 
                             initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
-                            className="text-5xl font-light text-white tracking-tight"
+                            className="text-5xl font-light text-white tracking-tight leading-tight"
                           >
-                            {conceptData.title}
+                            {currentConcept.title}
                             <span className="text-cyan-500 block text-sm font-mono font-bold mt-4 tracking-[0.2em] uppercase opacity-70 flex items-center gap-2">
                                <div className="w-8 h-[1px] bg-cyan-500"></div> Core Concept
                             </span>
                           </motion.h1>
-                          <motion.p 
+
+                          <motion.div 
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-                            className="text-gray-400 leading-relaxed text-lg font-light max-w-2xl border-l-2 border-white/10 pl-6"
+                            className="text-gray-400 leading-relaxed text-lg font-light max-w-2xl border-l-2 border-white/10 pl-6 markdown-content"
                           >
-                            {conceptData.text}
-                          </motion.p>
+                            <ReactMarkdown 
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                    strong: ({node, ...props}) => <span className="font-bold text-cyan-400" {...props} />,
+                                    ul: ({node, ...props}) => <ul className="list-disc list-outside ml-4 space-y-2 mb-4 mt-2" {...props} />,
+                                    li: ({node, ...props}) => <li className="pl-1 marker:text-cyan-500/50" {...props} />,
+                                    h1: ({node, ...props}) => <h3 className="text-xl font-medium text-white mb-3 mt-6 block border-b border-white/5 pb-2" {...props} />,
+                                    h2: ({node, ...props}) => <h4 className="text-lg font-medium text-white/90 mb-2 mt-5 block" {...props} />,
+                                    h3: ({node, ...props}) => <strong className="text-white block mt-4 mb-1" {...props} />,
+                                    code: ({node, ...props}) => <code className="bg-white/5 border border-white/10 text-cyan-200 px-1.5 py-0.5 rounded text-[0.9em] font-mono shadow-sm" {...props} />,
+                                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-cyan-500/30 pl-4 py-1 my-4 text-gray-300 italic bg-white/5 rounded-r" {...props} />,
+                                    p: ({node, ...props}) => <p className="mb-4 last:mb-0" {...props} />
+                                }}
+                            >
+                                {currentConcept.text}
+                            </ReactMarkdown>
+                          </motion.div>
                         </motion.div>
-                     </AnimatePresence>
+                      </AnimatePresence>
                   </div>
               </motion.div>
             )}
@@ -1185,7 +1407,7 @@ const ImmersiveLearningPlatform: React.FC = () => {
                 )}
               >
                   {(() => {
-                    const lang = detectLanguage(activeCode);
+                    const lang = detectLanguage(currentCodeState.code);
                     const ext = lang === 'javascript' ? 'js' : 'py';
                     const label = lang === 'javascript' ? 'JavaScript' : 'Python 3.11';
                     
@@ -1198,6 +1420,13 @@ const ImmersiveLearningPlatform: React.FC = () => {
                              <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
                            </div>
                            
+                           <NavigationControls 
+                                current={codeIndex} 
+                                total={codeHistory.length} 
+                                onPrev={() => setCodeIndex(i => Math.max(0, i - 1))}
+                                onNext={() => setCodeIndex(i => Math.min(codeHistory.length - 1, i + 1))}
+                           />
+
                            <div className="flex items-center gap-2 bg-[#1e1e1e] px-4 py-1.5 rounded-t-lg border-t border-x border-white/5 relative top-1.5 shadow-sm">
                              {lang === 'javascript' 
                                 ? <span className="text-yellow-400 font-bold text-xs">JS</span> 
@@ -1216,9 +1445,8 @@ const ImmersiveLearningPlatform: React.FC = () => {
                   })()}
 
                   <div ref={codeContainerRef} className="flex-1 overflow-auto custom-scrollbar relative bg-[#1e1e1e]">
-                      {/* Inner shadow for depth */}
                       <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] z-10" />
-                      <CodeViewer code={activeCode} highlightQuery={highlightQuery} />
+                      <CodeViewer code={currentCodeState.code} highlightQuery={currentCodeState.highlight} />
                   </div>
               </motion.div>
             )}
@@ -1229,45 +1457,86 @@ const ImmersiveLearningPlatform: React.FC = () => {
                 variants={PANEL_VARIANTS}
                 initial="hidden" animate="visible" exit="exit"
                 layoutId="panel-visual"
-                className="flex-1 flex flex-col bg-[#0e0e0e] border border-white/5 rounded-3xl overflow-hidden shadow-2xl p-0"
+                className="flex-1 flex flex-col bg-[#0e0e0e] border border-white/5 rounded-3xl overflow-hidden shadow-2xl p-0 relative"
               >
-                  {renderVisualContent()}
+                  <div className="absolute top-4 right-4 z-50">
+                     <NavigationControls 
+                        current={visualIndex} 
+                        total={visualHistory.length} 
+                        onPrev={() => setVisualIndex(i => Math.max(0, i - 1))}
+                        onNext={() => setVisualIndex(i => Math.min(visualHistory.length - 1, i + 1))}
+                        label="STEP"
+                     />
+                  </div>
+
+                  {renderVisualContent(currentVisual)}
               </motion.div>
             )}
             </AnimatePresence>
           </LayoutGroup>
         </main>
 
-        <div className="absolute bottom-8 left-0 right-0 flex justify-center z-40 px-4 pointer-events-none">
-          <motion.div 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="pointer-events-auto bg-[#121212]/80 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 flex items-center shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full max-w-2xl group focus-within:border-cyan-500/50 focus-within:bg-[#121212] transition-all duration-300"
-          >
-            <Mic 
-                size={18} 
-                onClick={() => !user && setShowAuthModal(true)}
-                className={cn("mr-4 transition-colors cursor-pointer", isProcessing ? "text-cyan-400 animate-pulse" : "text-gray-500")} 
-            />
-            <input 
-              type="text" 
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-              onClick={() => !user && setShowAuthModal(true)}
-              disabled={isProcessing}
-              placeholder={!user ? "Sign in to chat..." : isProcessing ? "Processing Neural Input..." : isPlaying ? "System explaining..." : "Ask a follow-up question..."}
-              className="bg-transparent border-none outline-none text-sm text-white placeholder-gray-600 flex-1 h-10 font-light tracking-wide disabled:cursor-not-allowed"
-            />
-            <button 
-              onClick={handleSendMessage} 
-              disabled={!input.trim() || isProcessing} 
-              className="h-10 w-10 bg-white/5 rounded-full flex items-center justify-center hover:bg-cyan-500 hover:text-black transition-all transform active:scale-95 disabled:opacity-30 disabled:hover:bg-white/5 disabled:hover:text-gray-500 disabled:transform-none"
+        {/* INPUT AREA - HIDDEN IN SHARE MODE */}
+       
+            <div className="absolute bottom-8 left-0 right-0 flex justify-center z-40 px-4 pointer-events-none">
+            <motion.div 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="pointer-events-auto bg-[#121212]/80 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 flex items-center shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full max-w-2xl group focus-within:border-cyan-500/50 focus-within:bg-[#121212] transition-all duration-300"
             >
-              {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <ChevronRight size={18} />}
-            </button>
-          </motion.div>
-        </div>
+                <Mic 
+                    size={18} 
+                    onClick={() => !user && setShowAuthModal(true)}
+                    className={cn("mr-4 transition-colors cursor-pointer", isProcessing ? "text-cyan-400 animate-pulse" : "text-gray-500")} 
+                />
+                <input 
+                type="text" 
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                onClick={() => !user && setShowAuthModal(true)}
+                disabled={isProcessing}
+                placeholder={!user ? "Sign in to chat..." : isProcessing ? "Processing Neural Input..." : isPlaying ? "System explaining..." : "Ask a follow-up question..."}
+                className="bg-transparent border-none outline-none text-sm text-white placeholder-gray-600 flex-1 h-10 font-light tracking-wide disabled:cursor-not-allowed"
+                />
+                <button 
+                onClick={handleSendMessage} 
+                disabled={!input.trim() || isProcessing} 
+                className="h-10 w-10 bg-white/5 rounded-full flex items-center justify-center hover:bg-cyan-500 hover:text-black transition-all transform active:scale-95 disabled:opacity-30 disabled:hover:bg-white/5 disabled:hover:text-gray-500 disabled:transform-none"
+                >
+                {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <ChevronRight size={18} />}
+                </button>
+            </motion.div>
+            </div>
+       
+
+        {/* SHARE MODE AVATAR CONTAINER */}
+        {/* {shareInteractionId && (
+            <div className="absolute bottom-8 right-8 z-50 w-48 h-48 pointer-events-none">
+            
+                <div className="w-full h-full relative overflow-hidden bg-gradient-to-b from-black/20 to-[#080808] rounded-full border border-white/10 shadow-2xl">
+                    <div ref={avatarRef} className="w-full h-full relative z-10" />
+                </div>
+            </div>
+        )} */}
+
+        {shareInteractionId && showShareOverlay && (
+            <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                <motion.button
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleStartShare}
+                    className="group relative flex flex-col items-center gap-4"
+                >
+                    <div className="w-24 h-24 rounded-full bg-cyan-500 flex items-center justify-center shadow-[0_0_50px_rgba(6,182,212,0.6)] group-hover:shadow-[0_0_80px_rgba(6,182,212,0.8)] transition-shadow">
+                        <Play size={40} className="text-black fill-current ml-2" />
+                    </div>
+                    <span className="text-xl font-light text-white tracking-widest uppercase">Start Explaination</span>
+                </motion.button>
+            </div>
+        )}
 
       </div>
     </div>
