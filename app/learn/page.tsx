@@ -31,9 +31,11 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 // --- UTILS ---
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+// function cn(...inputs: ClassValue[]) {
+//   return twMerge(clsx(inputs));
+// }
+
+import { cn } from '../../lib/utils';
 
 // --- SUPABASE SETUP ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -42,7 +44,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // --- TYPES ---
 type LayoutMode = 'CONCEPT_MODE' | 'SPLIT_MODE' | 'FOCUS_MODE' | 'VISUAL_MODE';
-type VisualType = 'ARRAY' | 'TABLE' | 'KEY_VALUE' | 'MERMAID_FLOWCHART' | "NETWORK";
+type VisualType = 'ARRAY' | 'TABLE' | 'KEY_VALUE' | 'MERMAID_FLOWCHART' | "NETWORK" | "BROWSER";
 
 interface VisualState {
   type: VisualType;
@@ -290,8 +292,105 @@ const MermaidChart = ({ chart }: { chart: string }) => {
     </div>
   );
 };
+const Primitives = {
+  Box: ({ children, className, style, ...props }: any) => (
+    <div 
+      // Tailwind handles the transition and any layout classes
+      className={cn("transition-all duration-500", className)} 
+      // Inline style handles dynamic width, height, and colors (bypasses purge)
+      style={style} 
+      {...props}
+    >
+      {children}
+    </div>
+  ),
+  Text: ({ content, className, style }: any) => (
+    <p 
+      className={cn("text-sm", className)} 
+      style={style}
+    >
+      {content}
+    </p>
+  ),
+  Image: ({ src, alt, className, style }: any) => (
+    <img 
+      src={src} 
+      alt={alt} 
+      className={cn("max-w-full h-auto rounded", className)} 
+      style={style} 
+    />
+  ),
+  Button: ({ children, className, style, variant }: any) => (
+    <button 
+      className={cn(
+        "px-4 py-2 rounded-md font-medium transition-colors",
+        variant === 'primary' ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-200",
+        className
+      )}
+      style={style}
+    >
+   {children}
+    </button>
+  ),
+  Grid: ({ children, cols = 1, className, style }: any) => (
+    <div 
+      className={cn("grid gap-4", className)} 
+      style={{ 
+        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+        ...style 
+      }}
+    >
+      {children}
+    </div>
+  )
+};
 
 
+const RenderElement = ({ node }: { node: any }) => {
+  if (!node || !node.type) return null;
+  const Component = (Primitives as any)[node.type];
+  
+  return (
+    <Component {...node.props}>
+      {node.children?.map((child: any, index: number) => (
+        <RenderElement key={index} node={child} />
+      ))}
+    </Component>
+  );
+};
+
+
+const BrowserVisualizer = ({ payload }: { payload: any }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isJsonUI = payload?.ui && typeof payload.ui === 'object';
+
+  return (
+    // We remove the p-2 / p-6 and bg-[#050505] to let the visual fill the panel
+    <div className="w-full h-full flex flex-col bg-background relative overflow-hidden">
+      {/* Viewport Area - No header, no borders, just the render */}
+      <div className="flex-1 overflow-auto relative selection:bg-cyan-500/30">
+        {isJsonUI ? (
+          <div className="w-full h-full min-h-full">
+            <RenderElement node={payload.ui} />
+          </div>
+        ) : (
+          <div 
+            ref={containerRef}
+            className="browser-render-root w-full h-full min-h-full"
+            dangerouslySetInnerHTML={{ __html: payload?.code || "" }} 
+          />
+        )}
+      </div>
+
+      {/* Subtle Focus Label (Optional: keep for UX) */}
+      {payload?.highlights?.length > 0 && (
+        <div className="absolute top-4 left-4 px-3 py-1 bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 text-[10px] font-mono rounded-full backdrop-blur-md uppercase tracking-widest animate-in fade-in zoom-in">
+          Target: {payload.highlights[0]}
+        </div>
+      )}
+    </div>
+  );
+};
 const detectLanguage = (code: string): 'python' | 'javascript' => {
   if (!code) return 'python'; 
   const jsIndicators = ['const ', 'let ', 'var ', 'function ', '=>', 'console.log', '===', 'import React'];
@@ -835,7 +934,7 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
           ttsEndpoint: "N/A", cameraView: "upper", mixerGainSpeech: 3, cameraRotateEnable: false
         });
         headRef.current = head;
-        const adapter = new KokoroAdapter("https://cloggy-oneirocritically-niki.ngrok-free.dev");
+        const adapter = new KokoroAdapter("https://loris-arthralgic-romona.ngrok-free.dev");
         adapterRef.current = adapter;
         try {
             await head.showAvatar({ url: "/avatars/david.glb", body: "F", avatarMood: "neutral" });
@@ -862,6 +961,7 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
           case 'TABLE': return <TableVisualizer payload={data.payload} />;
           case 'MERMAID_FLOWCHART': return <MermaidChart chart={data.payload.chart} />;
           case 'NETWORK': return <ForceGraph data={data.payload} />;
+          case 'BROWSER': return <BrowserVisualizer payload={data.payload} />;
           default: return null;
       }
   };
@@ -963,6 +1063,13 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
       };
       
       if (map[data.type]) {
+
+
+        if (data.type === 'visual' && data.state?.type === 'BROWSER') {
+            const autoLayoutAction: PlaybackAction = { type: 'LAYOUT', mode: 'VISUAL_MODE' };
+            commandQueueRef.current.push(autoLayoutAction);
+            recordingBufferRef.current.push(autoLayoutAction);
+        }
         // 1. Add to live queue
         commandQueueRef.current.push(map[data.type]);
         // 2. Add to recording buffer

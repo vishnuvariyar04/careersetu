@@ -3,6 +3,31 @@
 
 @custom-variant dark (&:is(.dark *));
 
+
+/* The High-Intensity Spotlight */
+@keyframes spotlight-ring {
+  0% {
+    box-shadow: 0 0 0 0px rgba(59, 130, 246, 0.7), 0 0 0 0px rgba(59, 130, 246, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0), 0 0 0 20px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0px rgba(59, 130, 246, 0), 0 0 0 0px rgba(59, 130, 246, 0);
+  }
+}
+
+.nexus-spotlight-active {
+  position: relative !important;
+  outline: 3px solid #3b82f6 !important;
+  outline-offset: 2px !important;
+  border-radius: 4px !important;
+  z-index: 50 !important;
+  /* Applying the multi-layered pulse effect */
+  animation: spotlight-ring 2s infinite cubic-bezier(0.66, 0, 0, 1);
+  transition: outline 0.3s ease;
+}
+
 :root {
   /* Updated theme for AI-focused dark design with grid patterns */
   --background: oklch(0.08 0 0);
