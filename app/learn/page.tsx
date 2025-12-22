@@ -117,6 +117,27 @@ mermaid.initialize({
 
 // --- SUB-COMPONENTS ---
 
+
+const TypingIndicator = () => (
+  <div className="flex gap-1.5 p-1 items-center">
+    {[0, 1, 2].map((i) => (
+      <motion.div
+        key={i}
+        animate={{ 
+          scale: [1, 1.2, 1],
+          opacity: [0.3, 1, 0.3] 
+        }}
+        transition={{ 
+          duration: 1, 
+          repeat: Infinity, 
+          delay: i * 0.2 
+        }}
+        className="w-1.5 h-1.5 bg-cyan-500 rounded-full"
+      />
+    ))}
+  </div>
+);
+
 const NavigationControls = ({ 
     current, 
     total, 
@@ -601,9 +622,28 @@ const TableVisualizer = ({ payload }: { payload: any }) => {
 const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: string | null }) => {
   const language = detectLanguage(code);
   const codeLines = code.split('\n');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (highlightQuery && containerRef.current) {
+      // Small timeout ensures the syntax highlighter has finished internal rendering
+      const timer = setTimeout(() => {
+        const highlightedLine = containerRef.current?.querySelector('.highlight-active');
+        if (highlightedLine) {
+          highlightedLine.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center', // This centers the line vertically in the viewport
+            inline: 'nearest'
+          });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightQuery, code]);
 
   return (
     <motion.div 
+      ref={containerRef} // Attach ref here
       key={code} 
       initial={{ opacity: 0, filter: 'blur(5px)' }} 
       animate={{ opacity: 1, filter: 'blur(0px)' }} 
@@ -621,6 +661,8 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
         wrapLines={true}
         lineProps={(lineNumber) => {
           const style: React.CSSProperties = { display: 'block', width: '100%' };
+          let className = ""; // Track className
+          
           if (highlightQuery) {
             const lineContent = codeLines[lineNumber - 1] || '';
             if (lineContent.includes(highlightQuery.trim())) {
@@ -628,9 +670,10 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
               style.borderLeft = '3px solid #22d3ee';
               style.marginLeft = '-3px'; 
               style.boxShadow = 'inset 0 0 20px rgba(6, 182, 212, 0.05)';
+              className = "highlight-active"; // Assign the class for the querySelector
             }
           }
-          return { style };
+          return { style, className };
         }}
       >
         {code}
@@ -638,7 +681,6 @@ const CodeViewer = ({ code, highlightQuery }: { code: string, highlightQuery: st
     </motion.div>
   );
 };
-
 // --- MAIN COMPONENT ---
 
 interface ImmersiveLearningPlatformProps {
@@ -990,12 +1032,12 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
       subtitleTimerRef.current = setTimeout(() => setSubtitles(""), 2000);
   };
 
-  useEffect(() => {
-    if (currentCodeState.highlight && codeContainerRef.current) {
-      const highlightedElement = codeContainerRef.current.querySelector('.highlight-active');
-      if (highlightedElement) highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [currentCodeState.highlight, currentCodeState.code]);
+  // useEffect(() => {
+  //   if (currentCodeState.highlight && codeContainerRef.current) {
+  //     const highlightedElement = codeContainerRef.current.querySelector('.highlight-active');
+  //     if (highlightedElement) highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  //   }
+  // }, [currentCodeState.highlight, currentCodeState.code]);
 
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1452,38 +1494,86 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
                   ? "bg-[#111] border-white/5 text-gray-200 rounded-tl-none" 
                   : "bg-cyan-950/20 border-cyan-500/20 text-cyan-100 rounded-tr-none"
               )}>
-                {msg.role === 'assistant' && (
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2 opacity-50">
-                      <Terminal size={10} />
-                      <span className="text-[10px] font-mono uppercase">Assistant</span>
-                    </div>
-                    {/* REPLAY / SHARE ACTIONS */}
-                    {msg.interaction_id && (
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                                onClick={() => handleReplay(msg.interaction_id!)}
-                                disabled={isPlaying}
-                                title="Replay Explanation"
-                                className="p-1 hover:bg-white/10 rounded text-cyan-500 hover:text-cyan-400 disabled:opacity-50"
-                            >
-                                <Play size={12} />
-                            </button>
-                            <button 
-                                onClick={() => handleShare(msg.interaction_id!)}
-                                title="Share Explanation"
-                                className="p-1 hover:bg-white/10 rounded text-gray-500 hover:text-white"
-                            >
-                                {copiedId === msg.interaction_id ? <Check size={12} className="text-green-500" /> : <Share2 size={12} />}
-                            </button>
-                        </div>
-                    )}
-                  </div>
-                )}
+              {msg.role === 'assistant' && (
+  <div className="flex items-center justify-between mb-2">
+    <div className="flex items-center gap-2">
+      {/* Dynamic Icon based on state */}
+      <div className="relative">
+        <Terminal size={10} className={cn("transition-colors", (isProcessing && msg.content === '') ? "text-cyan-400" : "opacity-50")} />
+        {(isProcessing && msg.content === '') && (
+            <motion.div 
+                layoutId="icon-pulse"
+                className="absolute inset-0 bg-cyan-500 rounded-full blur-[2px]"
+                animate={{ opacity: [0, 0.5, 0] }}
+                transition={{ duration: 1, repeat: Infinity }}
+            />
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <span className={cn(
+            "text-[10px] font-mono uppercase tracking-wider transition-colors",
+            (isProcessing && msg.content === '') ? "text-cyan-400" : "text-gray-500"
+        )}>
+            Assistant
+        </span>
+        
+        {/* The Inline Loader */}
+        {(isProcessing && msg.content === '') && (
+          <div className="flex items-center gap-1 bg-cyan-500/10 border border-cyan-500/20 px-1.5 py-0.5 rounded-[4px]">
+            <span className="text-[8px] font-bold font-mono text-cyan-500 animate-pulse">
+                THINKING
+            </span>
+            <motion.div 
+              animate={{ opacity: [0, 1, 0] }}
+              transition={{ duration: 0.8, repeat: Infinity }}
+              className="w-1 h-1 bg-cyan-500 rounded-full"
+            />
+          </div>
+        )}
+
+        {/* Streaming Indicator */}
+        {(isProcessing && msg.content !== '') && (
+          <span className="text-[8px] font-mono text-cyan-600/60 animate-pulse">
+            [RECIEVING_DATA]
+          </span>
+        )}
+      </div>
+    </div>
+
+    {/* REPLAY / SHARE ACTIONS - Keep your existing logic here */}
+    {msg.interaction_id && (
+        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={() => handleReplay(msg.interaction_id!)} disabled={isPlaying} className="p-1 hover:bg-white/10 rounded text-cyan-500">
+                <Play size={12} />
+            </button>
+            <button onClick={() => handleShare(msg.interaction_id!)} className="p-1 hover:bg-white/10 rounded text-gray-500">
+                {copiedId === msg.interaction_id ? <Check size={12} className="text-green-500" /> : <Share2 size={12} />}
+            </button>
+        </div>
+    )}
+  </div>
+)}
+
                 <p className="whitespace-pre-wrap">{msg.content}</p>
               </div>
             </motion.div>
           ))}
+          {isProcessing && messages[messages.length - 1]?.role === 'user' && (
+  <motion.div 
+    initial={{ opacity: 0, x: -20 }}
+    animate={{ opacity: 1, x: 0 }}
+    className="flex flex-col items-start"
+  >
+    <div className="bg-[#111] border border-white/5 text-gray-200 rounded-2xl rounded-tl-none p-4 shadow-md">
+      <div className="flex items-center gap-2 opacity-50 mb-2">
+        <Cpu size={10} className="animate-spin-slow" />
+        <span className="text-[10px] font-mono uppercase tracking-widest">Processing...</span>
+      </div>
+      <TypingIndicator />
+    </div>
+  </motion.div>
+)}
           <div ref={transcriptEndRef} className="h-4" />
         </div>
       </motion.div>
@@ -1685,16 +1775,35 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
         {/* INPUT AREA - HIDDEN IN SHARE MODE */}
        
             <div className="absolute bottom-8 left-0 right-0 flex justify-center z-40 px-4 pointer-events-none">
+           <motion.div 
+    initial={{ y: 20, opacity: 0 }}
+    animate={{ 
+        y: 0, 
+        opacity: 1,
+        boxShadow: isProcessing 
+            ? "0 0 30px rgba(6, 182, 212, 0.2)" 
+            : "0 0 50px rgba(0,0,0,0.5)"
+    }}
+    className={cn(
+        "pointer-events-auto bg-[#121212]/80 backdrop-blur-xl border rounded-full p-2 pl-6 flex items-center transition-all duration-500 w-full max-w-2xl group",
+        isProcessing ? "border-cyan-500/50" : "border-white/10"
+    )}
+>
+    {/* Mic Icon with pulse */}
+    <div className="relative mr-4">
+        {isProcessing && (
             <motion.div 
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                className="pointer-events-auto bg-[#121212]/80 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 flex items-center shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full max-w-2xl group focus-within:border-cyan-500/50 focus-within:bg-[#121212] transition-all duration-300"
-            >
-                <Mic 
-                    size={18} 
-                    onClick={() => !user && setShowAuthModal(true)}
-                    className={cn("mr-4 transition-colors cursor-pointer", isProcessing ? "text-cyan-400 animate-pulse" : "text-gray-500")} 
-                />
+                layoutId="pulse"
+                className="absolute inset-0 bg-cyan-500 rounded-full blur-md"
+                animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
+                transition={{ duration: 2, repeat: Infinity }}
+            />
+        )}
+        <Mic 
+            size={18} 
+            className={cn("relative z-10 transition-colors", isProcessing ? "text-cyan-400" : "text-gray-500")} 
+        />
+    </div>
                 <input 
                 type="text" 
                 value={input}
