@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
+
 // --- DYNAMIC IMPORT FOR GRAPH ---
 const ForceGraph = dynamic(() => import('@/components/ForceGraph'), { 
   ssr: false,
@@ -238,60 +239,134 @@ const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
   );
 };
 
+
+
+
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import { ZoomIn, ZoomOut, RotateCcw, Maximize } from 'lucide-react';
+
 const MermaidChart = ({ chart }: { chart: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svgContent, setSvgContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isRendering, setIsRendering] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-  const renderChart = async () => {
-  if (!chart || !containerRef.current) return;
-  let cleanChart = chart.replace(/```mermaid/g, '').replace(/```/g, '');
-  cleanChart = cleanChart.replace(/\u00A0/g, ' ');
-  cleanChart = cleanChart.replace(/(\w+)\[(.*?)\]/g, (match, id, content) => {
-    if (content.startsWith('"') && content.endsWith('"')) return match;
-    return `${id}["${content}"]`;
-  });
-  cleanChart = cleanChart.replace(/-->\|([^"\|]+?)\|/g, '-->|"$1"|');
-  setError(null);
-  const id = `${MERMAID_ID_PREFIX}${Date.now()}`;
-  try {
-    const { svg } = await mermaid.render(id, cleanChart.trim());
-    if (mounted) setSvgContent(svg);
-  } catch (err) {
-    console.error("Mermaid Render Error:", err);
-  }
-};
+    
+    const renderChart = async () => {
+      if (!chart) return;
+      
+      setIsRendering(true);
+      setError(null);
+
+      // 1. Clean the syntax before sending to Mermaid
+      let cleanChart = chart
+        .replace(/```mermaid/g, '')
+        .replace(/```/g, '')
+        .trim();
+
+      // Ensure it starts with a valid declaration if missing
+      if (!cleanChart.startsWith('graph') && !cleanChart.startsWith('flowchart') && !cleanChart.startsWith('sequenceDiagram')) {
+        cleanChart = `graph TD\n${cleanChart}`;
+      }
+
+      try {
+        const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+        
+        // 2. Perform the render
+        const { svg } = await mermaid.render(id, cleanChart);
+        
+        if (mounted) {
+          // 3. Make the SVG responsive so the Pan/Zoom tool can handle it
+          const processedSvg = svg
+            .replace(/width=".*?"/, 'width="100%"')
+            .replace(/height=".*?"/, 'height="100%"')
+            .replace(/style=".*?"/, 'style="max-width: 100%; height: auto;"');
+            
+          setSvgContent(processedSvg);
+          setIsRendering(false);
+        }
+      } catch (err: any) {
+        console.error("Mermaid Error:", err);
+        if (mounted) {
+          setError("Diagram Syntax Error");
+          setIsRendering(false);
+        }
+      }
+    };
+
     renderChart();
     return () => { mounted = false; };
   }, [chart]);
 
+  // ERROR STATE
   if (error) {
     return (
-      <div className="relative w-full h-full flex flex-col items-center justify-center bg-[#0a0a0a] overflow-hidden text-red-400 space-y-2">
-         <div className="absolute inset-0 bg-[radial-gradient(#80808012_1px,transparent_1px)] [background-size:16px_16px]" />
-        <AlertCircle size={24} className="relative z-10" />
-        <span className="text-xs font-mono relative z-10">{error}</span>
+      <div className="w-full h-full flex flex-col items-center justify-center bg-[#0a0a0a] border border-red-500/20 rounded-3xl">
+        <AlertCircle className="text-red-500 mb-2" size={24} />
+        <span className="text-xs font-mono text-red-400">{error}</span>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="mt-4 text-[10px] text-gray-500 underline uppercase tracking-widest"
+        >
+          Retry System
+        </button>
+      </div>
+    );
+  }
+
+  // LOADING STATE
+  if (isRendering && !svgContent) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-[#0a0a0a]">
+        <Loader2 className="text-cyan-500 animate-spin mb-4" size={24} />
+        <span className="text-[10px] font-mono text-cyan-500 tracking-[0.3em] uppercase animate-pulse">
+          Synthesizing Geometry...
+        </span>
       </div>
     );
   }
 
   return (
-    <div className="relative w-full h-full bg-[#0a0a0a] overflow-hidden flex items-center justify-center">
-      <div className="absolute inset-0 bg-[radial-gradient(#80808012_1px,transparent_1px)] [background-size:20px_20px] opacity-50" />
-      <motion.div 
-        key={svgContent ? 'loaded' : 'loading'}
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        ref={containerRef} 
-        className="relative  z-10 w-full h-full flex items-center justify-center p-4 overflow-auto mermaid-container"
-        dangerouslySetInnerHTML={{ __html: svgContent || '' }}
-      />
+    <div className="relative w-full h-full bg-[#0a0a0a] overflow-hidden group">
+      {/* Background Grid */}
+      <div className="absolute inset-0 bg-[radial-gradient(#80808012_1px,transparent_1px)] [background-size:30px_30px] opacity-40 pointer-events-none" />
+      
+      <TransformWrapper
+        initialScale={1}
+        minScale={0.2}
+        maxScale={4}
+        centerOnInit={true}
+        limitToBounds={false} // Allows infinite panning
+        wheel={{ step: 0.1 }}
+      >
+        {({ zoomIn, zoomOut, resetTransform, centerView }) => (
+          <>
+            {/* Control Bar */}
+            <div className="absolute bottom-6 right-6 z-50 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
+               <button onClick={() => zoomIn()} className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-cyan-500/20 hover:text-cyan-400 transition-all shadow-2xl backdrop-blur-md"><ZoomIn size={16}/></button>
+               <button onClick={() => zoomOut()} className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-cyan-500/20 hover:text-cyan-400 transition-all shadow-2xl backdrop-blur-md"><ZoomOut size={16}/></button>
+               <button onClick={() => centerView()} className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-cyan-500/20 hover:text-cyan-400 transition-all shadow-2xl backdrop-blur-md"><Maximize size={16}/></button>
+               <button onClick={() => resetTransform()} className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-cyan-500/20 hover:text-cyan-400 transition-all shadow-2xl backdrop-blur-md"><RotateCcw size={16}/></button>
+            </div>
+
+            <TransformComponent
+              wrapperStyle={{ width: "100%", height: "100%", cursor: "grab" }}
+              contentStyle={{ width: "100%", height: "100%" }}
+            >
+              <div 
+                className="flex items-center justify-center p-20 min-w-full min-h-full"
+                dangerouslySetInnerHTML={{ __html: svgContent || '' }}
+              />
+            </TransformComponent>
+          </>
+        )}
+      </TransformWrapper>
     </div>
   );
 };
+
 const Primitives = {
   Box: ({ children, className, style, ...props }: any) => (
     <div 

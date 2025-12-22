@@ -65,6 +65,7 @@
     "react-resizable-panels": "^2.1.7",
     "react-runner": "^1.0.5",
     "react-syntax-highlighter": "^16.1.0",
+    "react-zoom-pan-pinch": "^3.7.0",
     "recharts": "latest",
     "remark-gfm": "^4.0.1",
     "sonner": "^1.7.4",
