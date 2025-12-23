@@ -590,18 +590,6 @@ const HowToUseSection = () => {
                             <span>See how it works</span>
                             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                         </motion.button>
-                        
-                        {/* Progress indicator */}
-                        <div className="hidden lg:flex flex-col gap-3 mt-12">
-                            {[1,2,3,4,5].map((num) => (
-                                <div key={num} className="flex items-center gap-3 text-zinc-500 text-sm">
-                                    <div className="w-6 h-6 rounded-full border border-white/10 flex items-center justify-center text-xs font-bold">
-                                        {num}
-                                    </div>
-                                    <span className="text-zinc-600">Step {num}</span>
-                                </div>
-                            ))}
-                        </div>
                     </motion.div>
 
                     {/* --- RIGHT COLUMN: SCROLLING CARDS --- */}
