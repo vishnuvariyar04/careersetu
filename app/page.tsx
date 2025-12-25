@@ -860,7 +860,6 @@ const Navbar = () => {
                 variants={{
                     top: { 
                         width: "100%", 
-                        top: 0, 
                         borderRadius: "0px", 
                         backgroundColor: "rgba(11, 15, 20, 0)", 
                         borderColor: "rgba(255, 255, 255, 0)",
@@ -869,7 +868,6 @@ const Navbar = () => {
                     },
                     scrolled: { 
                         width: "min(90%, 1200px)", 
-                        top: 20, 
                         borderRadius: "9999px", 
                         backgroundColor: "rgba(11, 15, 20, 0.75)",
                         borderColor: "rgba(255, 255, 255, 0.08)",
@@ -883,19 +881,14 @@ const Navbar = () => {
                     damping: 40,
                     mass: 0.5
                 }}
+                className="fixed top-0 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between px-6 border shadow-xl shadow-black/5"
                 style={{ 
-                    position: "fixed", 
-                    left: "50%", 
-                    x: "-50%",
-                    zIndex: 50,
                     // Reduced blur for better performance
                     backdropFilter: isScrolled ? "blur(12px) saturate(150%)" : "blur(0px)",
                     WebkitBackdropFilter: isScrolled ? "blur(12px) saturate(150%)" : "blur(0px)",
                     willChange: "transform, backdrop-filter",
-                    transform: "translateZ(0)",
                     backfaceVisibility: "hidden"
                 }}
-                className="flex items-center justify-between px-6 border shadow-xl shadow-black/5"
             >
                 {/* 1. Logo Section */}
                 <motion.div 
@@ -1132,30 +1125,21 @@ const HowToUseSection = () => {
     ]
 
     return (
-        <section id="features" className="relative bg-[#0b0f15] py-20 sm:py-24 md:py-32 px-4 sm:px-6" style={{ contain: "layout style paint" }}>
-            
-            {/* --- SIMPLIFIED BACKGROUND - Minimal Aurora for performance --- */}
+        <section id="features" className="relative bg-[#0b0f15] py-20 sm:py-24 md:py-32 px-4 sm:px-6">
+            {/* --- FIXED BLUE HIGHLIGHT - FIXED TO VIEWPORT --- */}
             {!shouldReduceMotion && (
-                <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-                    {/* Simplified single glow instead of complex AuroraFlare */}
-                    <div 
-                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[60%] bg-[#115ca3] blur-[80px] mix-blend-screen opacity-20"
-                        style={{ 
-                            transform: "translate3d(-50%, -50%, 0)",
-                            willChange: "opacity"
-                        }}
-                    />
-                    
-                    {/* --- BLEND MASKS (Top & Bottom) --- */}
-                    <div className="absolute top-0 left-0 right-0 h-80 bg-gradient-to-b from-[#0b0f15] to-transparent z-10" />
-                    <div className="absolute bottom-0 left-0 right-0 h-80 bg-gradient-to-t from-[#0b0f15] to-transparent z-10" />
-                </div>
+                <div 
+                    className="fixed top-1/2 left-1/2 w-[80vw] h-[60vh] bg-[#115ca3] blur-[80px] mix-blend-screen opacity-30 pointer-events-none -translate-x-1/2 -translate-y-1/2"
+                    style={{ 
+                        zIndex: 0
+                    }}
+                />
             )}
-
+            
             <div className="container mx-auto max-w-6xl relative z-10">
                 <div className="flex flex-col lg:flex-row gap-8 sm:gap-12 md:gap-16 items-start">
                     
-                    {/* --- LEFT COLUMN: STICKY HEADER - Optimized --- */}
+                    {/* --- LEFT COLUMN: FIXED/STICKY HEADER --- */}
                     <motion.div 
                         initial={{ opacity: 0, x: -30 }}
                         whileInView={{ opacity: 1, x: 0 }}
@@ -1165,7 +1149,7 @@ const HowToUseSection = () => {
                             willChange: "transform, opacity",
                             backfaceVisibility: "hidden"
                         }}
-                        className="w-full lg:w-5/12 lg:sticky lg:top-32 lg:h-fit py-6 sm:py-10"
+                        className="w-full lg:w-5/12 lg:sticky lg:top-24 lg:self-start py-6 sm:py-10 relative z-10"
                     >
                         <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white/5 border border-white/10 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-zinc-300 w-fit mb-6 sm:mb-8">
                             <Lightbulb className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -1195,7 +1179,7 @@ const HowToUseSection = () => {
                     </motion.div>
 
                     {/* --- RIGHT COLUMN: SCROLLING CARDS - Optimized --- */}
-                    <div className="w-full lg:w-7/12 flex flex-col pt-6 sm:pt-10 pb-20 sm:pb-32 relative" style={{ willChange: "auto" }}>
+                    <div className="w-full lg:w-7/12 flex flex-col pt-6 sm:pt-10 pb-20 sm:pb-32 relative z-10" style={{ willChange: "auto" }}>
                         
                         <StepCard 
                             step="1"
@@ -1417,6 +1401,97 @@ const FeatureItem = ({ imageUrl, title, desc, linkText = "Learn more" }:any) => 
 //         <div className="text-white flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> {outlrn}</div>
 //     </div>
 // )
+
+// --- TESTIMONIAL CAROUSEL FOR MOBILE ---
+const TestimonialCarousel = () => {
+    const [currentIndex, setCurrentIndex] = useState(0)
+    const shouldReduceMotion = useReducedMotion()
+    
+    const testimonials = [
+        {
+            quote: "Outlrn taught me React in 2 weeks — because it only made me learn what I actually needed. No fluff, just code.",
+            author: "Sarah Jenkins",
+            role: "Frontend Developer"
+        },
+        {
+            quote: "The AI explains concepts better than YouTube videos I've watched for hours. It feels like a senior dev is sitting next to me.",
+            author: "David Chen",
+            role: "CS Student"
+        },
+        {
+            quote: "I finally understand backend architecture. This is honestly the future of learning. I landed my first internship last week!",
+            author: "Marcus Johnson",
+            role: "Fullstack Aspirant"
+        }
+    ]
+    
+    const next = () => setCurrentIndex((prev) => (prev + 1) % testimonials.length)
+    const prev = () => setCurrentIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length)
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            next()
+        }, 2000)
+        return () => clearInterval(timer)
+    }, [])
+    
+    return (
+        <div className="sm:hidden relative w-full px-2">
+            <div className="relative overflow-hidden rounded-[2rem] w-full max-w-[320px] mx-auto aspect-square border border-white/10 bg-[#0f1419]/80 backdrop-blur-md">
+                <motion.div
+                    className="flex h-full"
+                    animate={{ x: `-${currentIndex * 100}%` }}
+                    transition={shouldReduceMotion ? { duration: 0.2 } : { type: "spring", stiffness: 200, damping: 25 }}
+                >
+                    {testimonials.map((testimonial, index) => (
+                        <div key={index} className="min-w-full h-full p-6 sm:p-8 flex flex-col justify-between relative group">
+                            {/* Accent Glow */}
+                            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
+                            
+                            <div className="relative z-10">
+                                <div className="flex gap-1 text-blue-500 mb-4">
+                                    {[1,2,3,4,5].map(s => <Star key={s} className="w-3.5 h-3.5 fill-current" />)}
+                                </div>
+                                <p className="text-zinc-300 text-sm sm:text-base leading-relaxed font-medium line-clamp-6">
+                                    "{testimonial.quote}"
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-3 relative z-10 pt-4 border-t border-white/5">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-blue-500/20">
+                                    {testimonial.author[0]}
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-white text-sm font-bold truncate">{testimonial.author}</p>
+                                    <p className="text-zinc-500 text-[10px] uppercase tracking-widest truncate">{testimonial.role}</p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </motion.div>
+
+                {/* Navigation Overlay */}
+                <div className="absolute inset-x-0 bottom-4 flex justify-center gap-1.5 z-20">
+                    {testimonials.map((_, index) => (
+                        <button
+                            key={index}
+                            onClick={() => setCurrentIndex(index)}
+                            className={`h-1 rounded-full transition-all duration-300 ${index === currentIndex ? 'w-6 bg-blue-500' : 'w-1.5 bg-white/20'}`}
+                        />
+                    ))}
+                </div>
+            </div>
+
+            {/* Side Arrows - Simplified */}
+            <button onClick={prev} className="absolute -left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-zinc-400">
+                <ArrowRight className="w-4 h-4 rotate-180" />
+            </button>
+            <button onClick={next} className="absolute -right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-zinc-400">
+                <ArrowRight className="w-4 h-4" />
+            </button>
+        </div>
+    )
+}
 
 const TestimonialCard = ({ quote, author, role, delay = 0 }:any) => (
     <motion.div 
@@ -1734,26 +1809,25 @@ const HowItWorksSection = () => {
                 }}
             >
                 
-                {/* 1. Simplified Background - Minimal Aurora for performance */}
+                {/* 1. Simplified Background - Minimal Aurora for performance - STATIC POSITION */}
                 {!shouldReduceMotion && (
-                    <motion.div 
+                    <div 
+                        className="fixed inset-0 z-0 flex items-end justify-center pointer-events-none"
                         style={{ 
-                            opacity: flareOpacity, 
-                            transformOrigin: "bottom center", 
                             willChange: "opacity",
-                            transform: "translate3d(0,0,0)"
+                            transform: "translateZ(0)"
                         }}
-                        className="absolute inset-0 z-0 flex items-end justify-center pointer-events-none"
                     >
-                        {/* Simplified single glow instead of complex AuroraFlare */}
-                        <div 
-                            className="absolute bottom-0 left-1/2 w-[60%] h-[50%] bg-[#115ca3] blur-[60px] mix-blend-screen opacity-30"
+                        {/* Simplified single glow - STATIC, only opacity changes */}
+                        <motion.div 
                             style={{ 
+                                opacity: flareOpacity,
                                 transform: "translate3d(-50%, 0, 0)",
                                 willChange: "opacity"
                             }}
+                            className="absolute bottom-0 left-1/2 w-[60%] h-[50%] bg-[#115ca3] blur-[60px] mix-blend-screen"
                         />
-                    </motion.div>
+                    </div>
                 )}
 
                 {/* --- Particles Disabled for Performance --- */}
@@ -1870,8 +1944,7 @@ export default function LandingPage() {
         <div 
             className="min-h-screen bg-[#0b0f15] text-white selection:bg-blue-500/30 relative font-['Space_Grotesk']"
             style={{ 
-                willChange: "auto",
-                transform: "translateZ(0)"
+                willChange: "auto"
             }}
         >
             <GlobalStyles />
@@ -1918,12 +1991,12 @@ export default function LandingPage() {
                             </defs>
                             
                             {/* Boat-shaped web connections */}
-                            {/* Top horizontal line (wider - boat top) */}
+                            {/* Top horizontal line (wider - boat top: im1 to im2) */}
                             <motion.line
-                                x1="20%"
-                                y1="75%"
-                                x2="80%"
-                                y2="75%"
+                                x1="12%"
+                                y1="18%"
+                                x2="88%"
+                                y2="18%"
                                 stroke="url(#lineGrad1)"
                                 strokeWidth="1.5"
                                 strokeDasharray="4 4"
@@ -1931,12 +2004,12 @@ export default function LandingPage() {
                                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                             />
                             
-                            {/* Bottom horizontal line (narrower - boat bottom) */}
+                            {/* Bottom horizontal line (narrower - boat bottom: im3 to im4) */}
                             <motion.line
-                                x1="35%"
-                                y1="88%"
-                                x2="65%"
-                                y2="88%"
+                                x1="25%"
+                                y1="85%"
+                                x2="75%"
+                                y2="85%"
                                 stroke="url(#lineGrad1)"
                                 strokeWidth="1.5"
                                 strokeDasharray="4 4"
@@ -1946,10 +2019,10 @@ export default function LandingPage() {
                             
                             {/* Left side connection (im1 to im3) */}
                             <motion.line
-                                x1="20%"
-                                y1="75%"
-                                x2="35%"
-                                y2="88%"
+                                x1="12%"
+                                y1="18%"
+                                x2="25%"
+                                y2="85%"
                                 stroke="url(#lineGrad2)"
                                 strokeWidth="1"
                                 strokeDasharray="3 3"
@@ -1959,10 +2032,10 @@ export default function LandingPage() {
                             
                             {/* Right side connection (im2 to im4) */}
                             <motion.line
-                                x1="80%"
-                                y1="75%"
-                                x2="65%"
-                                y2="88%"
+                                x1="88%"
+                                y1="18%"
+                                x2="75%"
+                                y2="85%"
                                 stroke="url(#lineGrad2)"
                                 strokeWidth="1"
                                 strokeDasharray="3 3"
@@ -1971,24 +2044,24 @@ export default function LandingPage() {
                             />
                             
                             {/* Diagonal connections for web effect */}
-                            {/* Top-left to bottom-left */}
+                            {/* Top-left to bottom-right (im1 to im4) */}
                             <motion.line
-                                x1="20%"
-                                y1="75%"
-                                x2="35%"
-                                y2="88%"
+                                x1="12%"
+                                y1="18%"
+                                x2="75%"
+                                y2="85%"
                                 stroke="url(#lineGrad2)"
                                 strokeWidth="0.5"
                                 strokeDasharray="2 2"
                                 opacity="0.2"
                             />
                             
-                            {/* Top-right to bottom-right */}
+                            {/* Top-right to bottom-left (im2 to im3) */}
                             <motion.line
-                                x1="80%"
-                                y1="75%"
-                                x2="65%"
-                                y2="88%"
+                                x1="88%"
+                                y1="18%"
+                                x2="25%"
+                                y2="85%"
                                 stroke="url(#lineGrad2)"
                                 strokeWidth="0.5"
                                 strokeDasharray="2 2"
@@ -2023,7 +2096,7 @@ export default function LandingPage() {
                         </svg>
                     )}
 
-                    {/* Image 1 - Top Left (Below Get Started Button) */}
+                    {/* Image 1 - Top Left (Boat Structure) */}
                     <motion.div
                         initial={{ opacity: 1, scale: 0.8, x: -50, y: 50 }}
                         animate={!shouldReduceMotion ? { 
@@ -2037,13 +2110,13 @@ export default function LandingPage() {
                             ease: "easeInOut",
                             delay: 0
                         }}
-                        className="absolute top-[70%] left-[15%] md:left-[18%]"
+                        className="absolute top-[15%] sm:top-[18%] md:top-[20%] left-[12%] sm:left-[15%] md:left-[18%] lg:left-[20%]"
                         style={{ willChange: "transform", opacity: 1 }}
                     >
                         <img 
                             src="/images/im1.png" 
                             alt="" 
-                            className="w-32 md:w-40 lg:w-48 h-auto object-contain"
+                            className="w-24 sm:w-32 md:w-40 lg:w-48 h-auto object-contain"
                             loading="eager"
                             style={{ 
                                 filter: 'drop-shadow(0 0 15px rgba(59, 130, 246, 0.4))',
@@ -2052,7 +2125,7 @@ export default function LandingPage() {
                         />
                     </motion.div>
 
-                    {/* Image 2 - Top Right (Below Get Started Button) */}
+                    {/* Image 2 - Top Right (Boat Structure) */}
                     <motion.div
                         initial={{ opacity: 1, scale: 0.8, x: 50, y: 50 }}
                         animate={!shouldReduceMotion ? { 
@@ -2066,13 +2139,13 @@ export default function LandingPage() {
                             ease: "easeInOut",
                             delay: 2
                         }}
-                        className="absolute top-[70%] right-[15%] md:right-[18%]"
+                        className="absolute top-[15%] sm:top-[18%] md:top-[20%] right-[12%] sm:right-[15%] md:right-[18%] lg:right-[20%]"
                         style={{ willChange: "transform", opacity: 1 }}
                     >
                         <img 
                             src="/images/im2.png" 
                             alt="" 
-                            className="w-32 md:w-40 lg:w-48 h-auto object-contain"
+                            className="w-24 sm:w-32 md:w-40 lg:w-48 h-auto object-contain"
                             loading="eager"
                             style={{ 
                                 filter: 'drop-shadow(0 0 15px rgba(59, 130, 246, 0.4))',
@@ -2081,7 +2154,7 @@ export default function LandingPage() {
                         />
                     </motion.div>
 
-                    {/* Image 3 - Bottom Left (Below Get Started Button) */}
+                    {/* Image 3 - Bottom Left (Boat Structure) */}
                     <motion.div
                         initial={{ opacity: 1, scale: 0.8, x: -50, y: 50 }}
                         animate={!shouldReduceMotion ? { 
@@ -2095,13 +2168,13 @@ export default function LandingPage() {
                             ease: "easeInOut",
                             delay: 4
                         }}
-                        className="absolute bottom-[10%] left-[30%] md:left-[32%]"
+                        className="absolute bottom-[12%] sm:bottom-[15%] md:bottom-[18%] left-[25%] sm:left-[28%] md:left-[30%] lg:left-[32%]"
                         style={{ willChange: "transform", opacity: 1 }}
                     >
                         <img 
                             src="/images/im3.png" 
                             alt="" 
-                            className="w-32 md:w-40 lg:w-48 h-auto object-contain"
+                            className="w-24 sm:w-32 md:w-40 lg:w-48 h-auto object-contain"
                             loading="eager"
                             style={{ 
                                 filter: 'drop-shadow(0 0 15px rgba(59, 130, 246, 0.4))',
@@ -2110,7 +2183,7 @@ export default function LandingPage() {
                         />
                     </motion.div>
 
-                    {/* Image 4 - Bottom Right (Below Get Started Button) */}
+                    {/* Image 4 - Bottom Right (Boat Structure) */}
                     <motion.div
                         initial={{ opacity: 1, scale: 0.8, x: 50, y: 50 }}
                         animate={!shouldReduceMotion ? { 
@@ -2124,13 +2197,13 @@ export default function LandingPage() {
                             ease: "easeInOut",
                             delay: 6
                         }}
-                        className="absolute bottom-[10%] right-[30%] md:right-[32%]"
+                        className="absolute bottom-[12%] sm:bottom-[15%] md:bottom-[18%] right-[25%] sm:right-[28%] md:right-[30%] lg:right-[32%]"
                         style={{ willChange: "transform", opacity: 1 }}
                     >
                         <img 
                             src="/images/im4.png" 
                             alt="" 
-                            className="w-32 md:w-40 lg:w-48 h-auto object-contain"
+                            className="w-24 sm:w-32 md:w-40 lg:w-48 h-auto object-contain"
                             loading="eager"
                             style={{ 
                                 filter: 'drop-shadow(0 0 15px rgba(59, 130, 246, 0.4))',
@@ -2296,7 +2369,9 @@ export default function LandingPage() {
                         </motion.div>
                         <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold px-2">Loved by ambitious developers</h2>
                     </motion.div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+                    
+                    {/* Grid View - Desktop */}
+                    <div className="hidden sm:grid grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                         <TestimonialCard 
                             quote="Outlrn taught me React in 2 weeks — because it only made me learn what I actually needed. No fluff, just code."
                             author="Sarah Jenkins"
@@ -2316,6 +2391,9 @@ export default function LandingPage() {
                             delay={0.3}
                         />
                     </div>
+                    
+                    {/* Carousel View - Mobile */}
+                    <TestimonialCarousel />
                 </div>
             </section>
 
