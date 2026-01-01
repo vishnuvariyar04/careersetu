@@ -6,33 +6,46 @@ import { ConnectorLines } from "./connector-lines"
 export const HeroSection = () => {
     return (
         <section className="relative pt-32 md:pt-48 pb-32 px-4 sm:px-6 flex flex-col items-center text-center z-10 max-w-[100vw] overflow-visible min-h-screen">
+            {/* Background Aesthetics */}
+            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                {/* Grid Pattern - More subtle for dark feel */}
+                <div 
+                    className="absolute inset-0 opacity-[0.02]" 
+                    style={{ 
+                        backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px)', 
+                        backgroundSize: '80px 80px' 
+                    }} 
+                />
+            </div>
+
             <Aurora 
-              colorStops={["#0029FF", "#2E9AFF", "#0055FF"]} 
-              blend={0.8} 
-              amplitude={1.4} 
-              speed={1.2} 
+              colorStops={["#0055FF", "#2E9AFF", "#60A5FA", "#3B82F6"]} 
+              blend={1.2} 
+              amplitude={1.8} 
+              speed={0.8} 
             />
             <ConnectorLines />
             
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[80px] font-medium tracking-tight leading-[1.1] mb-3 max-w-5xl text-white relative z-20">
-                Personalized Learning that brings you outcome
+            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[100px] font-extrabold tracking-[-0.04em] leading-[0.95] mb-8 max-w-6xl text-white relative z-20">
+                Learn by having a <br className="hidden md:block" />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600">conversation</span>
             </h1>
             
-            <p className="text-base sm:text-lg md:text-xl leading-6 text-white max-w-2xl mb-8 font-normal relative z-20">
-                Outlrn is an AI-powered, outcome-based learning platform that teaches you only the skills you need to grow
+            <p className="text-lg sm:text-xl md:text-2xl leading-relaxed text-zinc-400 max-w-3xl mb-12 font-medium relative z-20">
+                A live AI avatar that teaches Computer Science and Web Development using visuals, diagrams, and code.
             </p>
             
-            <div className="flex flex-col sm:flex-row items-center gap-5 mb-32 relative z-20">
+            <div className="flex flex-col sm:flex-row items-center gap-5 mb-24 relative z-20">
                 <button 
                     onClick={() => window.location.href = '/auth'} 
-                    className="h-12 sm:h-14 hover:cursor-pointer px-6 sm:px-8 rounded-xl bg-gradient-to-b from-[#111c96] to-[#1d4ed8] hover:from-[#3b82f6] hover:to-[#2563eb] text-white font-bold text-sm sm:text-base shadow-[0_0_30px_-5px_rgba(37,99,235,0.6)] border border-blue-400/20 transition-all active:scale-95 flex items-center gap-2"
+                    className="h-14 sm:h-16 hover:cursor-pointer px-10 sm:px-12 rounded-2xl bg-gradient-to-b from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-black text-base sm:text-lg shadow-[0_0_50px_-10px_rgba(37,99,235,0.5)] border border-blue-400/20 transition-all hover:scale-[1.05] active:scale-95 flex items-center gap-3 group"
                 >
-                    Get Started <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                    Start Learning Now
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform" />
                 </button>
-                <button className="h-12 sm:h-14 px-6 sm:px-8 rounded-full bg-transparent border border-white text-white hover:bg-white/5 transition-all font-bold text-sm sm:text-base flex items-center gap-2">
-                    <Terminal className="w-4 h-4 text-zinc-400" /> 
-                    <span className="hidden sm:inline">Explore Learning Goals</span>
-                    <span className="sm:hidden">Explore Goals</span>
+                <button className="h-14 sm:h-16 px-10 sm:px-12 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:border-white/20 transition-all font-bold text-base sm:text-lg flex items-center gap-3 backdrop-blur-md">
+                    <Terminal className="w-5 h-5 text-blue-400" /> 
+                    <span>Explore Goals</span>
                 </button>
             </div>  
         </section>
