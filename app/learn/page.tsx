@@ -21,7 +21,7 @@ import {
   Mic, ChevronRight, Share, Settings, Layout, Code2, Columns, 
   Volume2, VolumeX, Eye, Table as TableIcon, List, GitGraph, 
   Terminal, Cpu, AlertCircle, Loader2, Plus, MessageSquare, Menu, X,
-  LogOut, User as UserIcon, Lock, Play, Share2, Check
+  LogOut, User as UserIcon, Lock, Play, Share2, Check, Sparkles
 } from 'lucide-react';
 
 // --- External Imports ---
@@ -1381,6 +1381,19 @@ const [showShareOverlay, setShowShareOverlay] = useState(false); // <--- ADD THI
                 </button>
             ))}
         </div>
+
+        {/* Upgrade Button */}
+        {!shareInteractionId && (
+            <div className="p-3 border-t border-white/5">
+                <a 
+                    href="/pricing"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold rounded-lg transition-all shadow-lg shadow-cyan-900/20 hover:shadow-cyan-900/40"
+                >
+                    <Sparkles size={14} />
+                    Upgrade Plan
+                </a>
+            </div>
+        )}
 
         <div className="p-4 border-t border-white/5 bg-[#050505]">
             {user ? (

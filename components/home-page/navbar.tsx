@@ -132,7 +132,7 @@ export const Navbar = () => {
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.4, delay: i * 0.1 }}
-                            href={`#${item.toLowerCase().replace(/\s/g, '-')}`} 
+                            href={item === 'Pricing' ? '/pricing' : `#${item.toLowerCase().replace(/\s/g, '-')}`} 
                             className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-all duration-300 relative group whitespace-nowrap rounded-full hover:bg-white/5"
                         >
                             {item}
@@ -194,7 +194,7 @@ export const Navbar = () => {
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ duration: 0.3, delay: 0.1 + i * 0.05 }}
-                                    href={`#${item.toLowerCase().replace(/\s/g, '-')}`}
+                                    href={item === 'Pricing' ? '/pricing' : `#${item.toLowerCase().replace(/\s/g, '-')}`}
                                     onClick={() => setIsOpen(false)} 
                                     className="text-xl font-medium text-zinc-300 hover:text-white py-4 px-4 rounded-xl hover:bg-white/5 transition-all"
                                 >

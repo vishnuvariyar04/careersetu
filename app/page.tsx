@@ -274,9 +274,14 @@ export default function LandingPage() {
           <div className="lg:col-span-2">
             <h4 className="text-white font-semibold mb-6 text-sm uppercase tracking-wider">Product</h4>
             <ul className="flex flex-col gap-3">
-              {['Features', 'Integrations', 'Pricing', 'Changelog'].map((item) => (
-                <li key={item}>
-                  <a href="#" className="text-zinc-400 hover:text-white hover:translate-x-1 transition-all duration-300 text-sm inline-block">{item}</a>
+              {[
+                { name: 'Features', href: '#features' },
+                { name: 'Integrations', href: '#' },
+                { name: 'Pricing', href: '/pricing' },
+                { name: 'Changelog', href: '#' }
+              ].map((item) => (
+                <li key={item.name}>
+                  <a href={item.href} className="text-zinc-400 hover:text-white hover:translate-x-1 transition-all duration-300 text-sm inline-block">{item.name}</a>
                 </li>
               ))}
             </ul>
