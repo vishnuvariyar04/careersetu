@@ -157,12 +157,12 @@ export const HowToUseSection = () => {
                         <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-medium text-white mb-4 sm:mb-6 leading-[1.1] tracking-tight">
                             How to use <br className="hidden sm:block"/> 
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-zinc-400">
-                                Outlrn platform
+                                CareerSetu
                             </span>
                         </h2>
                         
                         <p className="text-base sm:text-lg text-zinc-400 leading-relaxed max-w-md mb-6 sm:mb-8">
-                            Type any topic, get a live AI avatar that teaches with visuals, diagrams, and code — adapting to how you learn.
+                            Join virtual companies, work on real projects with Kanban task boards, get AI code reviews and teaching — learning that maps to your career goals.
                         </p>
 
                         <motion.button 

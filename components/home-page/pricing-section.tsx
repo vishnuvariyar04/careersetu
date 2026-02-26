@@ -145,7 +145,7 @@ export const PricingSection = () => {
             plan: "Free",
             price: "$0",
             period: "month",
-            description: "Perfect for getting started with interactive learning.",
+            description: "Perfect for getting started with CareerSetu.",
             features: [
                 "10 learning sessions per month",
                 "Basic AI avatar teaching",
@@ -215,7 +215,7 @@ export const PricingSection = () => {
                         Pricing
                     </motion.div>
                     <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6 px-2">
-                        The fastest learning layer, <br className="hidden sm:block"/>
+                        CareerSetu — the fastest way to build career-ready skills, <br className="hidden sm:block"/>
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
                             at a fraction of the cost
                         </span>

@@ -57,17 +57,17 @@ export const TestimonialCarousel = () => {
     
     const testimonials = [
         {
-            quote: "Outlrn taught me React in 2 weeks — because it only made me learn what I actually needed. No fluff, just code.",
+            quote: "CareerSetu taught me React in 2 weeks — virtual projects and real tasks made me learn exactly what I needed. No fluff, just code.",
             author: "Sarah Jenkins",
             role: "Frontend Developer"
         },
         {
-            quote: "The AI explains concepts better than YouTube videos I've watched for hours. It feels like a senior dev is sitting next to me.",
+            quote: "The CareerSetu AI Teacher explains concepts better than YouTube. Task boards and code reviews make it feel like a senior dev is pair-programming with me.",
             author: "David Chen",
             role: "CS Student"
         },
         {
-            quote: "I finally understand backend architecture. This is honestly the future of learning. I landed my first internship last week!",
+            quote: "CareerSetu's virtual companies gave me real project experience and PR feedback. I landed my first internship last week!",
             author: "Marcus Johnson",
             role: "Fullstack Aspirant"
         }

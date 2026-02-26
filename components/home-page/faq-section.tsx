@@ -73,10 +73,10 @@ export const FAQSection = () => {
                     <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold px-2">Frequently Asked Questions</h2>
                 </motion.div>
                 <div className="flex flex-col gap-2 rounded-xl sm:rounded-2xl bg-[#0a0f16]/50 border border-white/5 p-4 sm:p-6 md:p-8 backdrop-blur-sm">
-                    <FAQItem index={0} q="Is this a video course?" a="No. Outlrn is not video-based. You interact with a live AI avatar that teaches concepts in real time and adapts based on your questions." />
-                    <FAQItem index={1} q="What can I learn on Outlrn?" a="Outlrn is focused on computer science and web development concepts including programming, data structures, frontend, backend, and system fundamentals." />
-                    <FAQItem index={2} q="Can I ask follow-up questions?" a="Yes. You can ask follow-up questions, request another example, or give your own code and ask the avatar to explain it." />
-                    <FAQItem index={3} q="Do I need to know coding basics?" a="It helps, but isn't strictly necessary. The AI avatar adapts to your level and can explain concepts from fundamentals to advanced topics." />
+                    <FAQItem index={0} q="Is CareerSetu a video course?" a="No. CareerSetu is project-based. You join virtual companies, work on real tasks with Kanban boards, and learn from AI Teacher & PM agents with live feedback and code reviews." />
+                    <FAQItem index={1} q="What does CareerSetu offer?" a="CareerSetu offers virtual companies, real projects, task boards, AI code review, interactive learning with Teacher & PM agents, and career-focused training in CS and web development." />
+                    <FAQItem index={2} q="Can I ask follow-up questions?" a="Yes. The AI agents adapt to your questions. You can request examples, submit your code for review, or ask for deeper explanations on any task." />
+                    <FAQItem index={3} q="Do I need coding experience?" a="It helps, but isn't required. CareerSetu adapts to your level — from fundamentals to advanced topics — with task-based learning and personalized feedback." />
                 </div>
             </div>
         </section>

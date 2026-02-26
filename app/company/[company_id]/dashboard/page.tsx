@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useRouter, useParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -42,110 +43,98 @@ import {
   BookOpen,
   FolderKanban,
   Settings,
-  Home,
-  GraduationCap
+  GraduationCap,
+  LogOut
 } from "lucide-react"
 import LearningWorkflowComponent from "@/components/learning-workflow"
 import ProjectBuilderComponent from "@/components/project-creation"
+import performanceData from "@/data/performance_data.json"
+import skillDistribution from "@/data/skill_distribution.json"
+import projectMetrics from "@/data/project_metrics.json"
+import radarData from "@/data/radar_data.json"
+import studentsData from "@/data/students.json"
+import companyStudentStats from "@/data/company_student_stats.json"
+import { signOut } from "@/lib/auth-helpers"
+import { supabase } from "@/lib/supabase"
+import { Pencil } from "lucide-react"
 
-const performanceData = [
-  { month: "Jan", productivity: 85, quality: 92, collaboration: 78 },
-  { month: "Feb", productivity: 88, quality: 89, collaboration: 82 },
-  { month: "Mar", productivity: 92, quality: 94, collaboration: 85 },
-  { month: "Apr", productivity: 89, quality: 91, collaboration: 88 },
-  { month: "May", productivity: 95, quality: 96, collaboration: 92 },
-  { month: "Jun", productivity: 98, quality: 95, collaboration: 94 },
-]
+function getInitials(fullName: string): string {
+  return fullName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
+}
 
-const skillDistribution = [
-  { name: "Frontend", value: 35, color: "#10b981" },
-  { name: "Backend", value: 28, color: "#3b82f6" },
-  { name: "Full Stack", value: 22, color: "#8b5cf6" },
-  { name: "DevOps", value: 10, color: "#f59e0b" },
-  { name: "Design", value: 5, color: "#ef4444" },
-]
-
-const topStudents = [
-  {
-    id: 1,
-    name: "Sarah Chen",
-    avatar: "SC",
-    role: "Frontend Developer",
-    score: 98,
-    tasksCompleted: 24,
-    rating: 4.9,
-    trend: "up",
-    skills: ["React", "TypeScript", "UI/UX"],
-  },
-  {
-    id: 2,
-    name: "Alex Rodriguez",
-    avatar: "AR",
-    role: "Full Stack Developer",
-    score: 95,
-    tasksCompleted: 22,
-    rating: 4.8,
-    trend: "up",
-    skills: ["Next.js", "Node.js", "PostgreSQL"],
-  },
-  {
-    id: 3,
-    name: "Emma Wilson",
-    avatar: "EW",
-    role: "Backend Developer",
-    score: 93,
-    tasksCompleted: 20,
-    rating: 4.7,
-    trend: "stable",
-    skills: ["Python", "Django", "MongoDB"],
-  },
-  {
-    id: 4,
-    name: "Mike Johnson",
-    avatar: "MJ",
-    role: "UI/UX Designer",
-    score: 91,
-    tasksCompleted: 18,
-    rating: 4.6,
-    trend: "up",
-    skills: ["Figma", "Design Systems", "Prototyping"],
-  },
-  {
-    id: 5,
-    name: "David Kim",
-    avatar: "DK",
-    role: "DevOps Engineer",
-    score: 89,
-    tasksCompleted: 16,
-    rating: 4.5,
-    trend: "down",
-    skills: ["Docker", "AWS", "CI/CD"],
-  },
-]
-
-const projectMetrics = [
-  { name: "E-commerce Platform", students: 12, completion: 75, quality: 92 },
-  { name: "Analytics Dashboard", students: 8, completion: 60, quality: 88 },
-  { name: "Social Media App", students: 15, completion: 45, quality: 85 },
-  { name: "Task Management Tool", students: 6, completion: 90, quality: 94 },
-]
-
-const radarData = [
-  { skill: "Technical Skills", A: 95, B: 88, fullMark: 100 },
-  { skill: "Problem Solving", A: 92, B: 85, fullMark: 100 },
-  { skill: "Collaboration", A: 88, B: 92, fullMark: 100 },
-  { skill: "Communication", A: 85, B: 90, fullMark: 100 },
-  { skill: "Learning Speed", A: 90, B: 87, fullMark: 100 },
-  { skill: "Code Quality", A: 94, B: 89, fullMark: 100 },
-]
+interface CompanyRow {
+  name?: string | null
+  industry?: string | null
+  mission?: string | null
+  vision?: string | null
+  employee_count?: number | null
+  tech_stack?: string[] | null
+  evaluation_metrics?: string[] | null
+  onboarding_advanced?: { roles?: { name: string; skills?: string[] }[] } | null
+}
 
 export default function SupervisorDashboard() {
+  const params = useParams<{ company_id: string }>()
+  const companyId = params?.company_id
   const [timeRange, setTimeRange] = useState("6m")
   const [selectedProject, setSelectedProject] = useState("all")
   const [activeNav, setActiveNav] = useState("analytics")
+  const [company, setCompany] = useState<CompanyRow | null>(null)
+  const [companyLoading, setCompanyLoading] = useState(false)
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!companyId || activeNav !== "settings") return
+    setCompanyLoading(true)
+    const run = async () => {
+      try {
+        const { data } = await supabase
+          .from("companies")
+          .select("name, industry, mission, vision, employee_count, tech_stack, evaluation_metrics, onboarding_advanced")
+          .eq("company_id", companyId)
+          .single()
+        setCompany(data as CompanyRow | null)
+      } catch {
+        setCompany(null)
+      } finally {
+        setCompanyLoading(false)
+      }
+    }
+    run()
+  }, [companyId, activeNav])
+
+  const topStudentsWithStats = useMemo(() => {
+    const statsByStudentId = (companyStudentStats as { student_id: string; tasks_completed: number; score: number; rating: number; trend: string }[]).reduce(
+      (acc, s) => {
+        acc[s.student_id] = s
+        return acc
+      },
+      {} as Record<string, { tasks_completed: number; score: number; rating: number; trend: string }>
+    )
+    return (studentsData as { student_id: string; full_name: string; email: string; skills: string[] }[])
+      .map((student) => {
+        const stats = statsByStudentId[student.student_id]
+        return {
+          student_id: student.student_id,
+          name: student.full_name,
+          avatar: getInitials(student.full_name),
+          score: stats?.score ?? 0,
+          tasksCompleted: stats?.tasks_completed ?? 0,
+          rating: stats?.rating ?? 0,
+          trend: (stats?.trend ?? "stable") as "up" | "down" | "stable",
+          skills: Array.isArray(student.skills) ? student.skills : [],
+        }
+      })
+      .filter((s) => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+  }, [])
 
   const navItems = [
-    { id: "home", label: "Home", icon: Home },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     // { id: "learning", label: "Learning", icon: BookOpen },
     { id: "projects", label: "Projects", icon: FolderKanban },
@@ -153,24 +142,19 @@ export default function SupervisorDashboard() {
     { id: "settings", label: "Settings", icon: Settings },
   ]
 
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+    } catch (e) {
+      console.error("Error signing out", e)
+    } finally {
+      router.push("/auth/login")
+    }
+  }
+
   // Render content based on active navigation
   const renderContent = () => {
     switch(activeNav) {
-      case "home":
-        return (
-          <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-            <Card className="w-full max-w-2xl">
-              <CardHeader>
-                <CardTitle className="text-2xl">Home Component</CardTitle>
-                <CardDescription>This is the Home section placeholder</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Replace this with your Home component later</p>
-              </CardContent>
-            </Card>
-          </div>
-        )
-      
       // case "learning":
       //   return (
       //     // <div className="flex items-center justify-center h-[calc(100vh-200px)]">
@@ -206,29 +190,142 @@ export default function SupervisorDashboard() {
       
       case "students":
         return (
-          <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-            <Card className="w-full max-w-2xl">
-              <CardHeader>
-                <CardTitle className="text-2xl">Students Component</CardTitle>
-                <CardDescription>This is the Students section placeholder</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Replace this with your Students component later</p>
-              </CardContent>
-            </Card>
+          <div className="p-6 space-y-6">
+            <div>
+              <h1 className="text-2xl font-bold">Students</h1>
+              <p className="text-muted-foreground">Students enrolled or associated with your company</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {(studentsData as { student_id: string; full_name: string; email: string; skills: string[]; experience_level: string; github_url: string | null; resume_url: string | null }[]).map((student) => (
+                <Card key={student.student_id} className="overflow-hidden">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarFallback className="text-sm">{getInitials(student.full_name)}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="text-base truncate">{student.full_name}</CardTitle>
+                        <CardDescription className="text-xs truncate">{student.email}</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Experience: </span>
+                      <Badge variant="secondary" className="capitalize">{student.experience_level}</Badge>
+                    </div>
+                    {Array.isArray(student.skills) && student.skills.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {student.skills.slice(0, 4).map((skill) => (
+                          <Badge key={skill} variant="outline" className="text-xs">{skill}</Badge>
+                        ))}
+                        {student.skills.length > 4 && (
+                          <Badge variant="outline" className="text-xs">+{student.skills.length - 4}</Badge>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex gap-2 pt-2">
+                      {student.github_url && (
+                        <Button variant="outline" size="sm" className="flex-1" asChild>
+                          <a href={student.github_url} target="_blank" rel="noopener noreferrer">GitHub</a>
+                        </Button>
+                      )}
+                      {student.resume_url && (
+                        <Button variant="outline" size="sm" className="flex-1" asChild>
+                          <a href={student.resume_url} target="_blank" rel="noopener noreferrer">Resume</a>
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         )
       
       case "settings":
         return (
-          <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-            <Card className="w-full max-w-2xl">
+          <div className="w-full min-h-[calc(100vh-6rem)] flex flex-col space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold">Settings</h1>
+                <p className="text-muted-foreground">Manage your company profile and onboarding details</p>
+              </div>
+              {companyId && (
+                <Button
+                  onClick={() => router.push(`/company/${companyId}/onboarding`)}
+                  className="gap-2"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit onboarding details
+                </Button>
+              )}
+            </div>
+
+            <Card>
               <CardHeader>
-                <CardTitle className="text-2xl">Settings Component</CardTitle>
-                <CardDescription>This is the Settings section placeholder</CardDescription>
+                <CardTitle>Onboarding Details</CardTitle>
+                <CardDescription>Company information configured during onboarding</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Replace this with your Settings component later</p>
+                {companyLoading ? (
+                  <p className="text-muted-foreground">Loading...</p>
+                ) : company && (company.name || company.industry || company.mission) ? (
+                  <dl className="space-y-4 text-sm">
+                    <div>
+                      <dt className="text-muted-foreground">Company Name</dt>
+                      <dd className="font-medium">{company.name || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Industry</dt>
+                      <dd className="font-medium">{company.industry || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Employees</dt>
+                      <dd className="font-medium">{company.employee_count ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Mission</dt>
+                      <dd className="font-medium">{company.mission || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Vision</dt>
+                      <dd className="font-medium">{company.vision || "—"}</dd>
+                    </div>
+                    {company.tech_stack && company.tech_stack.length > 0 && (
+                      <div>
+                        <dt className="text-muted-foreground mb-1">Tech Stack</dt>
+                        <dd className="flex flex-wrap gap-1">
+                          {company.tech_stack.map((t) => (
+                            <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
+                          ))}
+                        </dd>
+                      </div>
+                    )}
+                    {company.evaluation_metrics && company.evaluation_metrics.length > 0 && (
+                      <div>
+                        <dt className="text-muted-foreground mb-1">Evaluation Metrics</dt>
+                        <dd className="flex flex-wrap gap-1">
+                          {company.evaluation_metrics.map((m) => (
+                            <Badge key={m} variant="outline" className="text-xs">{m}</Badge>
+                          ))}
+                        </dd>
+                      </div>
+                    )}
+                    {company.onboarding_advanced?.roles && company.onboarding_advanced.roles.length > 0 && (
+                      <div>
+                        <dt className="text-muted-foreground mb-1">Roles</dt>
+                        <dd className="flex flex-wrap gap-1">
+                          {company.onboarding_advanced.roles.map((r) => (
+                            <Badge key={r.name} variant="outline" className="text-xs">{r.name}</Badge>
+                          ))}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                ) : (
+                  <p className="text-muted-foreground">No onboarding details yet. Complete onboarding to configure your company.</p>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -387,7 +484,13 @@ export default function SupervisorDashboard() {
                             cx="50%"
                             cy="50%"
                             labelLine={false}
-                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            label={(props) => {
+                              // props is PieLabelRenderProps; percent may be undefined
+                              const name = (props as any).name as string | undefined
+                              const percent = (props as any).percent as number | undefined
+                              if (!name || percent == null) return ""
+                              return `${name} ${(percent * 100).toFixed(0)}%`
+                            }}
                             outerRadius={80}
                             fill="#8884d8"
                             dataKey="value"
@@ -436,8 +539,8 @@ export default function SupervisorDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {topStudents.map((student, index) => (
-                        <div key={student.id} className="flex items-center gap-4 p-4 rounded-lg border">
+                      {topStudentsWithStats.map((student, index) => (
+                        <div key={student.student_id} className="flex items-center gap-4 p-4 rounded-lg border">
                           <div className="flex items-center gap-3">
                             <div className="text-2xl font-bold text-muted-foreground">#{index + 1}</div>
                             <Avatar className="w-12 h-12">
@@ -445,7 +548,9 @@ export default function SupervisorDashboard() {
                             </Avatar>
                             <div>
                               <h3 className="font-semibold">{student.name}</h3>
-                              <p className="text-sm text-muted-foreground">{student.role}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {student.skills.length > 0 ? student.skills.slice(0, 2).join(", ") : "—"}
+                              </p>
                             </div>
                           </div>
 
@@ -698,9 +803,20 @@ export default function SupervisorDashboard() {
         })}
       </nav>
 
-        <Avatar className="w-10 h-10">
-          <AvatarFallback>AD</AvatarFallback>
-        </Avatar>
+        <div className="flex flex-col items-center gap-3">
+          <Avatar className="w-10 h-10">
+            <AvatarFallback>CO</AvatarFallback>
+          </Avatar>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleSignOut}
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            title="Sign out"
+          >
+            <LogOut className="w-5 h-5" />
+          </Button>
+        </div>
       </aside>
 
       {/* Main Content */}

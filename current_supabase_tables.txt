@@ -1,0 +1,149 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.companies (
+  company_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  industry text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT companies_pkey PRIMARY KEY (company_id),
+  CONSTRAINT companies_company_id_fkey FOREIGN KEY (company_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.environment_participants (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  environment_id uuid UNIQUE,
+  student_id uuid,
+  joined_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT environment_participants_pkey PRIMARY KEY (id),
+  CONSTRAINT environment_participants_environment_id_fkey FOREIGN KEY (environment_id) REFERENCES public.virtual_environments(environment_id),
+  CONSTRAINT environment_participants_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(student_id)
+);
+CREATE TABLE public.github_repos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid,
+  environment_id uuid,
+  repo_url text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT github_repos_pkey PRIMARY KEY (id),
+  CONSTRAINT github_repos_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(student_id),
+  CONSTRAINT github_repos_environment_id_fkey FOREIGN KEY (environment_id) REFERENCES public.virtual_environments(environment_id)
+);
+CREATE TABLE public.learning_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid,
+  role text NOT NULL CHECK (role = ANY (ARRAY['student'::text, 'agent'::text, 'system'::text])),
+  content text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT learning_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT learning_messages_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.learning_sessions(session_id)
+);
+CREATE TABLE public.learning_sessions (
+  session_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid,
+  environment_id uuid,
+  context_type text NOT NULL CHECK (context_type = ANY (ARRAY['global'::text, 'environment'::text])),
+  title text DEFAULT 'New Session'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT learning_sessions_pkey PRIMARY KEY (session_id),
+  CONSTRAINT learning_sessions_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(student_id),
+  CONSTRAINT learning_sessions_environment_id_fkey FOREIGN KEY (environment_id) REFERENCES public.virtual_environments(environment_id)
+);
+CREATE TABLE public.pm_agent_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid,
+  role text NOT NULL CHECK (role = ANY (ARRAY['student'::text, 'agent'::text, 'system'::text])),
+  content text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT pm_agent_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT pm_agent_messages_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.pm_agent_sessions(session_id)
+);
+CREATE TABLE public.pm_agent_sessions (
+  session_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  environment_id uuid,
+  student_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT pm_agent_sessions_pkey PRIMARY KEY (session_id),
+  CONSTRAINT pm_agent_sessions_environment_id_fkey FOREIGN KEY (environment_id) REFERENCES public.virtual_environments(environment_id),
+  CONSTRAINT pm_agent_sessions_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(student_id)
+);
+CREATE TABLE public.pr_reviews (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  task_id uuid,
+  student_id uuid,
+  pr_url text,
+  ai_score integer,
+  created_at timestamp with time zone DEFAULT now(),
+  repo_name text,
+  pr_number integer,
+  pr_title text,
+  ai_verdict text CHECK (ai_verdict = ANY (ARRAY['approved'::text, 'changes_requested'::text, 'rejected'::text])),
+  ai_summary text,
+  ai_issues jsonb,
+  CONSTRAINT pr_reviews_pkey PRIMARY KEY (id),
+  CONSTRAINT pr_reviews_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(task_id),
+  CONSTRAINT pr_reviews_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(student_id)
+);
+CREATE TABLE public.students (
+  student_id uuid NOT NULL,
+  full_name text NOT NULL,
+  email text NOT NULL UNIQUE,
+  skills ARRAY,
+  experience_level text DEFAULT 'newbie'::text CHECK (experience_level = ANY (ARRAY['newbie'::text, 'experienced'::text])),
+  github_url text,
+  resume_url text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT students_pkey PRIMARY KEY (student_id),
+  CONSTRAINT students_student_id_fkey FOREIGN KEY (student_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.supervisors (
+  supervisor_id uuid NOT NULL,
+  company_id uuid,
+  full_name text NOT NULL,
+  designation text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT supervisors_pkey PRIMARY KEY (supervisor_id),
+  CONSTRAINT supervisors_supervisor_id_fkey FOREIGN KEY (supervisor_id) REFERENCES auth.users(id),
+  CONSTRAINT supervisors_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(company_id)
+);
+CREATE TABLE public.task_progress (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  task_id uuid,
+  student_id uuid,
+  status text DEFAULT 'locked'::text CHECK (status = ANY (ARRAY['locked'::text, 'unlocked'::text, 'in_progress'::text, 'submitted'::text, 'approved'::text])),
+  submission_url text,
+  feedback text,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT task_progress_pkey PRIMARY KEY (id),
+  CONSTRAINT task_progress_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(task_id),
+  CONSTRAINT task_progress_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(student_id)
+);
+CREATE TABLE public.tasks (
+  task_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  environment_id uuid,
+  title text NOT NULL,
+  description text,
+  task_order integer NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tasks_pkey PRIMARY KEY (task_id),
+  CONSTRAINT tasks_environment_id_fkey FOREIGN KEY (environment_id) REFERENCES public.virtual_environments(environment_id)
+);
+CREATE TABLE public.virtual_environments (
+  environment_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  company_id uuid,
+  title text NOT NULL,
+  description text,
+  status text DEFAULT 'open'::text CHECK (status = ANY (ARRAY['open'::text, 'in_progress'::text, 'completed'::text])),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT virtual_environments_pkey PRIMARY KEY (environment_id),
+  CONSTRAINT virtual_environments_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(company_id)
+);
+
+ALTER TABLE public.companies
+  ADD COLUMN mission text,
+  ADD COLUMN vision text,
+  ADD COLUMN employee_count integer,
+  ADD COLUMN tech_stack text[] DEFAULT '{}',          -- from techStack[]
+  ADD COLUMN evaluation_metrics text[] DEFAULT '{}',  -- from metrics[]
+  ADD COLUMN policies jsonb,                          -- coding standards etc.
+  ADD COLUMN onboarding_advanced jsonb;               -- project briefs / examples / rubrics

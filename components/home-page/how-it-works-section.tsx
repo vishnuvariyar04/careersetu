@@ -96,7 +96,7 @@ export const HowItWorksSection = () => {
     const c2Y = useTransform(smoothProgress, [0.28, 0.35, 0.45, 0.52], ["30vh", "0vh", "0vh", "-30vh"]) 
     const c2Scale = useTransform(smoothProgress, [0.28, 0.35, 0.45, 0.52], [0.85, 1, 1, 0.85])
 
-    // CARD 3: The Outlrn Way
+    // CARD 3: The careersetu Way
     const c3Op = useTransform(smoothProgress, [0.48, 0.55, 0.65, 0.72], [0, 1, 1, 0])
     const c3Y = useTransform(smoothProgress, [0.48, 0.55, 0.65, 0.72], ["30vh", "0vh", "0vh", "-30vh"]) 
     const c3Scale = useTransform(smoothProgress, [0.48, 0.55, 0.65, 0.72], [0.85, 1, 1, 0.85])
@@ -222,8 +222,8 @@ export const HowItWorksSection = () => {
                             }}
                             icon={Sparkles}
                             iconColor="bg-blue-500/20"
-                            title="The Outlrn Way"
-                            desc="Type any topic. A live AI avatar teaches you with visuals, diagrams, and code. Ask follow-ups anytime."
+                            title="The CareerSetu Way"
+                            desc="Join virtual companies, pick real projects, and learn from AI Teacher & PM agents. Task boards, code reviews, and interactive learning."
                         />
 
                         <StoryCard 

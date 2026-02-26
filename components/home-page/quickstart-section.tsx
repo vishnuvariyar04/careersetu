@@ -8,21 +8,21 @@ export const QuickstartSection = () => {
     const [activeTab, setActiveTab] = useState<'typescript' | 'python' | 'curl'>('typescript')
     
     const codeSnippets = {
-        typescript: `// Start learning with Outlrn
+        typescript: `// Start learning with CareerSetu
 
-import { Outlrn } from '@outlrn/sdk';
+import { CareerSetu } from '@careersetu/sdk';
 
 
-// Initialize the Outlrn client
+// Initialize the CareerSetu client
 
-const outlrn = new Outlrn({
-  apiKey: process.env.OUTLRN_API_KEY
+const careersetu = new CareerSetu({
+  apiKey: process.env.careersetu_API_KEY
 });
 
 
 // Ask any topic and get interactive learning
 
-const session = await outlrn.learn({
+const session = await careersetu.learn({
   topic: "React Hooks",
   level: "intermediate"
 });
@@ -34,21 +34,21 @@ session.onMessage((message) => {
   console.log(message.content);
   // Visual diagrams, code examples, and explanations
 });`,
-        python: `# Start learning with Outlrn
+        python: `# Start learning with careersetu
 
-from outlrn import Outlrn
+from careersetu import careersetu
 
 
-# Initialize the Outlrn client
+# Initialize the careersetu client
 
-outlrn = Outlrn(
-    api_key=os.getenv("OUTLRN_API_KEY")
+careersetu = careersetu(
+    api_key=os.getenv("careersetu_API_KEY")
 )
 
 
 # Ask any topic and get interactive learning
 
-session = outlrn.learn(
+session = careersetu.learn(
     topic="Python Decorators",
     level="beginner"
 )
@@ -61,8 +61,8 @@ for message in session.stream():
     # Visual diagrams, code examples, and explanations`,
         curl: `# Start a learning session
 
-curl -X POST https://api.outlrn.ai/v1/learn \\
-  -H "Authorization: Bearer $OUTLRN_API_KEY" \\
+curl -X POST https://api.careersetu.com/v1/learn \\
+  -H "Authorization: Bearer $CAREERSETU_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "topic": "JavaScript Promises",
@@ -101,13 +101,11 @@ curl -X POST https://api.outlrn.ai/v1/learn \\
                             Quickstart
                         </motion.div>
                         <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6">
-                            Start learning interactively <br className="hidden sm:block"/>
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
-                                in minutes
-                            </span>
+                            Start with <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">CareerSetu</span> <br className="hidden sm:block"/>
+                            in minutes
                         </h2>
                         <p className="text-base sm:text-lg text-zinc-400 mb-6 sm:mb-8 leading-relaxed">
-                            Get started with Outlrn and experience interactive AI-powered learning. Ask any computer science or web development topic, and get real-time teaching with visuals, diagrams, and code examples.
+                            Get started with CareerSetu — join virtual companies, pick projects, work through task boards, and learn from AI Teacher & PM agents with real code reviews.
                         </p>
                         
                         {/* CTA Buttons */}
@@ -221,7 +219,7 @@ curl -X POST https://api.outlrn.ai/v1/learn \\
                                         }
                                         
                                         // Identifiers
-                                        const idRegex = /\b(Outlrn|outlrn|session|apiKey|api_key|process|env|os|getenv|OUTLRN_API_KEY|learn|onMessage|stream)\b/g
+                                        const idRegex = /\b(CareerSetu|careersetu|session|apiKey|api_key|process|env|os|getenv|CAREERSETU_API_KEY|learn|onMessage|stream)\b/g
                                         let idMatch: RegExpExecArray | null
                                         while ((idMatch = idRegex.exec(text)) !== null) {
                                             const isInString = matches.some(m => idMatch!.index! >= m.start && idMatch!.index! < m.end)

@@ -1,0 +1,9 @@
+{
+  "full_name": "Student",
+  "email": "student@example.com",
+  "skills": ["React", "JavaScript", "TypeScript"],
+  "experience_level": "newbie",
+  "github_url": "https://github.com",
+  "resume_url": null,
+  "companies_joined": ["4397c8db-6265-4a32-a4f2-0bd4b7f2cf14"]
+}

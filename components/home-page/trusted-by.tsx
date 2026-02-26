@@ -35,7 +35,7 @@ export const TrustedBy = () => {
                 transition={{ duration: 0.6 }}
                 className="container mx-auto px-4 sm:px-6 text-center"
             >
-                <p className="text-zinc-500 text-[10px] sm:text-xs font-semibold uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-6 sm:mb-8 md:mb-10">Trusted by innovative companies worldwide</p>
+                <p className="text-zinc-500 text-[10px] sm:text-xs font-semibold uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-6 sm:mb-8 md:mb-10">Trusted by students and companies using CareerSetu</p>
                 
                 {/* Scroll Container with Fade Mask */}
                 <div className="relative w-full max-w-6xl mx-auto fade-mask overflow-hidden">

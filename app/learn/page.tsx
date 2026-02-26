@@ -231,7 +231,7 @@ const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
             <div className="p-8 pt-10 flex flex-col items-center text-center relative z-10">
               <div className="mb-6 relative">
                 <div className="absolute inset-0 bg-cyan-500/20 blur-xl rounded-full" />
-                <img src="/images/outlrn-fav.png" alt="Outlrn Logo" className="w-14 h-14 relative z-10 drop-shadow-lg"/>
+                <img src="/images/careersetu-fav.png" alt="careersetu Logo" className="w-14 h-14 relative z-10 drop-shadow-lg"/>
               </div>
               <h2 className="text-xl font-medium text-white tracking-tight mb-2">Authentication Required</h2>
               <p className="text-sm text-zinc-400 px-4 mb-8 leading-relaxed">Sign in to synchronize your sessions and access the interface.</p>

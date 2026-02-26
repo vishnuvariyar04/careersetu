@@ -1,0 +1,50 @@
+[
+  {
+    "company_id": "4397c8db-6265-4a32-a4f2-0bd4b7f2cf14",
+    "name": "TechFlow Inc",
+    "description": "Building the future of SaaS with modern stack",
+    "industry": "SaaS",
+    "tech_stack": ["React", "Node.js", "PostgreSQL", "AWS", "Docker"],
+    "requiredSkills": ["React", "Node.js", "PostgreSQL", "AWS", "Docker"],
+    "logo": "TF",
+    "difficulty": "intermediate",
+    "totalProjects": 3,
+    "evaluation_metrics": ["Code Quality", "Project Completion", "Documentation"]
+  },
+  {
+    "company_id": "a1b2c3d4-e5f6-4a32-a4f2-0bd4b7f2cf15",
+    "name": "DataScale Analytics",
+    "description": "AI/ML driven analytics platform",
+    "industry": "AI/ML",
+    "tech_stack": ["Python", "TensorFlow", "FastAPI", "PostgreSQL", "Docker"],
+    "requiredSkills": ["Python", "TensorFlow", "FastAPI", "PostgreSQL"],
+    "logo": "DS",
+    "difficulty": "advanced",
+    "totalProjects": 5,
+    "evaluation_metrics": ["Code Quality", "Problem Solving", "Innovation"]
+  },
+  {
+    "company_id": "b2c3d4e5-f6a7-4b32-a4f2-0bd4b7f2cf16",
+    "name": "Shopify Clone Labs",
+    "description": "E-commerce platform simulation",
+    "industry": "E-commerce",
+    "tech_stack": ["Next.js", "Node.js", "MongoDB", "Stripe"],
+    "requiredSkills": ["Next.js", "Node.js", "MongoDB"],
+    "logo": "SC",
+    "difficulty": "beginner",
+    "totalProjects": 2,
+    "evaluation_metrics": ["Code Quality", "Teamwork", "Project Completion"]
+  },
+  {
+    "company_id": "c3d4e5f6-a7b8-4c32-a4f2-0bd4b7f2cf17",
+    "name": "FinServe Pro",
+    "description": "FinTech payment solutions",
+    "industry": "FinTech",
+    "tech_stack": ["TypeScript", "Python", "PostgreSQL", "Redis"],
+    "requiredSkills": ["TypeScript", "Python", "PostgreSQL"],
+    "logo": "FP",
+    "difficulty": "intermediate",
+    "totalProjects": 4,
+    "evaluation_metrics": ["Code Quality", "Documentation", "Problem Solving"]
+  }
+]

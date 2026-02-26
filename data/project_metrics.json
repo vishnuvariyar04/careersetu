@@ -1,0 +1,6 @@
+[
+  { "name": "E-commerce Platform", "students": 12, "completion": 75, "quality": 92 },
+  { "name": "Analytics Dashboard", "students": 8, "completion": 60, "quality": 88 },
+  { "name": "Social Media App", "students": 15, "completion": 45, "quality": 85 },
+  { "name": "Task Management Tool", "students": 6, "completion": 90, "quality": 94 }
+]

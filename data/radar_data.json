@@ -1,0 +1,8 @@
+[
+  { "skill": "Technical Skills", "A": 95, "B": 88, "fullMark": 100 },
+  { "skill": "Problem Solving", "A": 92, "B": 85, "fullMark": 100 },
+  { "skill": "Collaboration", "A": 88, "B": 92, "fullMark": 100 },
+  { "skill": "Communication", "A": 85, "B": 90, "fullMark": 100 },
+  { "skill": "Learning Speed", "A": 90, "B": 87, "fullMark": 100 },
+  { "skill": "Code Quality", "A": 94, "B": 89, "fullMark": 100 }
+]

@@ -5,11 +5,11 @@ import { X, Check, BarChart, Sparkles } from "lucide-react"
 interface ComparisonRowProps {
     feature: string
     traditional: string
-    outlrn: string
+    careersetu: string
     delay: number
 }
 
-const ComparisonRow = ({ feature, traditional, outlrn, delay }: ComparisonRowProps) => {
+const ComparisonRow = ({ feature, traditional, careersetu, delay }: ComparisonRowProps) => {
     const shouldReduceMotion = useReducedMotion()
     
     return (
@@ -40,13 +40,13 @@ const ComparisonRow = ({ feature, traditional, outlrn, delay }: ComparisonRowPro
             <span className="line-through decoration-red-500/30 decoration-2">{traditional}</span>
         </div>
 
-        {/* Outlrn (Positive) */}
+        {/* careersetu (Positive) */}
         <div className="text-white font-bold text-sm flex items-center gap-2">
             <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
                 <Check className="w-3 h-3 text-blue-400" />
             </div>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">
-                {outlrn}
+                {careersetu}
             </span>
         </div>
         </motion.div>
@@ -117,10 +117,10 @@ export const ComparisonSection = () => {
                     <h2 
                         className="text-4xl md:text-5xl font-bold mb-4"
                     >
-                        Why choose <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600">Outlrn?</span>
+                        Why choose <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600">CareerSetu?</span>
                     </h2>
                     <p className="text-zinc-400 text-lg">
-                        Stop watching. Start learning interactively.
+                        Stop watching. Start building with CareerSetu.
                     </p>
                 </motion.div>
                 
@@ -143,41 +143,41 @@ export const ComparisonSection = () => {
                         <div className="text-center sm:text-left">Traditional</div>
                         <div className="text-blue-400 flex items-center gap-1 sm:gap-1.5 justify-end sm:justify-start">
                             <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                            <span className="hidden sm:inline">The Outlrn Way</span>
-                            <span className="sm:hidden">Outlrn</span>
+                            <span className="hidden sm:inline">CareerSetu</span>
+                            <span className="sm:hidden">CareerSetu</span>
                         </div>
                     </div>
 
                     {/* Rows - Reduced delays for faster animation */}
                     <div className="flex flex-col">
                         <ComparisonRow 
-                            feature="Learning Style" 
-                            traditional="Watching long videos" 
-                            outlrn="Live AI avatar teaching" 
+                            feature="Experience" 
+                            traditional="Video courses, no real work" 
+                            careersetu="Virtual companies & real projects" 
                             delay={0}
                         />
                         <ComparisonRow 
-                            feature="Interaction" 
-                            traditional="Pause, rewind, guess" 
-                            outlrn="Ask questions instantly" 
+                            feature="Learning Style" 
+                            traditional="Watching long videos" 
+                            careersetu="Task boards, AI Teacher & PM agents" 
                             delay={0.05}
+                        />
+                        <ComparisonRow 
+                            feature="Code Quality" 
+                            traditional="Self-graded or ignored" 
+                            careersetu="AI code review & PR feedback" 
+                            delay={0.1}
                         />
                         <ComparisonRow 
                             feature="Explanations" 
                             traditional="One-size-fits-all" 
-                            outlrn="Personalized to you" 
-                            delay={0.1}
-                        />
-                        <ComparisonRow 
-                            feature="Visual Learning" 
-                            traditional="Slides or none" 
-                            outlrn="Diagrams, flowcharts, code" 
+                            careersetu="Personalized to you and the task" 
                             delay={0.15}
                         />
                         <ComparisonRow 
-                            feature="Learning Speed" 
-                            traditional="Slow and passive" 
-                            outlrn="Fast and interactive" 
+                            feature="Career Readiness" 
+                            traditional="Theory only" 
+                            careersetu="Real projects, real feedback" 
                             delay={0.2}
                         />
                     </div>

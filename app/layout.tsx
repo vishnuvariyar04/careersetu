@@ -6,10 +6,10 @@ import { SessionProvider } from "@/components/session-provider"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Outlrn",
+  title: "careersetu",
   description: "AI-powered project management platform for web developers",
   icons: {
-    icon: "/images/outlrn-fav.png",
+    icon: "/images/careersetu-fav.png",
     
   },
 }

@@ -1,0 +1,62 @@
+[
+  {
+    "student_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    "full_name": "Sarah Chen",
+    "email": "sarah.chen@example.com",
+    "skills": ["React", "TypeScript", "UI/UX"],
+    "experience_level": "experienced",
+    "github_url": "https://github.com/sarahchen",
+    "resume_url": "https://example.com/resumes/sarah-chen.pdf",
+    "created_at": "2024-01-15T10:00:00.000Z"
+  },
+  {
+    "student_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+    "full_name": "Alex Rodriguez",
+    "email": "alex.rodriguez@example.com",
+    "skills": ["Next.js", "Node.js", "PostgreSQL"],
+    "experience_level": "experienced",
+    "github_url": "https://github.com/alexrodriguez",
+    "resume_url": null,
+    "created_at": "2024-02-01T14:30:00.000Z"
+  },
+  {
+    "student_id": "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f",
+    "full_name": "Emma Wilson",
+    "email": "emma.wilson@example.com",
+    "skills": ["Python", "Django", "MongoDB"],
+    "experience_level": "experienced",
+    "github_url": "https://github.com/emmawilson",
+    "resume_url": "https://example.com/resumes/emma-wilson.pdf",
+    "created_at": "2024-02-10T09:15:00.000Z"
+  },
+  {
+    "student_id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
+    "full_name": "Mike Johnson",
+    "email": "mike.johnson@example.com",
+    "skills": ["Figma", "Design Systems", "Prototyping"],
+    "experience_level": "newbie",
+    "github_url": "https://github.com/mikejohnson",
+    "resume_url": null,
+    "created_at": "2024-03-01T11:00:00.000Z"
+  },
+  {
+    "student_id": "e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a9b",
+    "full_name": "David Kim",
+    "email": "david.kim@example.com",
+    "skills": ["Docker", "AWS", "CI/CD"],
+    "experience_level": "experienced",
+    "github_url": "https://github.com/davidkim",
+    "resume_url": "https://example.com/resumes/david-kim.pdf",
+    "created_at": "2024-03-15T16:45:00.000Z"
+  },
+  {
+    "student_id": "f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f8a9b0c",
+    "full_name": "Priya Sharma",
+    "email": "priya.sharma@example.com",
+    "skills": ["React", "GraphQL", "Jest"],
+    "experience_level": "newbie",
+    "github_url": "https://github.com/priyasharma",
+    "resume_url": null,
+    "created_at": "2024-04-01T08:20:00.000Z"
+  }
+]

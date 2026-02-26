@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import staticCompaniesForStudents from "@/data/static_companies_for_students.json"
+import staticStudentProfile from "@/data/static_student_profile.json"
 import { Input } from "@/components/ui/input"
 import { 
   Building2, 
@@ -123,21 +125,56 @@ export default function StudentDashboardPage() {
     ;(async () => {
       const { data: studentRow, error: studentError } = await supabase
         .from("students").select("*").eq("student_id", studentId).single()
-      setStudent(studentRow)
-      
-      if (!studentError) {
-        const joinedCompanyIds: string[] = studentRow?.companies_joined || []
-        if (joinedCompanyIds.length > 0) {
-          const { data: companiesData } = await supabase.from("companies").select("*").in("company_id", joinedCompanyIds)
-          setJoinedCompanies(companiesData || [])
-        } else { setJoinedCompanies([]) }
+
+      // Use DB student or fallback to static profile (preserves implementation logic)
+      const studentData = studentRow ?? { ...staticStudentProfile, student_id: studentId }
+      setStudent(studentData)
+
+      const joinedCompanyIds: string[] = Array.isArray(studentData?.companies_joined) ? studentData.companies_joined : []
+
+      if (joinedCompanyIds.length > 0) {
+        const { data: companiesData } = await supabase.from("companies").select("*").in("company_id", joinedCompanyIds)
+        if (companiesData && companiesData.length > 0) {
+          setJoinedCompanies(companiesData.map((c) => ({
+            ...c,
+            requiredSkills: c.tech_stack ?? c.requiredSkills ?? [],
+            logo: c.logo ?? String(c.name || "").slice(0, 2).toUpperCase(),
+            difficulty: c.difficulty ?? "intermediate",
+            totalProjects: c.totalProjects ?? 0,
+          })))
+        } else {
+          // Static fallback for joined companies
+          const joined = (staticCompaniesForStudents as any[]).filter((c) => joinedCompanyIds.includes(c.company_id))
+          setJoinedCompanies(joined)
+        }
+      } else {
+        // Seed with 1 static company for demo when none joined (students table has no companies_joined)
+        const demoJoined = (staticCompaniesForStudents as any[]).slice(0, 1)
+        setJoinedCompanies(demoJoined)
+        joinedCompanyIds.push(...demoJoined.map((c) => c.company_id))
       }
 
-      const { data: allCompanies } = await supabase.from('companies').select('*')
-      if (allCompanies) {
-        const joinedIds = Array.isArray(studentRow?.companies_joined) ? studentRow.companies_joined : []
-        setAvailableCompanies(allCompanies.filter((c) => !joinedIds.includes(c.company_id || c.id)))
-      }
+      const { data: allCompanies } = await supabase.from("companies").select("*")
+      const joinedIds = new Set(joinedCompanyIds)
+      const staticList = staticCompaniesForStudents as Array<Record<string, unknown>>
+
+      // DB companies (when present) + static companies so static is always visible
+      const dbAvailable =
+        allCompanies && allCompanies.length > 0
+          ? allCompanies
+              .filter((c) => !joinedIds.has(c.company_id))
+              .map((c) => ({
+                ...c,
+                requiredSkills: c.tech_stack ?? (c as any).requiredSkills ?? [],
+                logo: (c as any).logo ?? String(c.name || "").slice(0, 2).toUpperCase(),
+                difficulty: (c as any).difficulty ?? "intermediate",
+                totalProjects: (c as any).totalProjects ?? 0,
+              }))
+          : []
+
+      const dbIds = new Set(dbAvailable.map((c) => c.company_id))
+      const staticToAdd = staticList.filter((c) => !joinedIds.has(c.company_id as string) && !dbIds.has(c.company_id as string))
+      setAvailableCompanies([...dbAvailable, ...staticToAdd])
     })()
   }, [studentId, isAuthorized])
 
@@ -145,7 +182,7 @@ export default function StudentDashboardPage() {
   const handleJoinCompany = (companyId: string) => {
     (async () => {
       const { data: studentRow } = await supabase.from("students").select("companies_joined").eq("student_id", studentId).single();
-      const currentCompanies = Array.isArray(studentRow?.companies_joined) ? studentRow.companies_joined : [];
+      const currentCompanies = (studentRow && Array.isArray(studentRow.companies_joined)) ? studentRow.companies_joined : (student?.companies_joined ?? []);
       if (!currentCompanies.includes(companyId)) {
         await supabase.from("students").update({ companies_joined: [...currentCompanies, companyId] }).eq("student_id", studentId);
       }
@@ -165,10 +202,10 @@ export default function StudentDashboardPage() {
     return q ? String(company?.name).toLowerCase().includes(q) : true
   })
 
-  // Loading State
-  if (isAuthorized === null || !student) return <div className="min-h-screen bg-[#171a1a]" />
+  // Loading State (student is always set via DB or static fallback once authorized)
+  if (isAuthorized === null) return <div className="min-h-screen bg-[#171a1a]" />
   if (isAuthorized === false) return null
-
+  if (!student) return <div className="min-h-screen bg-[#171a1a]" />
   return (
     <div className="min-h-screen flex bg-[#171a1a]">
       <GlobalStyles />
@@ -179,7 +216,7 @@ export default function StudentDashboardPage() {
           <div className="flex items-center gap-3">
            
             <div>
-              <h3 className="text-sm font-semibold text-white tracking-tight">Welcome, {student.name}</h3>
+              <h3 className="text-sm font-semibold text-white tracking-tight">Welcome, {student?.full_name ?? student?.name ?? "Student"}</h3>
             </div>
           </div>
         </div>
@@ -389,7 +426,7 @@ export default function StudentDashboardPage() {
                       <span className="text-xs text-zinc-500 font-medium">FULL NAME</span>
                     </div>
                     <div className="col-span-2 p-6">
-                      <span className="text-sm text-zinc-200">{student.name}</span>
+                      <span className="text-sm text-zinc-200">{student?.full_name ?? student?.name ?? "—"}</span>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 border-b border-white/5">

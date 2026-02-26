@@ -6,9 +6,9 @@ import packageJson from "../../package.json"
 
 const Logo = () => (
   <img 
-    src="/images/outlrn-cropped.png" 
+    src="/images/careersetu-fav.png" 
     className="w-40" 
-    alt="Outlrn"
+    alt="CareerSetu"
     loading="eager"
     decoding="async"
     style={{ willChange: "auto" }}

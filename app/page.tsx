@@ -148,8 +148,8 @@ export default function LandingPage() {
                          className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white/5 border border-white/10 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-300 mb-6 sm:mb-8"
                      >
                          <Rocket className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                         <span className="hidden sm:inline">Ready to Transform Your Learning?</span>
-                         <span className="sm:hidden">Ready to Start?</span>
+                         <span className="hidden sm:inline">Ready to Start with CareerSetu?</span>
+                         <span className="sm:hidden">Ready for CareerSetu?</span>
                      </motion.div>
                      
                      <motion.h2 
@@ -161,7 +161,7 @@ export default function LandingPage() {
                      >
                          Stop watching videos. <br className="hidden sm:block"/> 
                          <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-blue-500 to-cyan-400">
-                             Start learning interactively.
+                             Start building your career with CareerSetu.
                          </span>
                      </motion.h2>
                      
@@ -172,7 +172,7 @@ export default function LandingPage() {
                          transition={{ duration: 0.6, delay: 0.2 }}
                          className="text-base sm:text-lg md:text-xl text-zinc-400 mb-8 sm:mb-10 md:mb-12 max-w-2xl mx-auto leading-relaxed px-4"
                      >
-                         Type any CS or Web Dev topic and learn from a live AI avatar that adapts to you in real time.
+                         Join virtual companies, work on real projects, and learn from AI agents. CareerSetu — task boards, code reviews, and interactive teaching.
                      </motion.p>
                      
                      <motion.div 
@@ -239,9 +239,9 @@ export default function LandingPage() {
           <div className="lg:col-span-4 flex flex-col gap-6">
             <div className="flex items-center gap-3">
              <img 
-               src="/images/outlrn-cropped.png" 
+               src="/images/careersetu.png" 
                className="w-40" 
-               alt="Outlrn"
+               alt="CareerSetu"
                loading="eager"
                decoding="async"
                style={{ willChange: "auto" }}
@@ -324,7 +324,7 @@ export default function LandingPage() {
         {/* 3. Bottom Bar */}
         <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-zinc-500 text-sm">
-            © 2025 Outlrn. All rights reserved.
+            © 2025 CareerSetu. All rights reserved.
           </p>
           <div className="flex items-center gap-6 md:gap-8">
             <a href="#" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">Privacy Policy</a>
@@ -488,12 +488,11 @@ const FeatureItem = ({ imageUrl, title, desc, linkText = "Learn more" }:any) => 
     </div>
 )
 
-// const ComparisonRow = ({ feature, traditional, outlrn }) => (
-//     <div className="grid grid-cols-3 gap-4 py-5 border-b border-white/5 text-sm items-center">
+// const ComparisonRow = ({ feature, traditional, CareerSetu }) =>CareerSetu<div className="grid grid-cols-3 gap-4 py-5 border-b border-white/5 text-sm items-center">
 //         <div className="text-zinc-300 font-medium">{feature}</div>
 //         <div className="text-zinc-500 flex items-center gap-2"><X className="w-4 h-4 text-red-500/50" /> {traditional}</div>
-//         <div className="text-white flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> {outlrn}</div>
-//     </div>
+//         <div className="text-white flex items-center gap-2"><Check className="w-4 h-4 text-blue-500" /> {CareerSetu}</div>
+//CareerSetu>
 // )
 
 // --- TESTIMONIAL CAROUSEL FOR MOBILE ---
@@ -503,7 +502,7 @@ const TestimonialCarousel = () => {
     
     const testimonials = [
         {
-            quote: "Outlrn taught me React in 2 weeks — because it only made me learn what I actually needed. No fluff, just code.",
+            quote: "CareerSetu taught me React — because it only made me learn what I actually needed. No fluff, just code.",
             author: "Sarah Jenkins",
             role: "Frontend Developer"
         },

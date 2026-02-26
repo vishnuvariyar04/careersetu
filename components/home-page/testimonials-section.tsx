@@ -25,25 +25,25 @@ export const TestimonialsSection = () => {
                         <Star className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-current text-blue-400" />
                         Testimonials
                     </motion.div>
-                    <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold px-2">Loved by ambitious developers</h2>
+                    <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold px-2">Loved by CareerSetu learners</h2>
                 </motion.div>
                 
                 {/* Grid View - Desktop */}
                 <div className="hidden sm:grid grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                     <TestimonialCard 
-                        quote="Outlrn taught me React in 2 weeks — because it only made me learn what I actually needed. No fluff, just code."
+                        quote="CareerSetu taught me React in 2 weeks — virtual projects and real tasks made me learn exactly what I needed. No fluff, just code."
                         author="Sarah Jenkins"
                         role="Frontend Developer"
                         delay={0}
                     />
                     <TestimonialCard 
-                        quote="The AI explains concepts better than YouTube videos I've watched for hours. It feels like a senior dev is sitting next to me."
+                        quote="The CareerSetu AI Teacher explains concepts better than YouTube. Task boards and code reviews make it feel like a senior dev is pair-programming with me."
                         author="David Chen"
                         role="CS Student"
                         delay={0.15}
                     />
                     <TestimonialCard 
-                        quote="I finally understand backend architecture. This is honestly the future of learning. I landed my first internship last week!"
+                        quote="CareerSetu's virtual companies gave me real project experience and PR feedback. I landed my first internship last week!"
                         author="Marcus Johnson"
                         role="Fullstack Aspirant"
                         delay={0.3}

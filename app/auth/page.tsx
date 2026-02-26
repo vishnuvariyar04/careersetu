@@ -36,6 +36,7 @@ export default function AuthPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
+  const [role, setRole] = useState<"student" | "company">("student")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [mode, setMode] = useState<"checking" | "login" | "register">("checking")
@@ -116,7 +117,7 @@ export default function AuthPage() {
         }
       } else if (mode === "register") {
         if (!name.trim()) {
-          setError("Please enter your name")
+          setError(role === "company" ? "Please enter your company name" : "Please enter your name")
           setIsLoading(false)
           return
         }
@@ -127,7 +128,8 @@ export default function AuthPage() {
           options: {
             data: {
               name: name,
-              role: 'student',
+              role: role,
+              ...(role === "company" ? { company_name: name } : {}),
             },
           },
         })
@@ -146,23 +148,6 @@ export default function AuthPage() {
         }
 
         if (data.user) {
-          try {
-            const { error: studentInsertError } = await supabase
-              .from("students")
-              .insert([
-                {
-                  name: data.user.user_metadata?.name || name,
-                  email: data.user.email,
-                  student_id: data.user.id,
-                },
-              ]);
-            if (studentInsertError) {
-              console.error("Error inserting new student:", studentInsertError);
-            }
-          } catch (err) {
-            console.error("Unexpected error inserting student:", err);
-          }
-          
           if (data.session) {
             window.location.href = redirect || getDashboardUrl(data.user.id, data.user.user_metadata?.role)
           } else {
@@ -191,7 +176,7 @@ export default function AuthPage() {
         <GlobalStyles />
         <div className="text-center">
           <div className=" flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <img src="/images/outlrn-fav.png" className="w-24" alt="Outlrn" />
+            <img src="/images/careersetu-fav.png" className="w-24" alt="careersetu" />
           </div>
           <p className="text-zinc-500 font-mono text-sm">Initializing Secure Session...</p>
         </div>
@@ -228,7 +213,7 @@ export default function AuthPage() {
           
           {/* Header */}
           <div className="text-center flex flex-col items-center justify-center mb-8">
-            <img src="/images/outlrn-cropped.png" className="w-36 mb-6" alt="" />
+            <img src="/images/careersetu-fav.png" className="w-36 mb-6" alt="" />
             <h1 className="text-2xl font-bold text-white mb-2 tracking-tight">
               {mode === "login" ? "Welcome back" : "Create account"}
             </h1>
@@ -249,18 +234,51 @@ export default function AuthPage() {
             )}
             
             {mode === "register" && (
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-zinc-300 text-xs uppercase tracking-wider font-bold ml-1">Full Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="e.g. Alex Chen"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  className="bg-[#050910] border-white/10 text-white placeholder:text-zinc-600 focus:border-blue-500/50 focus:ring-blue-500/20 h-12 rounded-xl font-['Space_Grotesk']"
-                />
-              </div>
+              <>
+                {/* Role toggle */}
+                <div className="flex items-center gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setRole("student")}
+                    className={`flex-1 px-3 py-2 text-xs font-medium rounded-full border ${
+                      role === "student"
+                        ? "bg-blue-600 text-white border-blue-500"
+                        : "bg-[#050910] text-zinc-400 border-white/10 hover:text-white"
+                    }`}
+                  >
+                    I am a student
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRole("company")}
+                    className={`flex-1 px-3 py-2 text-xs font-medium rounded-full border ${
+                      role === "company"
+                        ? "bg-blue-600 text-white border-blue-500"
+                        : "bg-[#050910] text-zinc-400 border-white/10 hover:text-white"
+                    }`}
+                  >
+                    I represent a company
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="name"
+                    className="text-zinc-300 text-xs uppercase tracking-wider font-bold ml-1"
+                  >
+                    {role === "company" ? "Company Name" : "Full Name"}
+                  </Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder={role === "company" ? "e.g. Acme Corp" : "e.g. Alex Chen"}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    className="bg-[#050910] border-white/10 text-white placeholder:text-zinc-600 focus:border-blue-500/50 focus:ring-blue-500/20 h-12 rounded-xl font-['Space_Grotesk']"
+                  />
+                </div>
+              </>
             )}
 
             <div className="space-y-2">

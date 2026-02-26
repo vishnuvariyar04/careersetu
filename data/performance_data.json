@@ -1,0 +1,8 @@
+[
+  { "month": "Jan", "productivity": 85, "quality": 92, "collaboration": 78 },
+  { "month": "Feb", "productivity": 88, "quality": 89, "collaboration": 82 },
+  { "month": "Mar", "productivity": 92, "quality": 94, "collaboration": 85 },
+  { "month": "Apr", "productivity": 89, "quality": 91, "collaboration": 88 },
+  { "month": "May", "productivity": 95, "quality": 96, "collaboration": 92 },
+  { "month": "Jun", "productivity": 98, "quality": 95, "collaboration": 94 }
+]

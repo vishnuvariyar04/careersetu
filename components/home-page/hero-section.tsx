@@ -27,14 +27,14 @@ export const HeroSection = () => {
             <ConnectorLines />
             
             <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[80px] xl:text-[90px] font-bold tracking-tight leading-[1.1] mb-8 max-w-6xl text-white relative z-20">
-                Learn by having a <br className="hidden md:block" />
+                Learn by doing. <br className="hidden md:block" />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-blue-500 to-cyan-400">
-                    conversation
+                    Build your career.
                 </span>
             </h1>
             
             <p className="text-lg sm:text-xl md:text-2xl leading-relaxed text-zinc-400 max-w-3xl mb-12 font-normal relative z-20">
-                A live AI avatar that teaches Computer Science and Web Development using visuals, diagrams, and code.
+                <span className="text-white font-medium">CareerSetu</span> connects you with virtual companies, real projects, and AI-powered learning — task boards, code reviews, and live teaching.
             </p>
             
             <div className="flex flex-col sm:flex-row items-center gap-5 mb-24 relative z-20">

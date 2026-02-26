@@ -475,7 +475,7 @@ export default function PricingPage() {
           key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
           amount: orderData.amount,
           currency: orderData.currency,
-          name: 'Outlrn',
+          name: 'careersetu',
           description: `${plan.name} Plan Subscription`,
           order_id: orderData.orderId,
           handler: async (response: any) => {
@@ -682,7 +682,7 @@ export default function PricingPage() {
               Ready to transform your learning?
             </h2>
             <p className="text-xl text-zinc-400 mb-8">
-              Join thousands of learners already using Outlrn
+              Join thousands of learners already using careersetu
             </p>
             <motion.button
               whileHover={{ scale: 1.05 }}

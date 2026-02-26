@@ -22,14 +22,17 @@ import {
   Video,
   Github, // <--- ADD THIS
   X      , // <--- ADD THIS
-  Check,       // <--- ADD THIS
-  ExternalLink // <--- ADD THIS
+  Check,
+  ExternalLink,
+  Columns
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { useEffect, useMemo, useState, useRef } from "react"
 import { useStudentAuth } from "@/hooks/use-student-auth"
+import staticCompaniesForStudents from "@/data/static_companies_for_students.json"
+import staticStudentProfile from "@/data/static_student_profile.json"
 const GlobalStyles = () => (
   <style jsx global>{`
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
@@ -166,14 +169,55 @@ const MOCK_PRS = [
 
 
 
-// Mock e-commerce project (will be replaced with real data from database)
-const MOCK_ECOMMERCE_PROJECT = {
-  project_id: "ecommerce-project",
-  name: "E-Commerce Platform",
-  description: "Build a full-stack e-commerce application with React and Express",
-  status: "active",
-  tech_stack: ["React", "Node.js", "MongoDB", "Express", "Tailwind CSS"]
+// Static projects (used when DB returns empty)
+const STATIC_PROJECTS = [
+  {
+    project_id: "ecommerce-project",
+    name: "E-Commerce Platform",
+    description: "Build a full-stack e-commerce application with React and Express",
+    status: "active",
+    tech_stack: ["React", "Node.js", "MongoDB", "Express", "Tailwind CSS"]
+  },
+  {
+    project_id: "analytics-dashboard",
+    name: "Analytics Dashboard",
+    description: "Real-time analytics dashboard with charts and data visualization",
+    status: "active",
+    tech_stack: ["React", "TypeScript", "D3.js", "PostgreSQL"]
+  },
+  {
+    project_id: "auth-service",
+    name: "Auth & API Service",
+    description: "JWT-based authentication with REST API",
+    status: "active",
+    tech_stack: ["Node.js", "Express", "PostgreSQL", "JWT"]
+  }
+]
+
+// Static tasks per project (status: todo | in_progress | completed)
+const STATIC_PROJECT_TASKS: Record<string, Array<{ task_id: string; title: string; status: string; role: string }>> = {
+  "ecommerce-project": [
+    { task_id: "eco-1", title: "Setup project structure & dependencies", status: "completed", role: "frontend" },
+    { task_id: "eco-2", title: "Implement user authentication (JWT)", status: "completed", role: "backend" },
+    { task_id: "eco-3", title: "Build product listing & search", status: "in_progress", role: "frontend" },
+    { task_id: "eco-4", title: "Shopping cart & checkout flow", status: "todo", role: "frontend" },
+    { task_id: "eco-5", title: "Payment integration (Stripe)", status: "todo", role: "backend" },
+    { task_id: "eco-6", title: "Order management API", status: "todo", role: "backend" }
+  ],
+  "analytics-dashboard": [
+    { task_id: "ana-1", title: "Setup React + TypeScript project", status: "completed", role: "frontend" },
+    { task_id: "ana-2", title: "Design database schema for analytics", status: "in_progress", role: "backend" },
+    { task_id: "ana-3", title: "Implement chart components (D3.js)", status: "todo", role: "frontend" },
+    { task_id: "ana-4", title: "Real-time data polling API", status: "todo", role: "backend" }
+  ],
+  "auth-service": [
+    { task_id: "auth-1", title: "User registration & login endpoints", status: "completed", role: "backend" },
+    { task_id: "auth-2", title: "JWT token refresh flow", status: "in_progress", role: "backend" },
+    { task_id: "auth-3", title: "Password reset & email verification", status: "todo", role: "backend" }
+  ]
 }
+
+const MOCK_ECOMMERCE_PROJECT = STATIC_PROJECTS[0]
 
 type Mode = "learning" | "project"
 type AgentType = "teacher" | "pm"
@@ -640,47 +684,42 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     }
 
     const fetchData = async () => {
-      // Fetch company data
+      // Fetch company data (fallback to static if not in DB)
       const { data: companyData, error: companyError } = await supabase
         .from("companies")
         .select("*")
         .eq("company_id", companyId)
         .single()
-      if (companyError) {
-        console.error("Error fetching company:", companyError)
-        return
+      if (!companyError && companyData) {
+        setCompany(companyData)
+      } else {
+        const staticCompany = (staticCompaniesForStudents as any[]).find((c) => c.company_id === companyId)
+        setCompany(staticCompany ?? { company_id: companyId, name: "Company", description: "", industry: "" })
       }
-      setCompany(companyData)
 
-      // Fetch projects for the company
+      // Fetch projects (non-blocking: use [] on error)
       const { data: projectsData, error: projectsError } = await supabase
         .from("projects")
         .select("*")
         .eq("company_id", companyId)
-      if (projectsError) {
-        console.error("Error fetching projects:", projectsError)
-        return
-      }
+      setProjects(projectsError ? [] : projectsData || [])
 
-      console.log("Projects: ", projectsData)
-      setProjects(projectsData || [])
-
-      // Fetch the current student's data (skills included)
+      // Fetch student (fallback to static if not in DB)
       const { data: studentData, error: studentError } = await supabase
         .from("students")
-        .select("*, companies_joined, projects, skills")
+        .select("*")
         .eq("student_id", studentId)
         .single()
-      if (studentError) {
-        console.error("Error fetching student:", studentError)
-        return
+      if (!studentError && studentData) {
+        setStudent(studentData)
+        const joinedCompanies = studentData?.companies_joined || []
+        setIsJoined(joinedCompanies.includes(companyId))
+      } else {
+        setStudent({ ...staticStudentProfile, student_id: studentId })
+        setIsJoined((staticStudentProfile as any).companies_joined?.includes(companyId) ?? false)
       }
-      setStudent(studentData)
 
-      const joinedCompanies = studentData?.companies_joined || []
-      setIsJoined(joinedCompanies.includes(companyId))
-
-      // Fetch team ID
+      // Fetch team ID (optional)
       const { data: teamData, error: teamError } = await supabase
         .from('team_members')
         .select('team_id')
@@ -1341,14 +1380,30 @@ useEffect(() => {
 
   const currentSelectedModule = MOCK_LEARNING_MODULES.find(m => m.id === selectedModule)
   // Use real project from database if available, otherwise use mock
-  const currentSelectedProject = projects.find(p => p.project_id === selectedProject) || 
-    (selectedProject === MOCK_ECOMMERCE_PROJECT.project_id ? MOCK_ECOMMERCE_PROJECT : null)
+  const currentSelectedProject = projects.find(p => p.project_id === selectedProject) ||
+    STATIC_PROJECTS.find(p => p.project_id === selectedProject) ||
+    null
 
-  // Active task from real database tasks
+  // Tasks: DB projectTasks or static (for kanban & sidebar)
+  const displayTasks = projectTasks.length > 0
+    ? projectTasks
+    : (selectedProject && STATIC_PROJECT_TASKS[selectedProject]
+        ? STATIC_PROJECT_TASKS[selectedProject].map((t, idx) => ({
+            task_id: t.task_id,
+            title: t.title,
+            status: t.status,
+            role: t.role,
+            assignee: studentId,
+            task_order: idx + 1,
+            description: t.title,
+          }))
+        : [])
+
+  // Active task from displayTasks (DB or static)
   const activeTask =
-    mode === "project" && projectTasks.length > 0
+    mode === "project" && displayTasks.length > 0
       ? (activeTaskId
-          ? projectTasks.find(t => t.task_id === activeTaskId) || null
+          ? displayTasks.find(t => t.task_id === activeTaskId) || null
           : null)
       : null
 
@@ -1498,8 +1553,8 @@ useEffect(() => {
                           <h2 className="text-[15px] font-semibold text-white">Projects</h2>
                         </div>
 
-                        {/* Show real projects or mock e-commerce project */}
-                        {(projects.length > 0 ? projects : [MOCK_ECOMMERCE_PROJECT]).map(project => (
+                        {/* Show real projects or static projects */}
+                        {(projects.length > 0 ? projects : STATIC_PROJECTS).map(project => (
                           <button
                             key={project.project_id}
                             onClick={() => handleProjectClick(project.project_id)}
@@ -1644,98 +1699,76 @@ useEffect(() => {
             <div>Comming soon</div>
           ) : (
             <>
-              {/* Show onboarding if no assigned task */}
-              {!hasAssignedTask && !loadingTasks ? (
-                <div className="flex-1 flex items-center justify-center px-6">
-                  <div className="max-w-2xl w-full text-center space-y-6">
-                    {/* Icon */}
-                    <div className="flex justify-center">
-                      <div className="w-20 h-20 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center">
-                        <FolderKanban className="w-10 h-10 text-white/70" />
-                      </div>
-                    </div>
-
-                    {/* Heading */}
-                    <div className="space-y-3">
-                      <h1 className="text-[32px] font-bold text-white leading-tight">
-                        {currentSelectedProject?.name || "Welcome to Your Project"}
-                      </h1>
-                      <p className="text-[16px] text-white/70 leading-relaxed max-w-xl mx-auto">
-                        {currentSelectedProject?.description || 
-                          "Get started by taking on your first task. We'll guide you through each step with personalized learning resources."}
-                      </p>
-                    </div>
-
-                    {/* Features */}
-                    <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto pt-4">
-                      <div className="space-y-2">
-                        <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center mx-auto">
-                          <Target className="w-6 h-6 text-white/60" />
-                        </div>
-                        <p className="text-[13px] text-white/60">Task-based Learning</p>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center mx-auto">
-                          <GraduationCap className="w-6 h-6 text-white/60" />
-                        </div>
-                        <p className="text-[13px] text-white/60">AI-Powered Guides</p>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center mx-auto">
-                          <Sparkles className="w-6 h-6 text-white/60" />
-                        </div>
-                        <p className="text-[13px] text-white/60">Hands-on Practice</p>
-                      </div>
-                    </div>
-
-                    {/* Start Button */}
-                    <div className="pt-6">
-                      <Button
-                        onClick={handleStartProjectClick}
-                        disabled={isStartingProject}
-                        className="h-12 px-8 text-[15px] bg-white/20 hover:bg-white/30 text-white border border-white/20 hover:border-white/30 transition-all"
-                      >
-                        {isStartingProject ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2"></div>
-                            Starting...
-                          </>
-                        ) : (
-                          <>
-                            Start Project
-                            <ChevronRight className="w-5 h-5 ml-2" />
-                          </>
-                        )}
-                      </Button>
-                    </div>
-
-                    {/* Role Badge */}
-                    <div className="pt-4 border-t border-white/10 max-w-xs mx-auto">
-                      <p className="text-[12px] text-white/50 mb-2">Your assigned role:</p>
-                      <Badge variant="outline" className="text-[13px] border-white/20 text-white bg-white/10 capitalize px-4 py-1.5">
-                        {studentRole}
-                      </Badge>
+              {/* Show Kanban when we have tasks; otherwise Start Project or loading */}
+              {displayTasks.length > 0 ? (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {/* Kanban Board */}
+                  <div className="px-6 py-4 border-b border-white/10">
+                    <h2 className="text-[17px] font-semibold text-white mb-4 flex items-center gap-2">
+                      <Columns className="w-5 h-5 text-white/70" />
+                      Task Board – {currentSelectedProject?.name || "Project"}
+                    </h2>
+                    <div className="grid grid-cols-3 gap-4">
+                      {[
+                        { id: "todo", label: "To Do", color: "border-amber-500/30 bg-amber-500/5" },
+                        { id: "in_progress", label: "In Progress", color: "border-blue-500/30 bg-blue-500/5" },
+                        { id: "completed", label: "Completed", color: "border-emerald-500/30 bg-emerald-500/5" }
+                      ].map(col => {
+                        const colTasks = displayTasks.filter(t => 
+                          (t.status === "todo" && col.id === "todo") ||
+                          (t.status === "in_progress" && col.id === "in_progress") ||
+                          (t.status === "completed" && col.id === "completed")
+                        )
+                        return (
+                          <div
+                            key={col.id}
+                            className={`rounded-xl border ${col.color} min-h-[200px] p-3`}
+                          >
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-[13px] font-medium text-white/90">{col.label}</span>
+                              <span className="text-[11px] text-white/50">{colTasks.length}</span>
+                            </div>
+                            <div className="space-y-2">
+                              {colTasks.map(task => {
+                                const isActive = activeTaskId === task.task_id
+                                return (
+                                  <button
+                                    key={task.task_id}
+                                    onClick={() => {
+                                      setActiveTaskId(task.task_id)
+                                      setSelectedPrId(null)
+                                      setActiveResourceId(null)
+                                      setSelectedTopicId(null)
+                                      updateUrlParams({ taskId: task.task_id, prId: null, resourceId: null })
+                                    }}
+                                    className={`w-full text-left p-3 rounded-lg border transition-all ${
+                                      isActive
+                                        ? "bg-white/15 border-white/30"
+                                        : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
+                                    }`}
+                                  >
+                                    <p className="text-[13px] font-medium text-white">{task.title}</p>
+                                    <Badge variant="outline" className="text-[10px] border-white/20 text-white/60 mt-2 capitalize">
+                                      {task.role}
+                                    </Badge>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
-                </div>
-              ) : (
-                <>
-              {/* Project mode header – shows the selected task as the "main topic" */}
-              <div className="px-6 pb-1 border-b border-white/10">
-                <div className="max-w-3xl">
-                  <div className="flex">
-                    <p className="text-[17px] font-medium text-white">
-                      {activeTask
-                        ? activeTask.title
-                        : "Select a task on the right to start learning"}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-                  {/* Task‑specific learning rendered directly on the background */}
-                  <ScrollArea className="flex-1 px-6 py-3">
-  
+                  {/* Task learning content when a task is selected */}
+                  {activeTaskId && activeTask && (
+                    <>
+                      <div className="px-6 py-2 border-b border-white/10">
+                        <p className="text-[15px] font-medium text-white">{activeTask.title}</p>
+                        <p className="text-[12px] text-white/50 mt-0.5">Select a topic or PR below to learn more</p>
+                      </div>
+                      <ScrollArea className="flex-1 px-6 py-3">
   {/* 1. BACK BUTTON: Only show if we are looking at a specific resource */}
   {activeTask && activeResourceId && (
     <div className="max-w-4xl mx-auto mb-3 pt-1">
@@ -1859,7 +1892,7 @@ useEffect(() => {
                         const bashKeywords = /\b(npm|npx|yarn|pnpm|git|cd|ls|mkdir|rm|cp|mv|echo|cat|grep|sudo|docker|node|bun)\b/g
                         const typeKeywords = /\b(string|number|boolean|any|void|Promise|React|FC|useState|useEffect)\b/g
 
-                        let regex = null
+                        let regex: RegExp | null = null
                         let keywordColor = "text-emerald-400"
 
                         if (lang.includes("js") || lang.includes("ts") || lang.includes("react")) {
@@ -2204,7 +2237,7 @@ useEffect(() => {
                     {currentSelectedProject.name.toUpperCase()}
                   </span>
                   <span className="text-zinc-700">/</span>
-                  <span>TASK-{activeTask.task_order}</span>
+                  <span>TASK-{activeTask.task_order ?? "—"}</span>
                 </div>
                 
                 <span className={`text-[10px] uppercase tracking-widest font-medium px-2 py-1 rounded
@@ -2220,7 +2253,7 @@ useEffect(() => {
                   {activeTask.title}
                 </h1>
                 <p className="text-zinc-400 text-base font-light leading-relaxed">
-                  {activeTask.description}
+                  {activeTask.description || activeTask.title}
                 </p>
               </div>
             </header>
@@ -2380,7 +2413,7 @@ useEffect(() => {
 </ScrollArea>
                   {/* Floating semi-oval input bar at the bottom: in project mode this "asks AI" for a new topic */}
                   {/* Hide input bar when viewing a full topic or during onboarding */}
-                  {!selectedTopicId && hasAssignedTask && activeTask && (
+                  {!selectedTopicId && displayTasks.length > 0 && activeTask && (
                 <div className="pointer-events-none absolute bottom-4 left-0 right-0 flex justify-center">
                   <div className="pointer-events-auto w-full max-w-3xl bg-white/5 border border-white/10 rounded-full px-5 py-2 flex items-center gap-3 shadow-[0_18px_40px_rgba(0,0,0,0.7)] backdrop-blur-md">
                     <input
@@ -2403,6 +2436,76 @@ useEffect(() => {
                 </div>
                   )}
                 </>
+              )}
+                </div>
+          ) : !loadingTasks ? (
+                <div className="flex-1 flex items-center justify-center px-6">
+                  <div className="max-w-2xl w-full text-center space-y-6">
+                    <div className="flex justify-center">
+                      <div className="w-20 h-20 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center">
+                        <FolderKanban className="w-10 h-10 text-white/70" />
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <h1 className="text-[32px] font-bold text-white leading-tight">
+                        {currentSelectedProject?.name || "Welcome to Your Project"}
+                      </h1>
+                      <p className="text-[16px] text-white/70 leading-relaxed max-w-xl mx-auto">
+                        {currentSelectedProject?.description || 
+                          "Get started by taking on your first task. We'll guide you through each step with personalized learning resources."}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto pt-4">
+                      <div className="space-y-2">
+                        <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center mx-auto">
+                          <Target className="w-6 h-6 text-white/60" />
+                        </div>
+                        <p className="text-[13px] text-white/60">Task-based Learning</p>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center mx-auto">
+                          <GraduationCap className="w-6 h-6 text-white/60" />
+                        </div>
+                        <p className="text-[13px] text-white/60">AI-Powered Guides</p>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center mx-auto">
+                          <Sparkles className="w-6 h-6 text-white/60" />
+                        </div>
+                        <p className="text-[13px] text-white/60">Hands-on Practice</p>
+                      </div>
+                    </div>
+                    <div className="pt-6">
+                      <Button
+                        onClick={handleStartProjectClick}
+                        disabled={isStartingProject}
+                        className="h-12 px-8 text-[15px] bg-white/20 hover:bg-white/30 text-white border border-white/20 hover:border-white/30 transition-all"
+                      >
+                        {isStartingProject ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2"></div>
+                            Starting...
+                          </>
+                        ) : (
+                          <>
+                            Start Project
+                            <ChevronRight className="w-5 h-5 ml-2" />
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <div className="pt-4 border-t border-white/10 max-w-xs mx-auto">
+                      <p className="text-[12px] text-white/50 mb-2">Your assigned role:</p>
+                      <Badge variant="outline" className="text-[13px] border-white/20 text-white bg-white/10 capitalize px-4 py-1.5">
+                        {studentRole}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                </div>
               )}
             </>
           )}
@@ -2520,12 +2623,12 @@ useEffect(() => {
                         {/* Tasks Checklist */}
                         <div className="space-y-1.5 pt-2 border-t border-white/10">
                           <h3 className="text-[14px] font-medium text-white">Your Tasks</h3>
-                          {projectTasks.length === 0 ? (
+                          {displayTasks.length === 0 ? (
                             <p className="text-[12px] text-white/50 py-2">No tasks available</p>
                           ) : (
                             <div className="space-y-1">
-                              {projectTasks
-                                .filter(task => task.assignee === studentId)
+                              {displayTasks
+                                .filter(task => !task.assignee || task.assignee === studentId)
                                 .map(task => {
                                   const isActive = activeTask && activeTask.task_id === task.task_id
                                   const isCompleted = task.status === 'completed'
