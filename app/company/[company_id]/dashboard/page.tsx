@@ -47,7 +47,7 @@ import {
   LogOut
 } from "lucide-react"
 import LearningWorkflowComponent from "@/components/learning-workflow"
-import ProjectBuilderComponent from "@/components/project-creation"
+import { CreateProjectPanel } from "@/components/company/create-project-panel"
 import performanceData from "@/data/performance_data.json"
 import skillDistribution from "@/data/skill_distribution.json"
 import projectMetrics from "@/data/project_metrics.json"
@@ -173,19 +173,10 @@ export default function SupervisorDashboard() {
       //   )
       
       case "projects":
-        return (
-          // <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-          //   <Card className="w-full max-w-2xl">
-          //     <CardHeader>
-          //       <CardTitle className="text-2xl">Projects Component</CardTitle>
-          //       <CardDescription>This is the Projects section placeholder</CardDescription>
-          //     </CardHeader>
-          //     <CardContent>
-          //       <p className="text-muted-foreground">Replace this with your Projects component later</p>
-          //     </CardContent>
-          //   </Card>
-          // </div>
-          <ProjectBuilderComponent />
+        return companyId ? (
+          <CreateProjectPanel companyId={companyId} />
+        ) : (
+          <div className="p-6 text-muted-foreground">Missing company id.</div>
         )
       
       case "students":

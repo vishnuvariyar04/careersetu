@@ -147,3 +147,9 @@ ALTER TABLE public.companies
   ADD COLUMN evaluation_metrics text[] DEFAULT '{}',  -- from metrics[]
   ADD COLUMN policies jsonb,                          -- coding standards etc.
   ADD COLUMN onboarding_advanced jsonb;               -- project briefs / examples / rubrics
+
+-- CareerSetu "Create New Project" (company dashboard → Projects):
+-- 1) Insert into virtual_environments: company_id, title, description, status ('open'|'in_progress'|'completed')
+-- 2) Insert into tasks: environment_id (FK), title, description, task_order (NOT NULL)
+-- Optional: reference PDF public URLs are appended to virtual_environments.description (see save-environment API).
+-- Optional Supabase Storage bucket: project-documents (public URL for uploads via upload-project-pdf API).

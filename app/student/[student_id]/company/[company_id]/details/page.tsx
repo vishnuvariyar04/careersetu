@@ -219,6 +219,22 @@ const STATIC_PROJECT_TASKS: Record<string, Array<{ task_id: string; title: strin
 
 const MOCK_ECOMMERCE_PROJECT = STATIC_PROJECTS[0]
 
+/** virtual_environments.environment_id is a UUID */
+function isVirtualEnvironmentProjectId(id: string | null): boolean {
+  if (!id) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+}
+
+function mapTaskProgressToKanban(
+  progress: string | undefined,
+  index: number
+): "todo" | "in_progress" | "completed" {
+  if (!progress) return index === 0 ? "in_progress" : "todo"
+  if (progress === "approved") return "completed"
+  if (progress === "submitted" || progress === "in_progress") return "in_progress"
+  return "todo"
+}
+
 type Mode = "learning" | "project"
 type AgentType = "teacher" | "pm"
 
@@ -573,6 +589,8 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     
     if (urlProjectId) {
       setSelectedProject(urlProjectId)
+    } else {
+      setSelectedProject(null)
     }
 
     if (urlTaskId) {
@@ -584,6 +602,17 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
       if (urlTaskId) fetchResourceTopics(urlResourceId, urlTaskId)
     }
   }, [searchParams])
+
+  // When real projects load from DB, drop invalid projectId from URL (do not auto-open an environment)
+  useEffect(() => {
+    if (projects.length === 0) return
+    if (!selectedProject) return
+    const valid = projects.some((p) => p.project_id === selectedProject)
+    if (!valid) {
+      setSelectedProject(null)
+      updateUrlParams({ projectId: null, taskId: null, resourceId: null })
+    }
+  }, [projects, selectedProject])
 
   const toggleProjectTopic = (topicId: string) => {
     const next = new Set(expandedProjectTopics)
@@ -690,19 +719,38 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
         .select("*")
         .eq("company_id", companyId)
         .single()
+      let staticCompanyFallback: any = null
       if (!companyError && companyData) {
         setCompany(companyData)
       } else {
-        const staticCompany = (staticCompaniesForStudents as any[]).find((c) => c.company_id === companyId)
-        setCompany(staticCompany ?? { company_id: companyId, name: "Company", description: "", industry: "" })
+        staticCompanyFallback = (staticCompaniesForStudents as any[]).find((c) => c.company_id === companyId)
+        setCompany(staticCompanyFallback ?? { company_id: companyId, name: "Company", description: "", industry: "" })
       }
 
-      // Fetch projects (non-blocking: use [] on error)
-      const { data: projectsData, error: projectsError } = await supabase
-        .from("projects")
-        .select("*")
+      // Real projects: virtual_environments for this company (not legacy "projects" table)
+      const techStack = Array.isArray(companyData?.tech_stack)
+        ? companyData.tech_stack
+        : Array.isArray(staticCompanyFallback?.tech_stack)
+          ? staticCompanyFallback.tech_stack
+          : []
+      const { data: veData, error: veError } = await supabase
+        .from("virtual_environments")
+        .select("environment_id, title, description, status, created_at")
         .eq("company_id", companyId)
-      setProjects(projectsError ? [] : projectsData || [])
+        .order("created_at", { ascending: false })
+      if (!veError && veData?.length) {
+        setProjects(
+          veData.map((row: any) => ({
+            project_id: row.environment_id,
+            name: row.title,
+            description: row.description ?? "",
+            status: row.status ?? "open",
+            tech_stack: techStack,
+          }))
+        )
+      } else {
+        setProjects([])
+      }
 
       // Fetch student (fallback to static if not in DB)
       const { data: studentData, error: studentError } = await supabase
@@ -756,6 +804,11 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     return Math.round((covered / companyRequiredSkills.length) * 100)
   }, [companyRequiredSkills, studentSkills])
 
+  /** Environments shown in the picker: DB virtual_environments, or static demo when none */
+  const environmentProjectsForPicker = useMemo(() => {
+    return projects.length > 0 ? projects : STATIC_PROJECTS
+  }, [projects])
+
   // Hash-based mode persistence
   useEffect(() => {
     const hash = window.location.hash.slice(1)
@@ -785,11 +838,30 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
   const handleProjectClick = (projectId: string) => {
     setSelectedProject(projectId)
     setActiveTaskId(null)
+    setSelectedPrId(null)
+    setActiveResourceId(null)
+    setSelectedTopicId(null)
     // ADDED: Update URL - Set Project, Clear Task and Resource
-    updateUrlParams({ 
-      projectId: projectId, 
-      taskId: null, 
-      resourceId: null 
+    updateUrlParams({
+      projectId: projectId,
+      taskId: null,
+      resourceId: null,
+      prId: null,
+    })
+  }
+
+  const handleBackToEnvironments = () => {
+    setSelectedProject(null)
+    setActiveTaskId(null)
+    setSelectedPrId(null)
+    setActiveResourceId(null)
+    setSelectedTopicId(null)
+    setProjectTasks([])
+    updateUrlParams({
+      projectId: null,
+      taskId: null,
+      resourceId: null,
+      prId: null,
     })
   }
 
@@ -1081,46 +1153,105 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
- // UPDATED: Fetch tasks + Auto-Advance logic if all tasks are completed
+  /** Tasks from public.tasks for a virtual_environment (company-created projects). */
+  const fetchVirtualEnvironmentTasks = async (environmentId: string) => {
+    setLoadingTasks(true)
+    setProjectTasks([])
+    try {
+      const { data: taskRows, error: tErr } = await supabase
+        .from("tasks")
+        .select("task_id, title, description, task_order")
+        .eq("environment_id", environmentId)
+        .order("task_order", { ascending: true })
+      if (tErr) throw tErr
+
+      const ids = (taskRows || []).map((r: any) => r.task_id)
+      const progressByTask: Record<string, string> = {}
+      if (ids.length > 0) {
+        const { data: prog } = await supabase
+          .from("task_progress")
+          .select("task_id, status")
+          .eq("student_id", studentId)
+          .in("task_id", ids)
+        for (const row of prog || []) {
+          progressByTask[(row as any).task_id] = (row as any).status
+        }
+      }
+
+      const mapped = (taskRows || []).map((row: any, idx: number) => {
+        const p = progressByTask[row.task_id]
+        const kanbanStatus = mapTaskProgressToKanban(p, idx)
+        return {
+          task_id: row.task_id,
+          title: row.title,
+          description: row.description || "",
+          status: kanbanStatus,
+          role: studentRole,
+          assignee: studentId,
+          task_order: row.task_order,
+        }
+      })
+
+      setProjectTasks(mapped)
+      setHasAssignedTask(mapped.length > 0)
+
+      const currentUrlTaskId = searchParams.get("taskId")
+      if (mapped.length > 0 && !activeTaskId && !currentUrlTaskId) {
+        const defaultTask = mapped.find((t) => t.status === "in_progress") || mapped[0]
+        setActiveTaskId(defaultTask.task_id)
+        updateUrlParams({ taskId: defaultTask.task_id })
+      }
+    } catch (e) {
+      console.error("fetchVirtualEnvironmentTasks", e)
+      setProjectTasks([])
+      setHasAssignedTask(false)
+    } finally {
+      setLoadingTasks(false)
+    }
+  }
+
+  // Legacy tasks-duo-1 path OR virtual_environment tasks from public.tasks
   const fetchProjectTasks = async () => {
     if (!studentId) return
 
+    if (!selectedProject) {
+      setProjectTasks([])
+      setHasAssignedTask(false)
+      return
+    }
+
+    if (isVirtualEnvironmentProjectId(selectedProject)) {
+      await fetchVirtualEnvironmentTasks(selectedProject)
+      return
+    }
+
     setLoadingTasks(true)
     try {
-      // 1. Fetch current assigned tasks
       const { data: existingData, error } = await supabase
-        .from('tasks-duo-1')
-        .select('*')
-        .eq('assigned-to', studentId)
-        .order('task_order', { ascending: true })
+        .from("tasks-duo-1")
+        .select("*")
+        .eq("assigned-to", studentId)
+        .order("task_order", { ascending: true })
 
       if (error) throw error
-      
+
       let currentTasks = (existingData || []).map((row: any) => ({
-        task_id: row.task_id,                  
-        title: row.task,                  
-        description: row['task-description'], 
+        task_id: row.task_id,
+        title: row.task,
+        description: row["task-description"],
         status: row.status,
         role: row.role,
-        assignee: row['assigned-to'],     
-        task_order: row.task_order               
+        assignee: row["assigned-to"],
+        task_order: row.task_order,
       }))
 
-      // ---------------------------------------------------------
-      // AUTO-ADVANCE LOGIC: Check if we need to fetch the next task
-      // ---------------------------------------------------------
-      const hasInProgress = currentTasks.some(t => t.status === 'in_progress')
+      const hasInProgress = currentTasks.some((t) => t.status === "in_progress")
       const hasTasks = currentTasks.length > 0
 
-      // If user has tasks, but NONE are in_progress, fetch the next one
       if (hasTasks && !hasInProgress) {
-        console.log("All tasks completed. Attempting to fetch next task...")
-        
-        // Get the highest order currently assigned
         const lastTask = currentTasks[currentTasks.length - 1]
         const lastOrder = lastTask.task_order
 
-        // Determine role filter
         let roleFilter: string[] = []
         if (studentRole === "fullstack") {
           roleFilter = ["frontend", "backend"]
@@ -1128,75 +1259,60 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
           roleFilter = [studentRole]
         }
 
-        // Fetch NEXT task from master table
         const { data: nextMasterTask, error: nextError } = await supabase
-          .from('tasks')
-          .select('*')
-          .in('role', roleFilter)
-          .gt('task_order', lastOrder) // STRICTLY GREATER THAN last order
-          .order('task_order', { ascending: true })
+          .from("tasks")
+          .select("*")
+          .in("role", roleFilter)
+          .gt("task_order", lastOrder)
+          .order("task_order", { ascending: true })
           .limit(1)
           .single()
 
         if (!nextError && nextMasterTask) {
-          // Insert the new task into tasks-duo-1
           const { data: newAssignedTask, error: insertError } = await supabase
-            .from('tasks-duo-1')
+            .from("tasks-duo-1")
             .insert({
-              'task_id': nextMasterTask.task_id,
-              'task': nextMasterTask.title,
-              'task-description': nextMasterTask.description,
-              'role': nextMasterTask.role,
-              'assigned-to': studentId,
-              'status': 'in_progress', // Set as active
-              'task_order': nextMasterTask.task_order,
-              'created_at': new Date().toISOString()
+              task_id: nextMasterTask.task_id,
+              task: nextMasterTask.title,
+              "task-description": nextMasterTask.description,
+              role: nextMasterTask.role,
+              "assigned-to": studentId,
+              status: "in_progress",
+              task_order: nextMasterTask.task_order,
+              created_at: new Date().toISOString(),
             })
             .select()
             .single()
 
           if (!insertError && newAssignedTask) {
-            // Add the new task to our local list immediately
             const mappedNewTask = {
               task_id: newAssignedTask.task_id,
               title: newAssignedTask.task,
-              description: newAssignedTask['task-description'],
+              description: newAssignedTask["task-description"],
               status: newAssignedTask.status,
               role: newAssignedTask.role,
-              assignee: newAssignedTask['assigned-to'],
-              task_order: newAssignedTask.task_order
+              assignee: newAssignedTask["assigned-to"],
+              task_order: newAssignedTask.task_order,
             }
-            // Append to list
             currentTasks = [...currentTasks, mappedNewTask]
-            
-            // Force set this new task as active
             setActiveTaskId(mappedNewTask.task_id)
             updateUrlParams({ taskId: mappedNewTask.task_id })
           }
         }
       }
-      // ---------------------------------------------------------
-      // END AUTO-ADVANCE LOGIC
-      // ---------------------------------------------------------
 
       setProjectTasks(currentTasks)
       setHasAssignedTask(currentTasks.length > 0)
-      
-      // Standard Auto-Select Logic (If we didn't just auto-advance)
-      const currentUrlTaskId = searchParams.get('taskId')
-      
-      // If we have active tasks, no specific task selected, and we didn't just auto-advance above
-      // (If we auto-advanced, activeTaskId is already set, so this block won't overwrite it)
+
+      const currentUrlTaskId = searchParams.get("taskId")
       if (currentTasks.length > 0 && !activeTaskId && !currentUrlTaskId) {
-        // Prefer the first 'in_progress' task, otherwise the last available task
-        const defaultTask = currentTasks.find(t => t.status === 'in_progress') || currentTasks[currentTasks.length - 1]
-        
+        const defaultTask =
+          currentTasks.find((t) => t.status === "in_progress") || currentTasks[currentTasks.length - 1]
         setActiveTaskId(defaultTask.task_id)
         updateUrlParams({ taskId: defaultTask.task_id })
       }
-      
     } catch (error) {
-      console.error('Error fetching tasks:', error)
+      console.error("Error fetching tasks:", error)
     } finally {
       setLoadingTasks(false)
     }
@@ -1384,10 +1500,13 @@ useEffect(() => {
     STATIC_PROJECTS.find(p => p.project_id === selectedProject) ||
     null
 
-  // Tasks: DB projectTasks or static (for kanban & sidebar)
-  const displayTasks = projectTasks.length > 0
-    ? projectTasks
-    : (selectedProject && STATIC_PROJECT_TASKS[selectedProject]
+  // Tasks: real projectTasks (virtual_environment or legacy), or demo static only when company has no DB projects
+  const displayTasks =
+    projectTasks.length > 0
+      ? projectTasks
+      : projects.length === 0 &&
+          selectedProject &&
+          STATIC_PROJECT_TASKS[selectedProject]
         ? STATIC_PROJECT_TASKS[selectedProject].map((t, idx) => ({
             task_id: t.task_id,
             title: t.title,
@@ -1397,7 +1516,7 @@ useEffect(() => {
             task_order: idx + 1,
             description: t.title,
           }))
-        : [])
+        : []
 
   // Active task from displayTasks (DB or static)
   const activeTask =
@@ -1553,8 +1672,8 @@ useEffect(() => {
                           <h2 className="text-[15px] font-semibold text-white">Projects</h2>
                         </div>
 
-                        {/* Show real projects or static projects */}
-                        {(projects.length > 0 ? projects : STATIC_PROJECTS).map(project => (
+                        {/* Same environments as center picker; quick switch when board is open */}
+                        {environmentProjectsForPicker.map((project) => (
                           <button
                             key={project.project_id}
                             onClick={() => handleProjectClick(project.project_id)}
@@ -1699,15 +1818,71 @@ useEffect(() => {
             <div>Comming soon</div>
           ) : (
             <>
-              {/* Show Kanban when we have tasks; otherwise Start Project or loading */}
-              {displayTasks.length > 0 ? (
+              {!selectedProject ? (
+                <div className="flex-1 flex flex-col overflow-y-auto px-6 py-8">
+                  <div className="max-w-4xl mx-auto w-full">
+                    <p className="text-[11px] uppercase tracking-wide text-white/40 mb-1">Projects</p>
+                    <h1 className="text-[22px] font-semibold text-white mb-2">Virtual environments</h1>
+                    <p className="text-[14px] text-white/55 mb-8 max-w-xl">
+                      Pick an environment to open its task board. You can switch anytime from the sidebar or by going back here.
+                    </p>
+                    {environmentProjectsForPicker.length === 0 ? (
+                      <p className="text-[13px] text-white/60">No environments available yet.</p>
+                    ) : (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        {environmentProjectsForPicker.map((project) => (
+                          <button
+                            key={project.project_id}
+                            type="button"
+                            onClick={() => handleProjectClick(project.project_id)}
+                            className="text-left rounded-xl border border-white/10 bg-white/5 p-4 transition-all hover:border-white/25 hover:bg-white/10"
+                          >
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <h3 className="font-medium text-[15px] text-white">{project.name}</h3>
+                              <Badge variant="secondary" className="text-[10px] bg-white/10 text-white border-white/20 capitalize shrink-0">
+                                {project.status || "active"}
+                              </Badge>
+                            </div>
+                            <p className="text-[12px] text-white/55 line-clamp-3 mb-3">
+                              {project.description || "No description"}
+                            </p>
+                            {project.tech_stack && project.tech_stack.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {project.tech_stack.map((tech: string) => (
+                                  <Badge key={tech} variant="outline" className="text-[10px] border-white/20 text-white bg-white/5">
+                                    #{tech.toLowerCase()}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : loadingTasks ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                </div>
+              ) : displayTasks.length > 0 ? (
                 <div className="flex-1 flex flex-col overflow-hidden">
                   {/* Kanban Board */}
                   <div className="px-6 py-4 border-b border-white/10">
-                    <h2 className="text-[17px] font-semibold text-white mb-4 flex items-center gap-2">
-                      <Columns className="w-5 h-5 text-white/70" />
-                      Task Board – {currentSelectedProject?.name || "Project"}
-                    </h2>
+                    <div className="flex flex-wrap items-center gap-3 mb-4">
+                      <button
+                        type="button"
+                        onClick={handleBackToEnvironments}
+                        className="inline-flex items-center gap-1 text-[13px] text-white/60 hover:text-white transition-colors rounded-lg px-2 py-1.5 hover:bg-white/5 -ml-2 shrink-0"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        All environments
+                      </button>
+                      <h2 className="text-[17px] font-semibold text-white flex items-center gap-2 min-w-0">
+                        <Columns className="w-5 h-5 text-white/70 shrink-0" />
+                        <span className="truncate">Task Board – {currentSelectedProject?.name || "Project"}</span>
+                      </h2>
+                    </div>
                     <div className="grid grid-cols-3 gap-4">
                       {[
                         { id: "todo", label: "To Do", color: "border-amber-500/30 bg-amber-500/5" },
@@ -2438,7 +2613,7 @@ useEffect(() => {
                 </>
               )}
                 </div>
-          ) : !loadingTasks ? (
+          ) : (
                 <div className="flex-1 flex items-center justify-center px-6">
                   <div className="max-w-2xl w-full text-center space-y-6">
                     <div className="flex justify-center">
@@ -2451,7 +2626,7 @@ useEffect(() => {
                         {currentSelectedProject?.name || "Welcome to Your Project"}
                       </h1>
                       <p className="text-[16px] text-white/70 leading-relaxed max-w-xl mx-auto">
-                        {currentSelectedProject?.description || 
+                        {currentSelectedProject?.description ||
                           "Get started by taking on your first task. We'll guide you through each step with personalized learning resources."}
                       </p>
                     </div>
@@ -2501,10 +2676,6 @@ useEffect(() => {
                       </Badge>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                 </div>
               )}
             </>
@@ -2684,9 +2855,9 @@ useEffect(() => {
                 )}
 
                 {mode === "project" && !currentSelectedProject && (
-                  <div className="text-center py-8">
+                  <div className="text-center py-8 px-2">
                     <FolderKanban className="w-8 h-8 mx-auto mb-2 text-white/30" />
-                    <p className="text-[13px] text-white/50">Select a project</p>
+                    <p className="text-[13px] text-white/50">Choose an environment in the center to see details and tasks.</p>
                   </div>
                 )}
               </div>
