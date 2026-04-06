@@ -20,19 +20,28 @@ import {
   Sparkles,
   AlignLeft,
   Video,
-  Github, // <--- ADD THIS
-  X      , // <--- ADD THIS
+  Github,
+  X,
   Check,
   ExternalLink,
-  Columns
+  Columns,
+  Lock,
+  Unlock,
+  MessageSquare,
+  Plus,
+  Loader2
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { useEffect, useMemo, useState, useRef } from "react"
+import { useEffect, useMemo, useState, useRef, useCallback } from "react"
 import { useStudentAuth } from "@/hooks/use-student-auth"
 import staticCompaniesForStudents from "@/data/static_companies_for_students.json"
 import staticStudentProfile from "@/data/static_student_profile.json"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
+import { PmAgentChat } from "@/components/student/PmAgentChat"
+import { useSidebarContext } from "@/components/student/sidebar-context"
 const GlobalStyles = () => (
   <style jsx global>{`
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
@@ -225,17 +234,25 @@ function isVirtualEnvironmentProjectId(id: string | null): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
 }
 
-function mapTaskProgressToKanban(
+type TaskStatus = "locked" | "unlocked" | "in_progress" | "submitted" | "approved"
+
+function resolveTaskStatus(
   progress: string | undefined,
-  index: number
-): "todo" | "in_progress" | "completed" {
-  if (!progress) return index === 0 ? "in_progress" : "todo"
-  if (progress === "approved") return "completed"
-  if (progress === "submitted" || progress === "in_progress") return "in_progress"
-  return "todo"
+  index: number,
+  prevStatus: TaskStatus | undefined
+): TaskStatus {
+  if (progress === "approved") return "approved"
+  if (progress === "submitted") return "submitted"
+  if (progress === "in_progress") return "in_progress"
+  if (progress === "unlocked") return "unlocked"
+  if (progress === "locked") return "locked"
+  // No progress row — derive from position
+  if (index === 0) return "unlocked"
+  if (prevStatus === "approved") return "unlocked"
+  return "locked"
 }
 
-type Mode = "learning" | "project"
+type Mode = "project" | "task_details" | "learn"
 type AgentType = "teacher" | "pm"
 
 
@@ -282,12 +299,13 @@ interface Message {
 export default function CompanyDetailsPage() {
   const params = useParams()
   const router = useRouter()
-  // ADDED: Navigation hooks for URL persistence
   const searchParams = useSearchParams()
   const pathname = usePathname()
 
   const studentId = params.student_id as string
   const companyId = params.company_id as string
+
+  const { setStudent: setSidebarStudent, setWorkspace } = useSidebarContext()
 
   const [company, setCompany] = useState<any>()
   const [student, setStudent] = useState<any>()
@@ -299,9 +317,8 @@ export default function CompanyDetailsPage() {
   const isAuthorized = useStudentAuth(studentId)
 
   // New state for redesigned UI
-  const [mode, setMode] = useState<Mode>("learning")
+  const [mode, setMode] = useState<Mode>("project")
   const [selectedAgent, setSelectedAgent] = useState<AgentType>("teacher")
-  const [hoveredSidebarItem, setHoveredSidebarItem] = useState<"learn" | "projects" | null>(null)
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
   const [selectedModule, setSelectedModule] = useState<string | null>(null)
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
@@ -337,10 +354,37 @@ export default function CompanyDetailsPage() {
   const [studentRole, setStudentRole] = useState<"frontend" | "backend" | "fullstack">("fullstack")
   const [hasAssignedTask, setHasAssignedTask] = useState(false)
   const [isStartingProject, setIsStartingProject] = useState(false)
+  const [joinedEnvironmentIds, setJoinedEnvironmentIds] = useState<string[]>([])
+  const [previewTasks, setPreviewTasks] = useState<
+    Array<{ task_id: string; title: string; task_order: number }>
+  >([])
+  const [loadingPreviewTasks, setLoadingPreviewTasks] = useState(false)
+  const [isJoiningEnvironment, setIsJoiningEnvironment] = useState(false)
+
+  // Manual review trigger state
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const [reviewRepoName, setReviewRepoName] = useState("")
+  const [reviewPrNumber, setReviewPrNumber] = useState("")
+  const [isReviewLoading, setIsReviewLoading] = useState(false)
 
   // ADDED: Helper to update URL without refreshing
   const updateUrlParams = (updates: Record<string, string | null>) => {
     const current = new URLSearchParams(Array.from(searchParams.entries()))
+    const touchesWorkspaceContext =
+      "taskId" in updates ||
+      "resourceId" in updates ||
+      "prId" in updates ||
+      updates.mode === "project" ||
+      updates.mode === "task_details" ||
+      updates.mode === "learn"
+
+    // Keep environment context stable during task/mode navigation.
+    if (touchesWorkspaceContext && selectedProject && !("projectId" in updates)) {
+      current.set("projectId", selectedProject)
+    }
+    if (touchesWorkspaceContext && mode && !("mode" in updates)) {
+      current.set("mode", mode)
+    }
     
     Object.entries(updates).forEach(([key, value]) => {
       if (value === null) {
@@ -467,7 +511,6 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
         .eq('student_id', studentId)
         .eq('task_id', activeTaskId)
         .order('created_at', { ascending: false })
-      console.log("Fetched PR review data:", data, studentId, activeTaskId)
       if (error) throw error
 
       if (data) {
@@ -489,18 +532,17 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
             id: row.id,
             title: row.pr_title,
             status: row.ai_verdict?.toLowerCase() || 'pending',
-            verdict: row.ai_verdict, // Keep raw verdict for display if needed
+            verdict: row.ai_verdict,
             timestamp: timeString,
-            author: "You", // Hardcoded based on current user
+            author: "You",
             score: row.ai_score,
             summary: row.ai_summary,
-            issues: row.ai_issues,
+            issues: parsedIssues,
             pr_url: row.pr_url,
             pr_number: row.pr_number
           }
         })
         setRealPrs(formattedPrs)
-        console.log(formattedPrs)
       }
     } catch (error) {
       console.error("Error fetching PR reviews:", error)
@@ -511,12 +553,10 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
 
   // ADD TO USE EFFECT
   useEffect(() => {
-    if (mode === 'project') {
-      setRealPrs([])
-       // ... existing calls
-       fetchPrReviews() // <--- Add this call
-    }
-  }, [mode, selectedProject,activeTaskId])
+    if (mode !== "project" && mode !== "task_details") return
+    setRealPrs([])
+    fetchPrReviews()
+  }, [mode, selectedProject, activeTaskId])
   // Update URL Params Helper (No changes needed, just use it for prId)
   
   // Update the Sync Effect (Add prId handling)
@@ -583,14 +623,12 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     const urlTaskId = searchParams.get('taskId')
     const urlResourceId = searchParams.get('resourceId')
 
-    if (urlMode && (urlMode === 'learning' || urlMode === 'project')) {
+    if (urlMode && (urlMode === "project" || urlMode === "task_details" || urlMode === "learn")) {
       setMode(urlMode)
     }
     
     if (urlProjectId) {
       setSelectedProject(urlProjectId)
-    } else {
-      setSelectedProject(null)
     }
 
     if (urlTaskId) {
@@ -728,14 +766,9 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
       }
 
       // Real projects: virtual_environments for this company (not legacy "projects" table)
-      const techStack = Array.isArray(companyData?.tech_stack)
-        ? companyData.tech_stack
-        : Array.isArray(staticCompanyFallback?.tech_stack)
-          ? staticCompanyFallback.tech_stack
-          : []
       const { data: veData, error: veError } = await supabase
         .from("virtual_environments")
-        .select("environment_id, title, description, status, created_at")
+        .select("environment_id, title, description, status, created_at, tech_stack")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
       if (!veError && veData?.length) {
@@ -745,7 +778,7 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
             name: row.title,
             description: row.description ?? "",
             status: row.status ?? "open",
-            tech_stack: techStack,
+            tech_stack: Array.isArray(row.tech_stack) ? row.tech_stack : [],
           }))
         )
       } else {
@@ -762,6 +795,19 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
         setStudent(studentData)
         const joinedCompanies = studentData?.companies_joined || []
         setIsJoined(joinedCompanies.includes(companyId))
+
+        // Optional guard: if student has not completed onboarding, send them back to their dashboard
+        const { data: skillRows } = await supabase
+          .from("student_skills")
+          .select("id")
+          .eq("student_id", studentId)
+          .limit(1)
+        const hasSkills = Array.isArray(skillRows) && skillRows.length > 0
+        if (!studentData.github_url || !hasSkills) {
+          // Let dashboard handle the onboarding survey UX
+          router.push(`/student/${studentId}/dashboard`)
+          return
+        }
       } else {
         setStudent({ ...staticStudentProfile, student_id: studentId })
         setIsJoined((staticStudentProfile as any).companies_joined?.includes(companyId) ?? false)
@@ -776,6 +822,14 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
       if (!teamError && teamData) {
         setTeamId(teamData.team_id)
       }
+
+      const { data: participationRows } = await supabase
+        .from("environment_participants")
+        .select("environment_id")
+        .eq("student_id", studentId)
+      setJoinedEnvironmentIds(
+        (participationRows || []).map((r: { environment_id: string }) => r.environment_id)
+      )
     }
     fetchData()
   }, [companyId, studentId, isAuthorized])
@@ -812,15 +866,14 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
   // Hash-based mode persistence
   useEffect(() => {
     const hash = window.location.hash.slice(1)
-    if (hash === "learning" || hash === "project") {
-      setMode(hash)
+    if (hash === "project" || hash === "task_details" || hash === "learn") {
+      setMode(hash as Mode)
     }
   }, [])
 
   const handleModeChange = (newMode: Mode) => {
     setMode(newMode)
-    setHoveredSidebarItem(null)
-    // ADDED: Update URL
+    // Update URL
     updateUrlParams({ mode: newMode })
   }
 
@@ -857,12 +910,35 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     setActiveResourceId(null)
     setSelectedTopicId(null)
     setProjectTasks([])
+    setPreviewTasks([])
     updateUrlParams({
       projectId: null,
       taskId: null,
       resourceId: null,
       prId: null,
     })
+  }
+
+  const handleJoinEnvironment = async () => {
+    if (!selectedProject || !isVirtualEnvironmentProjectId(selectedProject)) return
+    setIsJoiningEnvironment(true)
+    try {
+      const res = await fetch("/api/student/join-environment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ environmentId: selectedProject, companyId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((data as { error?: string }).error || "Join failed")
+      setJoinedEnvironmentIds((prev) =>
+        prev.includes(selectedProject) ? prev : [...prev, selectedProject]
+      )
+    } catch (e) {
+      console.error(e)
+      alert(e instanceof Error ? e.message : "Could not join environment")
+    } finally {
+      setIsJoiningEnvironment(false)
+    }
   }
 
   const handleJoinProject = (projectId: string) => {
@@ -1153,6 +1229,28 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  // --- Manual Review Trigger ---
+  const handleManualReview = async () => {
+    if (!reviewRepoName.trim() || !reviewPrNumber.trim()) return
+    setIsReviewLoading(true)
+    try {
+      const res = await fetch(
+        `/api/agent/review?repo_name=${encodeURIComponent(reviewRepoName)}&pr_number=${encodeURIComponent(reviewPrNumber)}`,
+        { method: "POST" }
+      )
+      if (!res.ok) throw new Error(`Review error: ${res.status}`)
+      setShowReviewModal(false)
+      setReviewRepoName("")
+      setReviewPrNumber("")
+      fetchPrReviews()
+    } catch (e) {
+      console.error("Manual review error:", e)
+      alert("Failed to trigger review. Make sure the CodeReviewer agent is running.")
+    } finally {
+      setIsReviewLoading(false)
+    }
+  }
+
   /** Tasks from public.tasks for a virtual_environment (company-created projects). */
   const fetchVirtualEnvironmentTasks = async (environmentId: string) => {
     setLoadingTasks(true)
@@ -1178,18 +1276,20 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
         }
       }
 
-      const mapped = (taskRows || []).map((row: any, idx: number) => {
+      const mapped: any[] = []
+      ;(taskRows || []).forEach((row: any, idx: number) => {
         const p = progressByTask[row.task_id]
-        const kanbanStatus = mapTaskProgressToKanban(p, idx)
-        return {
+        const prevStatus = idx > 0 ? mapped[idx - 1]?.status : undefined
+        const status = resolveTaskStatus(p, idx, prevStatus)
+        mapped.push({
           task_id: row.task_id,
           title: row.title,
           description: row.description || "",
-          status: kanbanStatus,
+          status,
           role: studentRole,
           assignee: studentId,
           task_order: row.task_order,
-        }
+        })
       })
 
       setProjectTasks(mapped)
@@ -1197,7 +1297,7 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
 
       const currentUrlTaskId = searchParams.get("taskId")
       if (mapped.length > 0 && !activeTaskId && !currentUrlTaskId) {
-        const defaultTask = mapped.find((t) => t.status === "in_progress") || mapped[0]
+        const defaultTask = mapped.find((t: any) => t.status === "in_progress") || mapped.find((t: any) => t.status === "unlocked") || mapped[0]
         setActiveTaskId(defaultTask.task_id)
         updateUrlParams({ taskId: defaultTask.task_id })
       }
@@ -1466,41 +1566,64 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     }
   }, [studentId, companyId])
 
-// Fetch tasks AND resources when project mode is selected or project changes
-useEffect(() => {
-  if (mode === "project") {
-    fetchProjectTasks()
-    // Add this line:
-    if (selectedProject) {
-      fetchProjectResources()
+  useEffect(() => {
+    if (!selectedProject || !isVirtualEnvironmentProjectId(selectedProject)) {
+      setPreviewTasks([])
+      return
     }
-  }
-}, [mode, selectedProject]) // Add selectedProject to dependencies
+    if (joinedEnvironmentIds.includes(selectedProject)) {
+      setPreviewTasks([])
+      return
+    }
+    let cancelled = false
+    setLoadingPreviewTasks(true)
+    void supabase
+      .from("tasks")
+      .select("task_id, title, task_order")
+      .eq("environment_id", selectedProject)
+      .order("task_order", { ascending: true })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (!error && data)
+          setPreviewTasks(
+            data as Array<{ task_id: string; title: string; task_order: number }>
+          )
+        else setPreviewTasks([])
+        setLoadingPreviewTasks(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedProject, joinedEnvironmentIds])
 
-  // Show loading while checking authorization or loading data
-  if (isAuthorized === null || !company || !student) {
-    return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#181a1a]">
-        <div className="text-center space-y-2">
-          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto"></div>
-          <p className="text-white text-xs">Loading...</p>
-        </div>
-      </div>
-    )
-  }
+  // Fetch tasks/resources for board + task details views after environment join checks.
+  useEffect(() => {
+    if (mode !== "project" && mode !== "task_details") return
+    if (!selectedProject) return
+    if (
+      isVirtualEnvironmentProjectId(selectedProject) &&
+      !joinedEnvironmentIds.includes(selectedProject)
+    ) {
+      return
+    }
+    fetchProjectTasks()
+    fetchProjectResources()
+  }, [mode, selectedProject, joinedEnvironmentIds])
 
-  // If not authorized, don't render anything (redirect is in progress)
-  if (isAuthorized === false) {
-    return null
-  }
+  // Derived UI state + sidebar sync — must run before any early return (Rules of Hooks)
+  const isVirtualSelectedProject = Boolean(
+    selectedProject && isVirtualEnvironmentProjectId(selectedProject)
+  )
+  const hasJoinedVirtualWorkspace =
+    !selectedProject ||
+    !isVirtualSelectedProject ||
+    joinedEnvironmentIds.includes(selectedProject)
 
   const currentSelectedModule = MOCK_LEARNING_MODULES.find(m => m.id === selectedModule)
-  // Use real project from database if available, otherwise use mock
   const currentSelectedProject = projects.find(p => p.project_id === selectedProject) ||
     STATIC_PROJECTS.find(p => p.project_id === selectedProject) ||
     null
 
-  // Tasks: real projectTasks (virtual_environment or legacy), or demo static only when company has no DB projects
   const displayTasks =
     projectTasks.length > 0
       ? projectTasks
@@ -1518,307 +1641,94 @@ useEffect(() => {
           }))
         : []
 
-  // Active task from displayTasks (DB or static)
   const activeTask =
-    mode === "project" && displayTasks.length > 0
+    displayTasks.length > 0
       ? (activeTaskId
           ? displayTasks.find(t => t.task_id === activeTaskId) || null
           : null)
       : null
 
   const activeTaskTopics: TaskTopic[] =
-    activeTask && mode === "project"
+    activeTask
       ? (taskTopics[activeTask.task_id] ?? []).filter(topic =>
           activeResourceId ? topic.resourceId === activeResourceId : true
         )
       : []
 
-  // Filter learning messages for the right panel
   const learningQA = messages.filter(m => selectedAgent === "teacher")
 
-  return (
-    <div className="h-screen w-screen overflow-hidden bg-[#181a1a]" >
-      <GlobalStyles />
-      {/* Main three-panel layout */}
-      <div className="h-full flex">
-        
-        {/* LEFT SIDEBAR - Hoverable Icons */}
-        <div className="relative flex">
-          {/* Icon Bar */}
-          <div className="w-14 bg-[#1f2121] border-r border-white/5 flex flex-col items-center py-4 gap-3 z-20">
-            {/* Company Logo/Name */}
-            <div className="mb-2 text-center">
-              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white font-bold text-xs">
-                {company?.name?.charAt(0) || "C"}
-              </div>
-            </div>
+  useEffect(() => {
+    if (student) setSidebarStudent(student)
+  }, [student, setSidebarStudent])
 
-            {/* Learn Icon */}
-            <button
-              onMouseEnter={() => setHoveredSidebarItem("learn")}
-              onClick={() => handleModeChange("learning")}
-              className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300 ${
-                mode === "learning" 
-                  ? "bg-white/20 text-white" 
-                  : "bg-white/5 text-white hover:bg-white/10"
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-            </button>
+  const handleSidebarModeChange = useCallback((m: "project" | "task_details" | "learn") => {
+    handleModeChange(m)
+  }, [mode]) // eslint-disable-line react-hooks/exhaustive-deps
 
-            {/* Projects Icon */}
-            <button
-              onMouseEnter={() => setHoveredSidebarItem("projects")}
-              onClick={() => handleModeChange("project")}
-              className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300 ${
-                mode === "project" 
-                  ? "bg-white/20 text-white" 
-                  : "bg-white/5 text-white hover:bg-white/10"
-              }`}
-            >
-              <FolderKanban className="w-4 h-4" />
-            </button>
-          </div>
+  const handleSidebarTaskSelect = useCallback((taskId: string) => {
+    // Selecting a task from sidebar should always land in Task Details mode.
+    setMode("task_details")
+    setActiveTaskId(taskId)
+    setSelectedPrId(null)
+    setActiveResourceId(null)
+    setSelectedTopicId(null)
+    updateUrlParams({ mode: "task_details", taskId, prId: null, resourceId: null })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-          {/* Slide-out Panel */}
-          <AnimatePresence>
-            {hoveredSidebarItem && (
-              <motion.div
-                initial={{ x: -240, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: -240, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                onMouseLeave={() => setHoveredSidebarItem(null)}
-                className="absolute left-14 top-0 h-full w-60 bg-[#1f2121]/98 backdrop-blur-xl border-r border-white/10 shadow-xl z-10"
-              >
-                <ScrollArea className="h-full">
-                  <div className="p-3">
-                    {hoveredSidebarItem === "learn" && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2 mb-2">
-                          <BookOpen className="w-4 h-4 text-white" />
-                          <h2 className="text-[15px] font-semibold text-white">Learning Modules</h2>
-                        </div>
+  const handleSidebarBack = useCallback(() => {
+    handleBackToEnvironments()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-                        {/* Group by skill */}
-                        {["React", "Express"].map(skill => {
-                          const skillModules = MOCK_LEARNING_MODULES.filter(m => m.skill === skill)
-                          return (
-                            <div key={skill} className="space-y-1">
-                              <div className="flex items-center gap-1 px-1 py-0.5">
-                                <Badge variant="outline" className="text-[11px] font-medium border-white/20 text-white bg-white/5">
-                                  #{skill.toLowerCase()}
-                                </Badge>
-                              </div>
-                              {skillModules.map(module => (
-                                <div key={module.id} className="border border-white/10 rounded-lg overflow-hidden hover:border-white/20 transition-all">
-                                  <button
-                                    onClick={() => toggleModuleExpansion(module.id)}
-                                    className="w-full px-2.5 py-2.5 flex items-center justify-between bg-white/5 hover:bg-white/10 transition-colors"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      {expandedModules.has(module.id) ? (
-                                        <ChevronDown className="w-4 h-4 text-white" />
-                                      ) : (
-                                        <ChevronRight className="w-4 h-4 text-white" />
-                                      )}
-                                      <div className="text-left">
-                                        <p className="font-medium text-[13px] text-white">{module.title}</p>
-                                        <p className="text-[11px] text-white/60">{module.estimatedTime}</p>
-                                      </div>
-                                    </div>
-                                    <div className="text-[13px] font-semibold text-white">{module.progress}%</div>
-                                  </button>
-                                  
-                                  <AnimatePresence>
-                                    {expandedModules.has(module.id) && (
-                                      <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: "auto", opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        transition={{ duration: 0.2 }}
-                                        className="overflow-hidden"
-                                      >
-                                        <div className="px-2.5 py-2 bg-black/30 border-t border-white/5 space-y-1">
-                                          <p className="text-[11px] text-white/60 mb-1.5">{module.description}</p>
-                                          {module.topics.map(topic => (
-                                            <div key={topic.id} className="flex items-center gap-1.5 text-[11px]">
-                                              {topic.completed ? (
-                                                <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                                              ) : (
-                                                <div className="w-3.5 h-3.5 rounded-full border border-white/30" />
-                                              )}
-                                              <span className={topic.completed ? "text-white/50" : "text-white font-medium"}>
-                                                {topic.title}
-                                              </span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
-                                </div>
-                              ))}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
+  useEffect(() => {
+    if (selectedProject && currentSelectedProject) {
+      setWorkspace({
+        company: company ? { name: company.name } : null,
+        environment: {
+          id: currentSelectedProject.project_id,
+          name: currentSelectedProject.name,
+          status: currentSelectedProject.status || "active",
+        },
+        tasks: displayTasks.map((t: any) => ({
+          task_id: t.task_id,
+          title: t.title,
+          status: t.status,
+        })),
+        activeTaskId,
+        mode,
+        onModeChange: handleSidebarModeChange,
+        onTaskSelect: handleSidebarTaskSelect,
+        onBackToEnvironments: handleSidebarBack,
+      })
+    } else {
+      setWorkspace(null)
+    }
+  }, [
+    selectedProject, currentSelectedProject, company, displayTasks, activeTaskId, mode,
+    setWorkspace, handleSidebarModeChange, handleSidebarTaskSelect, handleSidebarBack,
+  ])
 
-                    {hoveredSidebarItem === "projects" && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2 mb-2">
-                          <FolderKanban className="w-4 h-4 text-white" />
-                          <h2 className="text-[15px] font-semibold text-white">Projects</h2>
-                        </div>
-
-                        {/* Same environments as center picker; quick switch when board is open */}
-                        {environmentProjectsForPicker.map((project) => (
-                          <button
-                            key={project.project_id}
-                            onClick={() => handleProjectClick(project.project_id)}
-                            className={`w-full text-left border rounded-lg p-2.5 transition-all ${
-                              selectedProject === project.project_id
-                                ? "border-white/20 bg-white/10"
-                                : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between mb-1">
-                              <h3 className="font-medium text-[13px] text-white">{project.name}</h3>
-                              <Badge variant="secondary" className="text-[10px] bg-white/10 text-white border-white/20 capitalize">
-                                {project.status || 'active'}
-                              </Badge>
-                            </div>
-                            <p className="text-[11px] text-white/60 mb-1.5">{project.description || 'No description'}</p>
-                            {project.tech_stack && project.tech_stack.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {project.tech_stack.map((tech: string) => (
-                                  <Badge key={tech} variant="outline" className="text-[10px] border-white/20 text-white bg-white/5">
-                                    #{tech.toLowerCase()}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
-              </motion.div>
-            )}
-          </AnimatePresence>
+  // Show loading while checking authorization or loading data
+  if (isAuthorized === null || !company || !student) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-[#181a1a]">
+        <div className="text-center space-y-2">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto"></div>
+          <p className="text-white text-xs">Loading...</p>
         </div>
+      </div>
+    )
+  }
 
-        {/* CENTER - Chat / Project Interface */}
-        <div className="flex-1 flex flex-col min-w-0 p-3 relative">
-          {mode === "learning" ? (
-            // <div className="h-full bg-[#1f2121]/80 backdrop-blur-xl rounded-xl shadow-xl border border-white/10 flex flex-col overflow-hidden">
-            //   {/* Chat Header with Agent Toggle */}
-            //   <div className="px-4 py-2.5 border-b border-white/10 bg-black/20">
-            //     <div className="flex items-center justify-between mb-2">
-            //       <h1 className="text-[15px] font-semibold text-white">{company?.name}</h1>
-            //       <Badge variant="outline" className="text-[12px] border-white/20 text-white bg-white/5">
-            //         #learning
-            //       </Badge>
-            //     </div>
-                
-            //     {/* Agent Selector */}
-            //     <div className="flex gap-1.5">
-            //       <button
-            //         onClick={() => setSelectedAgent("teacher")}
-            //         className={`flex-1 px-3 py-2 rounded-lg font-medium text-[13px] transition-all ${
-            //           selectedAgent === "teacher"
-            //             ? "bg-white/20 text-white"
-            //             : "bg-white/5 text-white hover:bg-white/10"
-            //         }`}
-            //       >
-            //         <div className="flex items-center justify-center gap-1.5">
-            //           <GraduationCap className="w-4 h-4" />
-            //           <span>Teacher</span>
-            //         </div>
-            //       </button>
-            //       <button
-            //         onClick={() => setSelectedAgent("pm")}
-            //         className={`flex-1 px-3 py-2 rounded-lg font-medium text-[13px] transition-all ${
-            //           selectedAgent === "pm"
-            //             ? "bg-white/20 text-white"
-            //             : "bg-white/5 text-white hover:bg-white/10"
-            //         }`}
-            //       >
-            //         <div className="flex items-center justify-center gap-1.5">
-            //           <Bot className="w-4 h-4" />
-            //           <span>PM</span>
-            //         </div>
-            //       </button>
-            //     </div>
-            //   </div>
+  if (isAuthorized === false) {
+    return null
+  }
 
-            //   {/* Messages Area */}
-            //   <ScrollArea className="flex-1 px-4 py-3">
-            //     <div className="space-y-2.5">
-            //       {messages.map(message => (
-            //         <div
-            //           key={message.id}
-            //           className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
-            //         >
-            //           {message.sender === "agent" && (
-            //             <Avatar className="h-7 w-7 mr-2">
-            //               <AvatarFallback className="bg-white/10 text-white border border-white/20">
-            //                 {message.agentType === "teacher" ? <GraduationCap className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-            //               </AvatarFallback>
-            //             </Avatar>
-            //           )}
-            //           <div
-            //             className={`max-w-[70%] rounded-lg px-3.5 py-2.5 ${
-            //               message.sender === "user"
-            //                 ? "bg-white/20 text-white"
-            //                 : "bg-white/5 text-white border border-white/10"
-            //             }`}
-            //           >
-            //             <p className="text-[13px] leading-relaxed">{message.content}</p>
-            //             <p className={`text-[10px] mt-1 ${message.sender === "user" ? "text-white/70" : "text-white/50"}`}>
-            //               {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            //             </p>
-            //           </div>
-            //           {message.sender === "user" && (
-            //             <Avatar className="h-7 w-7 ml-2">
-            //               <AvatarFallback className="bg-white/10 text-white border border-white/20">
-            //                 {student?.name?.charAt(0) || "U"}
-            //               </AvatarFallback>
-            //             </Avatar>
-            //           )}
-            //         </div>
-            //       ))}
-            //       <div ref={messagesEndRef} />
-            //     </div>
-            //   </ScrollArea>
-
-            //   {/* Input Area */}
-            //   <div className="px-4 py-2.5 border-t border-white/10 bg-black/20">
-            //     <div className="flex gap-2">
-            //       <input
-            //         type="text"
-            //         value={inputMessage}
-            //         onChange={(e) => setInputMessage(e.target.value)}
-            //         onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-            //         placeholder={`Ask ${selectedAgent === "teacher" ? "Teacher" : "PM"}...`}
-            //         className="flex px-3.5 py-2 rounded-lg border border-white/10 focus:outline-none focus:ring-1 focus:ring-white/20 focus:border-white/20 bg-white/5 text-white text-[13px] placeholder:text-white/50 transition-all"
-            //       />
-            //       <button
-            //         onClick={handleSendMessage}
-            //         className="px-4 py-2.5 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            //         disabled={!inputMessage.trim()}
-            //       >
-            //         <Send className="w-4 h-4 " />
-            //       </button>
-            //     </div>
-            //   </div>
-            // </div>
-            <div>Comming soon</div>
-          ) : (
-            <>
-              {!selectedProject ? (
+  return (
+    <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+      <GlobalStyles />
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden p-3 relative">
+          {!selectedProject ? (
                 <div className="flex-1 flex flex-col overflow-y-auto px-6 py-8">
                   <div className="max-w-4xl mx-auto w-full">
                     <p className="text-[11px] uppercase tracking-wide text-white/40 mb-1">Projects</p>
@@ -1861,15 +1771,120 @@ useEffect(() => {
                     )}
                   </div>
                 </div>
+              ) : selectedProject && isVirtualSelectedProject && !hasJoinedVirtualWorkspace ? (
+                <div className="flex-1 flex flex-col overflow-y-auto px-6 py-8">
+                  <div className="max-w-3xl mx-auto w-full space-y-8">
+                    <button
+                      type="button"
+                      onClick={handleBackToEnvironments}
+                      className="inline-flex items-center gap-1 text-[13px] text-white/60 hover:text-white transition-colors rounded-lg px-2 py-1.5 hover:bg-white/5 -ml-2"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      All environments
+                    </button>
+
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wide text-emerald-400/90 mb-2">
+                        {company?.name}
+                      </p>
+                      <h1 className="text-[26px] font-semibold text-white mb-3">
+                        {currentSelectedProject?.name || "Environment"}
+                      </h1>
+                      <Badge variant="secondary" className="text-[10px] bg-white/10 text-white border-white/20 capitalize">
+                        {currentSelectedProject?.status || "open"}
+                      </Badge>
+                    </div>
+
+                    {(company?.description || company?.mission) && (
+                      <div>
+                        <h2 className="text-[13px] font-medium text-white/80 mb-2">About the company</h2>
+                        <p className="text-[14px] text-white/55 leading-relaxed">
+                          {company.description || company.mission}
+                        </p>
+                      </div>
+                    )}
+
+                    <div>
+                      <h2 className="text-[13px] font-medium text-white/80 mb-2">Environment overview</h2>
+                      <p className="text-[14px] text-white/55 leading-relaxed whitespace-pre-wrap">
+                        {currentSelectedProject?.description || "No description provided."}
+                      </p>
+                    </div>
+
+                    <div>
+                      <h2 className="text-[13px] font-medium text-white/80 mb-2">Tech stack</h2>
+                      <div className="flex flex-wrap gap-2">
+                        {(Array.isArray(currentSelectedProject?.tech_stack)
+                          ? currentSelectedProject.tech_stack
+                          : []
+                        ).map((tech: string) => (
+                          <Badge
+                            key={tech}
+                            variant="outline"
+                            className="text-[11px] border-white/20 text-white bg-white/5"
+                          >
+                            {tech}
+                          </Badge>
+                        ))}
+                        {(!currentSelectedProject?.tech_stack ||
+                          currentSelectedProject.tech_stack.length === 0) && (
+                          <span className="text-[13px] text-white/40">Not specified</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h2 className="text-[13px] font-medium text-white/80 mb-3">Deliverables (tasks)</h2>
+                      {loadingPreviewTasks ? (
+                        <div className="flex items-center gap-2 text-[13px] text-white/50">
+                          <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                          Loading outline…
+                        </div>
+                      ) : previewTasks.length === 0 ? (
+                        <p className="text-[13px] text-white/45">No tasks published for this environment yet.</p>
+                      ) : (
+                        <ol className="list-decimal list-inside space-y-2 text-[14px] text-white/75">
+                          {previewTasks.map((t) => (
+                            <li key={t.task_id} className="pl-1">
+                              <span className="text-white/90">{t.title}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+
+                    <div className="pt-4 border-t border-white/10">
+                      <p className="text-[13px] text-white/50 mb-4">
+                        Join this environment to unlock the task board, progress tracking, and learning tools.
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={handleJoinEnvironment}
+                        disabled={isJoiningEnvironment}
+                        className="h-11 px-8 text-[15px] bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/30"
+                      >
+                        {isJoiningEnvironment ? (
+                          <>
+                            <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2 align-middle" />
+                            Joining…
+                          </>
+                        ) : (
+                          "Join environment"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               ) : loadingTasks ? (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                 </div>
               ) : displayTasks.length > 0 ? (
-                <div className="flex-1 flex flex-col overflow-hidden">
+                mode === "project" ? (
+                <div className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
                   {/* Kanban Board */}
-                  <div className="px-6 py-4 border-b border-white/10">
-                    <div className="flex flex-wrap items-center gap-3 mb-4">
+                  <div className="px-6 py-4 border-b border-white/10 overflow-hidden min-w-0 flex flex-col max-h-[50%] flex-shrink-0">
+                    <div className="flex flex-wrap items-center gap-3 mb-4 flex-shrink-0">
                       <button
                         type="button"
                         onClick={handleBackToEnvironments}
@@ -1883,33 +1898,39 @@ useEffect(() => {
                         <span className="truncate">Task Board – {currentSelectedProject?.name || "Project"}</span>
                       </h2>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      {[
-                        { id: "todo", label: "To Do", color: "border-amber-500/30 bg-amber-500/5" },
-                        { id: "in_progress", label: "In Progress", color: "border-blue-500/30 bg-blue-500/5" },
-                        { id: "completed", label: "Completed", color: "border-emerald-500/30 bg-emerald-500/5" }
-                      ].map(col => {
-                        const colTasks = displayTasks.filter(t => 
-                          (t.status === "todo" && col.id === "todo") ||
-                          (t.status === "in_progress" && col.id === "in_progress") ||
-                          (t.status === "completed" && col.id === "completed")
-                        )
+                    <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto pb-1">
+                      <div className="flex gap-3 min-w-max h-full">
+                      {([
+                        { id: "locked", label: "Locked", icon: Lock, color: "border-zinc-700/50 bg-zinc-800/30" },
+                        { id: "unlocked", label: "Unlocked", icon: Unlock, color: "border-violet-500/30 bg-violet-500/5" },
+                        { id: "in_progress", label: "In Progress", icon: Clock, color: "border-blue-500/30 bg-blue-500/5" },
+                        { id: "submitted", label: "Submitted", icon: Clock, color: "border-amber-500/30 bg-amber-500/5" },
+                        { id: "approved", label: "Approved", icon: CheckCircle2, color: "border-emerald-500/30 bg-emerald-500/5" },
+                      ] as const).map(col => {
+                        const colTasks = displayTasks.filter((t: any) => t.status === col.id)
+                        const ColIcon = col.icon
                         return (
                           <div
                             key={col.id}
-                            className={`rounded-xl border ${col.color} min-h-[200px] p-3`}
+                            className={`w-[240px] shrink-0 rounded-xl border ${col.color} min-h-[180px] p-3 flex flex-col`}
                           >
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="text-[13px] font-medium text-white/90">{col.label}</span>
-                              <span className="text-[11px] text-white/50">{colTasks.length}</span>
+                            <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                              <span className="text-[12px] font-medium text-white/80 flex items-center gap-1.5">
+                                <ColIcon className="w-3.5 h-3.5" />
+                                {col.label}
+                              </span>
+                              <span className="text-[11px] text-white/40">{colTasks.length}</span>
                             </div>
-                            <div className="space-y-2">
-                              {colTasks.map(task => {
+                            <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
+                              {colTasks.map((task: any) => {
                                 const isActive = activeTaskId === task.task_id
+                                const isLocked = task.status === "locked"
                                 return (
                                   <button
                                     key={task.task_id}
+                                    disabled={isLocked}
                                     onClick={() => {
+                                      if (isLocked) return
                                       setActiveTaskId(task.task_id)
                                       setSelectedPrId(null)
                                       setActiveResourceId(null)
@@ -1917,15 +1938,33 @@ useEffect(() => {
                                       updateUrlParams({ taskId: task.task_id, prId: null, resourceId: null })
                                     }}
                                     className={`w-full text-left p-3 rounded-lg border transition-all ${
-                                      isActive
-                                        ? "bg-white/15 border-white/30"
-                                        : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
+                                      isLocked
+                                        ? "bg-zinc-900/50 border-zinc-800/50 opacity-50 cursor-not-allowed"
+                                        : isActive
+                                          ? "bg-white/15 border-white/30"
+                                          : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
                                     }`}
                                   >
-                                    <p className="text-[13px] font-medium text-white">{task.title}</p>
-                                    <Badge variant="outline" className="text-[10px] border-white/20 text-white/60 mt-2 capitalize">
-                                      {task.role}
-                                    </Badge>
+                                    <div className="flex items-start justify-between gap-2">
+                                      <p className={`text-[13px] font-medium ${isLocked ? "text-white/40" : "text-white"}`}>{task.title}</p>
+                                      {isLocked && <Lock className="w-3 h-3 text-white/30 shrink-0 mt-0.5" />}
+                                      {task.status === "approved" && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 mt-2">
+                                      <Badge variant="outline" className="text-[10px] border-white/20 text-white/60 capitalize">
+                                        {task.role}
+                                      </Badge>
+                                      {task.status === "unlocked" && (
+                                        <Badge variant="outline" className="text-[10px] border-violet-500/30 text-violet-400 bg-violet-500/10">
+                                          Ready
+                                        </Badge>
+                                      )}
+                                      {task.status === "submitted" && (
+                                        <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">
+                                          Pending Review
+                                        </Badge>
+                                      )}
+                                    </div>
                                   </button>
                                 )
                               })}
@@ -1933,686 +1972,354 @@ useEffect(() => {
                           </div>
                         )
                       })}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Task learning content when a task is selected */}
-                  {activeTaskId && activeTask && (
-                    <>
-                      <div className="px-6 py-2 border-b border-white/10">
-                        <p className="text-[15px] font-medium text-white">{activeTask.title}</p>
-                        <p className="text-[12px] text-white/50 mt-0.5">Select a topic or PR below to learn more</p>
+                  {/* PM Agent Chat below the Kanban */}
+                  <div className="flex-1 min-h-[300px] p-3 pt-0">
+                    <PmAgentChat
+                      studentId={studentId}
+                      environmentId={selectedProject}
+                      companyName={company?.name}
+                      studentInitial={student?.full_name?.charAt(0) || student?.name?.charAt(0) || "U"}
+                    />
+                  </div>
+                </div>
+                ) : mode === "task_details" ? (
+                <div className="flex-1 flex flex-col overflow-y-auto px-6 py-6">
+                  <div className="max-w-6xl mx-auto w-full pb-24 px-6 font-sans antialiased selection:bg-emerald-500/30">
+                    <div className="flex items-center gap-3 mb-6">
+                      <button
+                        type="button"
+                        onClick={handleBackToEnvironments}
+                        className="inline-flex items-center gap-1 text-[13px] text-white/60 hover:text-white transition-colors rounded-lg px-2 py-1.5 hover:bg-white/5 -ml-2"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        All environments
+                      </button>
+                      <h2 className="text-[18px] font-semibold text-white">Task Details</h2>
+                    </div>
+
+                    {!activeTask && (
+                      <div className="flex flex-col items-center justify-center h-[50vh] text-zinc-600">
+                        <p className="text-sm font-light">Select a task to view details</p>
                       </div>
-                      <ScrollArea className="flex-1 px-6 py-3">
-  {/* 1. BACK BUTTON: Only show if we are looking at a specific resource */}
-  {activeTask && activeResourceId && (
-    <div className="max-w-4xl mx-auto mb-3 pt-1">
-      <button
-        onClick={() => {
-          // Clear local state
-          setActiveResourceId(null)
-          setSelectedTopicId(null)
-          // Update URL to remove resourceId
-          updateUrlParams({ resourceId: null })
-        }}
-        className="inline-flex items-center gap-1 text-[13px] text-white/50 hover:text-white transition-colors hover:bg-white/5 px-2 py-1.5 rounded-md -ml-2"
-      >
-        <ChevronLeft className="w-4 h-4" />
-        Back to Resources
-      </button>
-    </div>
-  )}
+                    )}
 
-  {/* 2. TOPIC SLIDER: Only show if inside a resource AND it has topics */}
- {/* Minimalist Topic Slider - Styled Scrollbar */}
-{activeTask && activeResourceId && activeTaskTopics.length > 0 && (
-  <>
-    {/* Custom Thin Scrollbar Styles */}
-    <style jsx global>{`
-      .custom-scrollbar {
-        scrollbar-width: thin; /* Firefox */
-        scrollbar-color: rgba(255, 255, 255, 0.2) transparent; /* Firefox */
-      }
-      .custom-scrollbar::-webkit-scrollbar {
-        height: 6px; /* Height for horizontal scrollbar */
-      }
-      .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb {
-        background-color: rgba(255, 255, 255, 0.2);
-        border-radius: 20px;
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        background-color: rgba(255, 255, 255, 0.4);
-      }
-    `}</style>
+                    {activeTask && selectedPrId ? (
+                      <div className="animate-in fade-in slide-in-from-right-4 duration-300 pt-2">
+                        {(() => {
+                          const pr = realPrs.find((p) => p.id === selectedPrId)
+                          if (!pr) return <div className="text-zinc-500 font-mono text-sm">Loading or PR Not Found...</div>
 
-    <div className="max-w-4xl mx-auto mb-8 sticky top-0 z-10 bg-[#181a1a]/95 backdrop-blur-md py-3 -mt-3 border-b border-white/5">
-      {/* Added 'custom-scrollbar' class and 'pb-2' for spacing */}
-      <div className="flex items-center gap-3 overflow-x-auto custom-scrollbar pb-2 px-1">
-        {activeTaskTopics.map((topic, index) => {
-          const isSelected = selectedTopicId === topic.id
-          return (
-            <button
-              key={topic.id}
-              onClick={() => setSelectedTopicId(topic.id)}
-              className={`
-                group flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-[13px] font-medium transition-all duration-200 border
-                ${isSelected
-                  ? "bg-white/10 border-white/20 text-white"
-                  : "bg-transparent border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
-                }
-              `}
-            >
-              {/* Number Pill */}
-              <span className={`
-                flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold
-                ${isSelected
-                  ? "bg-emerald-400 text-[#181a1a]"
-                  : "bg-white/10 text-white/60"
-                }
-              `}>
-                {index + 1}
-              </span>
-
-              <span className="whitespace-nowrap">
-                {topic.title}
-              </span>
-            </button>
-          )
-        })}
-
-        {/* Minimal Streaming Indicator */}
-        {isStreaming && (
-          <div className="flex-shrink-0 pl-2 pr-4 py-1.5 text-emerald-400 text-[12px] font-medium flex items-center gap-2 animate-pulse">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            Generating...
-          </div>
-        )}
-      </div>
-    </div>
-  </>
-)}
-
-  {/* 3. MAIN CONTENT AREA */}
-  {selectedTopicId && activeTask ? (
-    <div className="max-w-4xl mx-auto space-y-5">
-      {/* ... (Keep your existing markdown rendering logic here) ... */}
-      {(() => {
-                      const selectedTopic = activeTaskTopics.find(t => t.id === selectedTopicId)
-                      if (!selectedTopic) return null
-
-                      // --- 1. HELPER: Parse Inline Markdown (**bold**, `code`) ---
-                      const renderFormattedText = (text: string) => {
-                        // Split by bold (**) or inline code (`)
-                        const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g)
-                        return parts.map((part, index) => {
-                          if (part.startsWith("**") && part.endsWith("**")) {
-                            return <strong key={index} className="text-white font-bold">{part.slice(2, -2)}</strong>
-                          }
-                          if (part.startsWith("`") && part.endsWith("`")) {
-                            return <code key={index} className="bg-white/10 text-emerald-300 px-1.5 py-0.5 rounded text-[12px] font-mono border border-white/5">{part.slice(1, -1)}</code>
-                          }
-                          return part
-                        })
-                      }
-
-                      // --- 2. HELPER: Syntax Highlighting for Code Blocks ---
-                      const renderHighlightedCode = (language: string | undefined, code: string) => {
-                        const lang = (language || "").toLowerCase()
-                        
-                        // Basic keyword sets
-                        const jsKeywords = /\b(const|let|var|import|from|export|default|return|if|else|async|await|function|class|new|try|catch|throw|for|while|do|switch|case|break|continue|this|super|extends|true|false|null|undefined)\b/g
-                        const bashKeywords = /\b(npm|npx|yarn|pnpm|git|cd|ls|mkdir|rm|cp|mv|echo|cat|grep|sudo|docker|node|bun)\b/g
-                        const typeKeywords = /\b(string|number|boolean|any|void|Promise|React|FC|useState|useEffect)\b/g
-
-                        let regex: RegExp | null = null
-                        let keywordColor = "text-emerald-400"
-
-                        if (lang.includes("js") || lang.includes("ts") || lang.includes("react")) {
-                          regex = jsKeywords
-                        } else if (lang.includes("bash") || lang.includes("sh") || lang.includes("shell")) {
-                          regex = bashKeywords
-                          keywordColor = "text-pink-400" // Different color for commands
-                        }
-
-                        return code.split("\n").map((line, lineIdx) => {
-                          if (!regex) return <div key={lineIdx} className="opacity-90">{line || " "}</div>
-
-                          const segments: any[] = []
-                          let lastIndex = 0
-                          
-                          // Run regex against line
-                          line.replace(regex, (match, _p1, offset) => {
-                             if (offset > lastIndex) {
-                               segments.push({ type: "text", value: line.slice(lastIndex, offset) })
-                             }
-                             segments.push({ type: "keyword", value: match })
-                             lastIndex = offset + match.length
-                             return match
-                          })
-                          
-                          if (lastIndex < line.length) {
-                             segments.push({ type: "text", value: line.slice(lastIndex) })
-                          }
-                          
-                          // Highlight types in TS/JS if not already matched
-                          const finalSegments = segments.flatMap(seg => {
-                             if (seg.type === "text" && (lang.includes("ts") || lang.includes("js"))) {
-                                // Simple sub-pass for types
-                                return seg.value.split(typeKeywords).map((part: string, i: number) => {
-                                   if (typeKeywords.test(part)) return { type: "type", value: part }
-                                   return { type: "text", value: part }
-                                })
-                             }
-                             return [seg]
-                          })
+                          const normalizedStatus = pr.status === "accepted" ? "approved" : pr.status
 
                           return (
-                            <div key={lineIdx} className="min-h-[1.2em]">
-                              {finalSegments.map((seg, idx) => {
-                                if (seg.type === "keyword") return <span key={idx} className={`${keywordColor} font-semibold`}>{seg.value}</span>
-                                if (seg.type === "type") return <span key={idx} className="text-yellow-200">{seg.value}</span>
-                                return <span key={idx} className="text-blue-100/80">{seg.value}</span>
-                              })}
+                            <div className="max-w-4xl mx-auto">
+                              <nav className="flex items-center gap-3 text-xs text-zinc-500 mb-8 font-mono">
+                                <button
+                                  onClick={() => updateUrlParams({ prId: null })}
+                                  className="hover:text-zinc-300 transition-colors flex items-center gap-1"
+                                >
+                                  <ChevronLeft className="w-3 h-3" />
+                                  DASHBOARD
+                                </button>
+                                <span className="text-zinc-800">/</span>
+                                <span>PR-{pr.pr_number}</span>
+                              </nav>
+
+                              <header className="mb-10 pb-8 border-b border-zinc-800/50">
+                                <div className="flex justify-between items-start gap-6">
+                                  <div>
+                                    <h1 className="text-3xl font-medium text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-200 to-zinc-500 leading-tight tracking-tight mb-3 drop-shadow-sm">
+                                      {pr.title}
+                                    </h1>
+                                    <div className="flex items-center gap-4 text-xs text-zinc-500">
+                                      <span className="flex items-center gap-1.5">
+                                        <div className="w-4 h-4 rounded-full bg-zinc-800 flex items-center justify-center text-[9px] text-zinc-400">
+                                          {pr.author?.charAt(0)}
+                                        </div>
+                                        {pr.author}
+                                      </span>
+                                      <span>•</span>
+                                      <span>{pr.timestamp}</span>
+                                      <span>•</span>
+                                      <a href={pr.pr_url} target="_blank" rel="noopener noreferrer" className="hover:text-white flex items-center gap-1">
+                                        View on GitHub <ChevronRight className="w-3 h-3" />
+                                      </a>
+                                    </div>
+                                  </div>
+
+                                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium uppercase tracking-wider shadow-sm
+                                    ${normalizedStatus === "approved" ? "border-emerald-900/30 bg-emerald-500/5 text-emerald-500" : ""}
+                                    ${normalizedStatus === "rejected" || normalizedStatus === "changes_requested" ? "border-rose-900/30 bg-rose-500/5 text-rose-500" : ""}
+                                    ${normalizedStatus === "pending" || normalizedStatus === "submitted" ? "border-amber-900/30 bg-amber-500/5 text-amber-500" : ""}
+                                  `}>
+                                    <div className={`w-1.5 h-1.5 rounded-full shadow-[0_0_6px_currentColor] ${
+                                      normalizedStatus === "approved" ? "bg-emerald-500" : (normalizedStatus === "rejected" || normalizedStatus === "changes_requested") ? "bg-rose-500" : "bg-amber-500"
+                                    }`} />
+                                    {normalizedStatus}
+                                  </div>
+                                </div>
+                              </header>
+
+                              <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                                <div className="lg:col-span-2 space-y-10">
+                                  <section>
+                                    <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                      <Sparkles className="w-3 h-3" /> Analysis Summary
+                                    </h3>
+                                    <div className="bg-zinc-900/30 border border-zinc-800/60 rounded-lg p-5">
+                                      <p className="text-[14px] leading-7 text-zinc-300 font-light">{pr.summary}</p>
+                                    </div>
+                                  </section>
+
+                                  <section>
+                                    <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4">Key Improvements & Issues</h3>
+                                    <div className="border border-zinc-800/50 rounded-lg bg-zinc-900/10 overflow-hidden">
+                                      {pr.issues && pr.issues.length > 0 ? (
+                                        <ul className="divide-y divide-zinc-800/50">
+                                          {pr.issues.map((issue, idx) => (
+                                            <li key={idx} className="p-4 flex items-start gap-4 group hover:bg-zinc-900/30 transition-colors">
+                                              <div className="mt-1 flex-shrink-0">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-amber-500/50 group-hover:bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.2)]" />
+                                              </div>
+                                              <p className="text-sm text-zinc-400 group-hover:text-zinc-200 leading-relaxed font-light">{issue}</p>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      ) : (
+                                        <div className="p-8 text-center text-zinc-600 text-sm italic">No critical issues found. Great job!</div>
+                                      )}
+                                    </div>
+                                  </section>
+                                </div>
+
+                                <div className="space-y-8">
+                                  <div className="border border-zinc-800/60 rounded-lg p-5 bg-zinc-900/20 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 blur-[40px] rounded-full pointer-events-none"></div>
+                                    <div className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Quality Score</div>
+                                    <div className="flex items-baseline gap-1 relative z-10">
+                                      <span className={`text-4xl font-medium tracking-tighter bg-clip-text text-transparent bg-gradient-to-b ${pr.score > 80 ? "from-emerald-300 to-emerald-600" : "from-rose-300 to-rose-600"}`}>
+                                        {pr.score}
+                                      </span>
+                                      <span className="text-sm text-zinc-600">/100</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="border border-zinc-800/40 rounded-lg p-4 space-y-3">
+                                    <div className="flex justify-between text-xs">
+                                      <span className="text-zinc-500">PR Number</span>
+                                      <span className="text-zinc-300 font-mono">#{pr.pr_number}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                      <span className="text-zinc-500">Issues Found</span>
+                                      <span className="text-zinc-300 font-mono">{pr.issues.length}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                      <span className="text-zinc-500">Review Status</span>
+                                      <span className="text-zinc-300 capitalize">{normalizedStatus}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           )
-                        })
-                      }
-
-                      // --- 3. PARSER: Split Markdown into Block Segments ---
-                      type Segment = { type: "text" | "code" | "heading"; language?: string; content: string; level?: number }
-                      const segments: Segment[] = []
-                      const lines = (selectedTopic.content || "").split("\n")
-                      let inCode = false
-                      let codeLang = ""
-                      let codeLines: string[] = []
-                      let textLines: string[] = []
-
-                      const pushText = () => {
-                        if (textLines.length) {
-                          segments.push({ type: "text", content: textLines.join("\n").trim() })
-                          textLines = []
-                        }
-                      }
-
-                      const pushCode = () => {
-                         segments.push({ type: "code", language: codeLang, content: codeLines.join("\n") })
-                         codeLines = []
-                         codeLang = ""
-                      }
-
-                      for (const line of lines) {
-                        const fenceMatch = line.trim().match(/^```(\w+)?$/)
-                        if (fenceMatch) {
-                          if (!inCode) {
-                            pushText()
-                            inCode = true
-                            codeLang = fenceMatch[1] || ""
-                          } else {
-                            inCode = false
-                            pushCode()
-                          }
-                          continue
-                        }
-
-                        if (inCode) {
-                          codeLines.push(line)
-                        } else {
-                          const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
-                          if (headingMatch) {
-                            pushText()
-                            segments.push({ type: "heading", level: headingMatch[1].length, content: headingMatch[2].trim() })
-                          } else {
-                            textLines.push(line)
-                          }
-                        }
-                      }
-                      if (inCode) pushCode()
-                      else pushText()
-
-                      // --- 4. RENDERER ---
-                      return (
-                        <article className="space-y-6 pb-20">
-                          <h1 className="text-[32px] font-bold text-white leading-tight mb-6 border-b border-white/10 pb-4">
-                            {selectedTopic.title}
-                          </h1>
-
-                          {segments.map((seg, idx) => {
-                            // --- CODE BLOCK RENDER ---
-                            if (seg.type === "code") {
-                              const lang = (seg.language || "text").toLowerCase()
-                              return (
-                                <div key={idx} className="my-5 rounded-xl border border-white/10 bg-[#0F0F0F] overflow-hidden shadow-2xl">
-                                  {/* Mac-style Window Header */}
-                                  <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/5">
-                                    <div className="flex gap-1.5">
-                                      <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
-                                      <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
-                                      <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
-                                    </div>
-                                    <span className="text-[11px] font-mono text-white/40 uppercase tracking-widest">
-                                      {lang || "TERMINAL"}
-                                    </span>
-                                    <button 
-                                      onClick={() => navigator.clipboard.writeText(seg.content)}
-                                      className="text-[10px] text-white/40 hover:text-white bg-white/5 hover:bg-white/10 px-2 py-1 rounded transition-all"
-                                    >
-                                      Copy
-                                    </button>
-                                  </div>
-                                  {/* Code Content */}
-                                  <div className="p-4 overflow-x-auto">
-                                    <pre className="font-mono text-[13px] leading-6">
-                                      {renderHighlightedCode(seg.language, seg.content)}
-                                    </pre>
-                                  </div>
-                                </div>
-                              )
-                            }
-
-                            // --- HEADING RENDER ---
-                            if (seg.type === "heading") {
-                              const level = seg.level || 1
-                              const HeadingTag = `h${Math.min(level, 6)}` as keyof JSX.IntrinsicElements
-                              
-                              // Tailwind classes for different levels
-                              const sizes: any = {
-                                1: "text-2xl font-bold text-white mt-8 mb-4",
-                                2: "text-xl font-bold text-white mt-6 mb-3",
-                                3: "text-lg font-semibold text-emerald-400 mt-5 mb-2", // Subheadings pop with color
-                                4: "text-base font-semibold text-white/90 mt-4 mb-2"
-                              }
-                              
-                              return (
-                                <HeadingTag key={idx} className={sizes[level] || sizes[4]}>
-                                  {seg.content}
-                                </HeadingTag>
-                              )
-                            }
-
-                            // --- TEXT RENDER ---
-                            if (!seg.content) return null
-                            return (
-                              <p key={idx} className="text-[15px] leading-7 text-white/80 whitespace-pre-line mb-4">
-                                {renderFormattedText(seg.content)}
-                              </p>
-                            )
-                          })}
-                        </article>
-                      )
-                    })()}
-    </div>
-  ) : (
-    /* 4. TASK OVERVIEW (List of Resources) - Shown when no topic is selected */
-    <div className="max-w-6xl mx-auto pb-24 px-6 font-sans antialiased selection:bg-emerald-500/30">
-    
-    {/* STATE 1: PR DETAIL VIEW (Active when a PR is clicked) */}
-    {activeTask && selectedPrId ? (
-     <div className="animate-in fade-in slide-in-from-right-4 duration-300 pt-6">
-        {(() => {
-          // CHANGE: Look up in realPrs instead of MOCK_PRS
-          const pr = realPrs.find(p => p.id === selectedPrId)
-          
-          if (!pr) return <div className="text-zinc-500 font-mono text-sm">Loading or PR Not Found...</div>
-
-          return (
-            <div className="max-w-4xl mx-auto">
-              {/* 1. Navigation Breadcrumb */}
-              <nav className="flex items-center gap-3 text-xs text-zinc-500 mb-8 font-mono">
-                <button 
-                  onClick={() => updateUrlParams({ prId: null })}
-                  className="hover:text-zinc-300 transition-colors flex items-center gap-1"
-                >
-                  <ChevronLeft className="w-3 h-3" />
-                  DASHBOARD
-                </button>
-                <span className="text-zinc-800">/</span>
-                <span>PR-{pr.pr_number}</span>
-              </nav>
-
-              {/* 2. Title & Primary Meta */}
-              <header className="mb-10 pb-8 border-b border-zinc-800/50">
-                <div className="flex justify-between items-start gap-6">
-                  <div>
-                    {/* METALLIC SHINE TITLE */}
-                    <h1 className="text-3xl font-medium text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-200 to-zinc-500 leading-tight tracking-tight mb-3 drop-shadow-sm">
-                      {pr.title}
-                    </h1>
-                    <div className="flex items-center gap-4 text-xs text-zinc-500">
-                      <span className="flex items-center gap-1.5">
-                        <div className="w-4 h-4 rounded-full bg-zinc-800 flex items-center justify-center text-[9px] text-zinc-400">
-                          {pr.author.charAt(0)}
-                        </div>
-                        {pr.author}
-                      </span>
-                      <span>•</span>
-                      <span>{pr.timestamp}</span>
-                      <span>•</span>
-                      {/* NEW: Link to Repo */}
-                      <a href={pr.pr_url} target="_blank" rel="noopener noreferrer" className="hover:text-white flex items-center gap-1">
-                         View on GitHub <ChevronRight className="w-3 h-3"/>
-                      </a>
-                    </div>
-                  </div>
-
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium uppercase tracking-wider shadow-sm
-                    ${pr.status === 'approved' ? 'border-emerald-900/30 bg-emerald-500/5 text-emerald-500' : ''}
-                    ${pr.status === 'rejected' ? 'border-rose-900/30 bg-rose-500/5 text-rose-500' : ''}
-                    ${pr.status === 'pending' ? 'border-amber-900/30 bg-amber-500/5 text-amber-500' : ''}
-                  `}>
-                    <div className={`w-1.5 h-1.5 rounded-full shadow-[0_0_6px_currentColor] ${
-                      pr.status === 'approved' ? 'bg-emerald-500' : pr.status === 'rejected' ? 'bg-rose-500' : 'bg-amber-500'
-                    }`} />
-                    {pr.status}
-                  </div>
-                </div>
-              </header>
-
-              {/* 3. Analysis Content */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                  
-                  {/* Left: Main Analysis (2/3) */}
-                  <div className="lg:col-span-2 space-y-10">
-                    
-                    {/* AI Summary */}
-                    <section>
-                      <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <Sparkles className="w-3 h-3" /> Analysis Summary
-                      </h3>
-                      <div className="bg-zinc-900/30 border border-zinc-800/60 rounded-lg p-5">
-                        <p className="text-[14px] leading-7 text-zinc-300 font-light">
-                          {pr.summary}
-                        </p>
+                        })()}
                       </div>
-                    </section>
-
-                    {/* Consolidated Issues List (Since DB gives a single list) */}
-                    <section>
-                      <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4">Key Improvements & Issues</h3>
-                      <div className="border border-zinc-800/50 rounded-lg bg-zinc-900/10 overflow-hidden">
-                        {pr.issues && pr.issues.length > 0 ? (
-                            <ul className="divide-y divide-zinc-800/50">
-                            {pr.issues.map((issue, idx) => (
-                                <li key={idx} className="p-4 flex items-start gap-4 group hover:bg-zinc-900/30 transition-colors">
-                                <div className="mt-1 flex-shrink-0">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500/50 group-hover:bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.2)]"></div>
+                    ) : (
+                      <>
+                        {activeTask && currentSelectedProject && (
+                          <div className="space-y-12 animate-in fade-in duration-500 pt-2">
+                            <header className="space-y-6">
+                              <div className="flex items-center justify-between border-b border-zinc-800/60 pb-6">
+                                <div className="flex items-center gap-3 text-[11px] font-mono text-zinc-500">
+                                  <span className="px-2 py-1 bg-zinc-900 rounded border border-zinc-800 text-zinc-400">
+                                    {currentSelectedProject.name.toUpperCase()}
+                                  </span>
+                                  <span className="text-zinc-700">/</span>
+                                  <span>TASK-{activeTask.task_order ?? "—"}</span>
                                 </div>
-                                <p className="text-sm text-zinc-400 group-hover:text-zinc-200 leading-relaxed font-light">
-                                    {issue}
+
+                                <span className={`text-[10px] uppercase tracking-widest font-medium px-2 py-1 rounded ${activeTask.status === "approved" ? "text-emerald-500" : "text-zinc-500"}`}>
+                                  {activeTask.status.replace("_", " ")}
+                                </span>
+                              </div>
+
+                              <div className="max-w-3xl">
+                                <h1 className="text-4xl font-medium text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-200 to-zinc-500 tracking-tight mb-4 leading-tight drop-shadow-sm">
+                                  {activeTask.title}
+                                </h1>
+                                <p className="text-zinc-400 text-base font-light leading-relaxed">
+                                  {activeTask.description || activeTask.title}
                                 </p>
-                                </li>
-                            ))}
-                            </ul>
-                        ) : (
-                            <div className="p-8 text-center text-zinc-600 text-sm italic">
-                                No critical issues found. Great job!
+                              </div>
+                            </header>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 border-t border-zinc-800/30 pt-10">
+                              <div className="lg:col-span-8 space-y-6">
+                                <div className="flex items-baseline justify-between mb-2">
+                                  <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">Task Resources</h3>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-3">
+                                  {taskResources[activeTask.task_id]?.length > 0 ? (
+                                    taskResources[activeTask.task_id].map((res) => {
+                                      const isThisStreaming = isStreaming && activeResourceId === res.id
+                                      return (
+                                        <button
+                                          key={res.id}
+                                          onClick={() => {
+                                            setActiveResourceId(res.id)
+                                            updateUrlParams({ resourceId: res.id })
+                                            fetchResourceTopics(res.id, activeTask.task_id)
+                                          }}
+                                          className={`group hover:cursor-pointer flex items-center justify-between p-4 rounded-xl border text-left relative overflow-hidden transition-all
+                                            ${isThisStreaming ? "bg-emerald-950/10 border-emerald-500/20 ring-1 ring-emerald-500/20" : "bg-zinc-900/30 border-zinc-800/50 hover:border-zinc-700 hover:bg-zinc-900/50"}
+                                          `}
+                                        >
+                                          {!isThisStreaming && (
+                                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out pointer-events-none"></div>
+                                          )}
+
+                                          <div className="flex items-center gap-4 relative z-10">
+                                            <div className={`w-10 h-10 rounded-lg border flex items-center justify-center transition-colors shadow-sm
+                                              ${isThisStreaming ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-zinc-900 border-zinc-800 text-zinc-500 group-hover:text-zinc-300 group-hover:border-zinc-600"}
+                                            `}>
+                                              {isThisStreaming ? (
+                                                <div className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                                              ) : (
+                                                <BookOpen className="w-4 h-4" />
+                                              )}
+                                            </div>
+                                            <div>
+                                              <h4 className={`text-sm font-medium transition-colors ${isThisStreaming ? "text-emerald-100" : "text-zinc-300 group-hover:text-white"}`}>{res.question}</h4>
+                                              {isThisStreaming ? (
+                                                <div className="flex items-center gap-2 mt-1.5">
+                                                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                                                  <span className="text-[10px] font-mono text-emerald-400 animate-pulse tracking-wide uppercase">{streamStatus || "INITIALIZING..."}</span>
+                                                </div>
+                                              ) : (
+                                                <div className="flex items-center gap-2 mt-1 text-[10px] text-zinc-600 font-mono">
+                                                  <span className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[9px] uppercase text-zinc-500">AI Generated</span>
+                                                  <span>{new Date(res.createdAt).toLocaleDateString()}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {!isThisStreaming && (
+                                            <div className="relative z-10 p-2 rounded-full group-hover:bg-white/5 transition-colors">
+                                              <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-500 transition-colors" />
+                                            </div>
+                                          )}
+                                        </button>
+                                      )
+                                    })
+                                  ) : (
+                                    <div className="py-12 border border-dashed border-zinc-800 rounded-lg flex flex-col items-center justify-center">
+                                      <p className="text-sm text-zinc-500">No resources yet.</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="lg:col-span-4 space-y-6">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">Submission History</h3>
+                                </div>
+
+                                <div className="relative pl-2 space-y-0">
+                                  <div className="absolute left-[7px] top-2 bottom-2 w-px bg-zinc-800"></div>
+                                  {realPrs.map((pr, idx) => {
+                                    const normalizedStatus = pr.status === "accepted" ? "approved" : pr.status
+                                    return (
+                                      <div key={pr.id} className="relative pl-8 py-3 group">
+                                        <div className={`absolute left-[3px] top-5 w-[5px] h-[5px] rounded-full z-10
+                                          ${normalizedStatus === "approved" ? "bg-emerald-500" : ""}
+                                          ${(normalizedStatus === "rejected" || normalizedStatus === "changes_requested") ? "bg-rose-500" : ""}
+                                          ${(normalizedStatus === "pending" || normalizedStatus === "submitted") ? "bg-zinc-600" : ""}
+                                        `}></div>
+
+                                        <button
+                                          onClick={() => updateUrlParams({ prId: pr.id })}
+                                          className="block w-full text-left hover:cursor-pointer p-3 rounded-md hover:bg-zinc-900/50 transition-colors"
+                                        >
+                                          <div className="flex items-center justify-between mb-1">
+                                            <span className="text-xs text-zinc-300 group-hover:text-white font-medium transition-colors truncate max-w-[150px]">{pr.title}</span>
+                                            <span className="text-[9px] text-zinc-600 font-mono flex-shrink-0">{pr.timestamp}</span>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <span className={`text-[9px] uppercase tracking-wider font-medium
+                                              ${normalizedStatus === "approved" ? "text-emerald-500" : ""}
+                                              ${(normalizedStatus === "rejected" || normalizedStatus === "changes_requested") ? "text-rose-500" : ""}
+                                              ${(normalizedStatus === "pending" || normalizedStatus === "submitted") ? "text-zinc-500" : ""}
+                                            `}>
+                                              {normalizedStatus}
+                                            </span>
+                                            {idx === 0 && <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1.5 rounded">LATEST</span>}
+                                          </div>
+                                        </button>
+                                      </div>
+                                    )
+                                  })}
+                                  {realPrs.length === 0 && !isLoadingPrs && (
+                                    <div className="pl-8 text-xs text-zinc-600 italic">No PRs submitted yet.</div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                        )}
-                      </div>
-                    </section>
-                  </div>
-
-                  {/* Right: Metrics Sidebar (1/3) */}
-                  <div className="space-y-8">
-                    
-                    {/* Score Card */}
-                    <div className="border border-zinc-800/60 rounded-lg p-5 bg-zinc-900/20 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 blur-[40px] rounded-full pointer-events-none"></div>
-                      <div className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Quality Score</div>
-                      <div className="flex items-baseline gap-1 relative z-10">
-                        <span className={`text-4xl font-medium tracking-tighter bg-clip-text text-transparent bg-gradient-to-b ${pr.score > 80 ? 'from-emerald-300 to-emerald-600' : 'from-rose-300 to-rose-600'}`}>
-                          {pr.score}
-                        </span>
-                        <span className="text-sm text-zinc-600">/100</span>
-                      </div>
-                    </div>
-
-                    {/* Quick Stats / Info */}
-                     <div className="border border-zinc-800/40 rounded-lg p-4 space-y-3">
-                        <div className="flex justify-between text-xs">
-                           <span className="text-zinc-500">PR Number</span>
-                           <span className="text-zinc-300 font-mono">#{pr.pr_number}</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                           <span className="text-zinc-500">Issues Found</span>
-                           <span className="text-zinc-300 font-mono">{pr.issues.length}</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                           <span className="text-zinc-500">Review Status</span>
-                           <span className="text-zinc-300 capitalize">{pr.status}</span>
-                        </div>
-                     </div>
-
-                  </div>
-              </div>
-            </div>
-          )
-        })()}
-      </div>
-    ) : (
-      
-      /* STATE 2: TASK DASHBOARD (Utility Layout with Metallic Touches) */
-      <>
-        {!activeTask && (
-          <div className="flex flex-col items-center justify-center h-[60vh] text-zinc-600">
-            <p className="text-sm font-light">Select a task to view details</p>
-          </div>
-        )}
-
-        {activeTask && currentSelectedProject && (
-          <div className="space-y-12 animate-in fade-in duration-500 pt-8">
-            
-            {/* Header */}
-            <header className="space-y-6">
-              <div className="flex items-center justify-between border-b border-zinc-800/60 pb-6">
-                <div className="flex items-center gap-3 text-[11px] font-mono text-zinc-500">
-                  <span className="px-2 py-1 bg-zinc-900 rounded border border-zinc-800 text-zinc-400">
-                    {currentSelectedProject.name.toUpperCase()}
-                  </span>
-                  <span className="text-zinc-700">/</span>
-                  <span>TASK-{activeTask.task_order ?? "—"}</span>
-                </div>
-                
-                <span className={`text-[10px] uppercase tracking-widest font-medium px-2 py-1 rounded
-                   ${activeTask.status === 'completed' ? 'text-emerald-500' : 'text-zinc-500'}
-                `}>
-                   {activeTask.status.replace('_', ' ')}
-                </span>
-              </div>
-
-              <div className="max-w-3xl">
-                {/* METALLIC SHINE TITLE */}
-                <h1 className="text-4xl font-medium text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-200 to-zinc-500 tracking-tight mb-4 leading-tight drop-shadow-sm">
-                  {activeTask.title}
-                </h1>
-                <p className="text-zinc-400 text-base font-light leading-relaxed">
-                  {activeTask.description || activeTask.title}
-                </p>
-              </div>
-            </header>
-
-            {/* Dashboard Split */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 border-t border-zinc-800/30 pt-10">
-              
-              {/* LEFT: RESOURCES LIST */}
-              <div className="lg:col-span-8 space-y-6">
-                <div className="flex items-baseline justify-between mb-2">
-                  <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">Learning Modules</h3>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3">
-                  {taskResources[activeTask.task_id]?.length > 0 ? (
-                    taskResources[activeTask.task_id].map((res) => {
-                      // Check if this specific resource is currently streaming
-                      const isThisStreaming = isStreaming && activeResourceId === res.id
-
-                      return (
-                        <button
-                          key={res.id}
-                          onClick={() => {
-                            setActiveResourceId(res.id)
-                            updateUrlParams({ resourceId: res.id })
-                            fetchResourceTopics(res.id, activeTask.task_id)
-                          }}
-                          className={`group hover:cursor-pointer flex items-center justify-between p-4 rounded-xl border text-left relative overflow-hidden transition-all
-                            ${isThisStreaming 
-                              ? "bg-emerald-950/10 border-emerald-500/20 ring-1 ring-emerald-500/20" 
-                              : "bg-zinc-900/30 border-zinc-800/50 hover:border-zinc-700 hover:bg-zinc-900/50"
-                            }
-                          `}
-                        >
-                          {/* Subtle Shine on Hover (Only if not streaming) */}
-                          {!isThisStreaming && (
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out pointer-events-none"></div>
-                          )}
-
-                          <div className="flex items-center gap-4 relative z-10">
-                             {/* Icon Box */}
-                             <div className={`w-10 h-10 rounded-lg border flex items-center justify-center transition-colors shadow-sm
-                                ${isThisStreaming
-                                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
-                                  : "bg-zinc-900 border-zinc-800 text-zinc-500 group-hover:text-zinc-300 group-hover:border-zinc-600"
-                                }
-                             `}>
-                                {isThisStreaming ? (
-                                  <div className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-                                ) : (
-                                  <BookOpen className="w-4 h-4" />
-                                )}
-                             </div>
-
-                             {/* Text Content */}
-                             <div>
-                                <h4 className={`text-sm font-medium transition-colors
-                                   ${isThisStreaming ? "text-emerald-100" : "text-zinc-300 group-hover:text-white"}
-                                `}>
-                                  {res.question}
-                                </h4>
-                                
-                                {/* LOGIC: Show Stream Status OR Static Date */}
-                                {isThisStreaming ? (
-                                  <div className="flex items-center gap-2 mt-1.5">
-                                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                                    <span className="text-[10px] font-mono text-emerald-400 animate-pulse tracking-wide uppercase">
-                                      {streamStatus || "INITIALIZING..."}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-2 mt-1 text-[10px] text-zinc-600 font-mono">
-                                    <span className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[9px] uppercase text-zinc-500">
-                                      AI Generated
-                                    </span>
-                                    <span>{new Date(res.createdAt).toLocaleDateString()}</span>
-                                  </div>
-                                )}
-                             </div>
                           </div>
-
-                          {/* Arrow Icon (Hidden if streaming) */}
-                          {!isThisStreaming && (
-                            <div className="relative z-10 p-2 rounded-full group-hover:bg-white/5 transition-colors">
-                               <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-500 transition-colors" />
-                            </div>
-                          )}
-                        </button>
-                      )
-                    })
-                  ) : (
-                    <div className="py-12 border border-dashed border-zinc-800 rounded-lg flex flex-col items-center justify-center">
-                      <p className="text-sm text-zinc-500">No resources yet.</p>
-                      <p className="text-xs text-zinc-600 mt-1">Ask a question to generate content.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* RIGHT: STATUS TIMELINE */}
-              <div className="lg:col-span-4 space-y-6">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">Submission History</h3>
-                  <button className="text-[10px] text-zinc-500 hover:text-zinc-300 border-b border-zinc-800 hover:border-zinc-500 transition-all pb-0.5">
-                    NEW REQUEST
-                  </button>
-                </div>
-
-                <div className="relative pl-2 space-y-0">
-                   {/* Continuous Line */}
-                   <div className="absolute left-[7px] top-2 bottom-2 w-px bg-zinc-800"></div>
-{realPrs.map((pr, idx) => (
-      <div key={pr.id} className="relative pl-8 py-3 group">
-         {/* Timeline Dot */}
-         <div className={`absolute left-[3px] top-5 w-[5px] h-[5px] rounded-full  z-10 
-            ${pr.status === 'accepted' ? 'bg-emerald-500' : ''}
-            ${pr.status === 'rejected' ? 'bg-rose-500' : ''}
-            ${pr.status === 'pending' ? 'bg-zinc-600' : ''}
-         `}></div>
-         
-         <button 
-            onClick={() => updateUrlParams({ prId: pr.id })}
-            className="block w-full text-left hover:cursor-pointer p-3 rounded-md hover:bg-zinc-900/50 transition-colors"
-         >
-            <div className="flex items-center justify-between mb-1">
-               <span className="text-xs text-zinc-300 group-hover:text-white font-medium transition-colors truncate max-w-[150px]">
-                  {pr.title}
-               </span>
-               <span className="text-[9px] text-zinc-600 font-mono flex-shrink-0">{pr.timestamp}</span>
-            </div>
-            <div className="flex items-center gap-2">
-               <span className={`text-[9px] uppercase tracking-wider font-medium
-                  ${pr.status === 'accepted' ? 'text-emerald-500' : ''}
-                  ${pr.status === 'rejected' ? 'text-rose-500' : ''}
-                  ${pr.status === 'pending' ? 'text-zinc-500' : ''}
-               `}>
-                  {pr.status}
-               </span>
-               {idx === 0 && <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1.5 rounded">LATEST</span>}
-            </div>
-         </button>
-      </div>
-   ))}
-   {realPrs.length === 0 && !isLoadingPrs && (
-      <div className="pl-8 text-xs text-zinc-600 italic">No PRs submitted yet.</div>
-   )}
-                </div>
-              </div>
-
-            </div>
-          </div>
-        )}
-      </>
-    )}
-  </div>
-  )}
-</ScrollArea>
-                  {/* Floating semi-oval input bar at the bottom: in project mode this "asks AI" for a new topic */}
-                  {/* Hide input bar when viewing a full topic or during onboarding */}
-                  {!selectedTopicId && displayTasks.length > 0 && activeTask && (
-                <div className="pointer-events-none absolute bottom-4 left-0 right-0 flex justify-center">
-                  <div className="pointer-events-auto w-full max-w-3xl bg-white/5 border border-white/10 rounded-full px-5 py-2 flex items-center gap-3 shadow-[0_18px_40px_rgba(0,0,0,0.7)] backdrop-blur-md">
-                    <input
-                      type="text"
-                      value={inputMessage}
-                      onChange={(e) => setInputMessage(e.target.value)}
-                      onKeyPress={(e) => e.key === "Enter" && handleProjectQuestion()}
-                      placeholder={placeholderText || "Ask about this task..."}
-                      className="flex-1 bg-transparent text-[14px]  text-white placeholder:text-white/50 focus:outline-none"
-                    />
-                    <button
-                      onClick={handleProjectQuestion}
-                      className="rounded-full bg-white/20 hover:bg-white/30 text-white px-4 py-2.5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-[13px] flex items-center gap-1.5"
-                      disabled={!inputMessage.trim()}
-                    >
-                      <Send className="w-4 h-4" />
-                      <span>Send</span>
-                    </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
-                  )}
-                </>
-              )}
+                ) : (
+                <div className="flex-1 flex flex-col overflow-y-auto px-6 py-6">
+                  <div className="max-w-4xl mx-auto w-full space-y-6">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handleBackToEnvironments}
+                        className="inline-flex items-center gap-1 text-[13px] text-white/60 hover:text-white transition-colors rounded-lg px-2 py-1.5 hover:bg-white/5 -ml-2"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        All environments
+                      </button>
+                      <h2 className="text-[18px] font-semibold text-white flex items-center gap-2">
+                        <BookOpen className="w-5 h-5 text-white/70" />
+                        Environment Learn
+                      </h2>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-6">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-white/45 mb-2">Environment Context</p>
+                      <h3 className="text-[22px] font-semibold text-white mb-2">{currentSelectedProject?.name || "Environment"}</h3>
+                      <p className="text-[14px] text-white/60 leading-relaxed">
+                        This area will host environment-aware learning with AI mentor support, tied to your selected workspace and its tasks.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                        <p className="text-[12px] font-medium text-white mb-1">Context-aware concepts</p>
+                        <p className="text-[12px] text-white/55">Learn architecture, patterns, and stack topics specific to this environment.</p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                        <p className="text-[12px] font-medium text-white mb-1">Task-linked mentoring</p>
+                        <p className="text-[12px] text-white/55">Agent guidance will align with selected tasks, milestones, and PR feedback.</p>
+                      </div>
+                    </div>
+
+                    <div className="inline-flex items-center gap-2 text-[12px] text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-full px-3 py-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Environment Learn agent UI coming soon
+                    </div>
+                  </div>
                 </div>
+                )
           ) : (
                 <div className="flex-1 flex items-center justify-center px-6">
                   <div className="max-w-2xl w-full text-center space-y-6">
@@ -2678,193 +2385,70 @@ useEffect(() => {
                   </div>
                 </div>
               )}
-            </>
-          )}
         </div>
 
-        {/* RIGHT PANEL - Context Panel */}
-        <div className="w-64 p-3 pl-0">
-          <div className="h-full bg-[#1f2121]/80 backdrop-blur-xl rounded-xl shadow-xl border border-white/10 overflow-hidden flex flex-col">
-            <div className="px-4 py-2.5 border-b border-white/10 bg-black/20">
-              <h2 className="text-[15px] font-medium text-white">
-                {mode === "learning" ? "Learning Progress" : "Project Details"}
-              </h2>
-            </div>
 
-            <ScrollArea className="flex-1">
-              <div className="p-3 space-y-2.5">
-                {mode === "learning" && (
-                  // <>
-                  //   {/* Progress Bar */}
-                  //   {currentSelectedModule && (
-                  //     <div className="space-y-2 bg-white/5 rounded-lg p-2.5 border border-white/10">
-                  //       <div className="flex items-center justify-between">
-                  //         <span className="text-[14px] font-medium text-white">{currentSelectedModule.title}</span>
-                  //         <span className="text-[14px] font-bold text-white">{currentSelectedModule.progress}%</span>
-                  //       </div>
-                  //       <Progress value={currentSelectedModule.progress} className="h-1.5 bg-white/13" />
-                  //       <div className="flex items-center gap-1 text-[12px] text-white/50">
-                  //         <Clock className="w-3 h-3" />
-                  //         <span>{currentSelectedModule.estimatedTime}</span>
-                  //       </div>
-                  //     </div>
-                  //   )}
-
-                  //   {/* Learning Q&A Timeline */}
-                  //   <div className="space-y-1.5">
-                  //     <div className="flex items-center gap-1.5">
-                  //       <Sparkles className="w-4 h-4 text-white" />
-                  //       <h3 className="text-[14px] font-medium text-white">Learning Notes</h3>
-                  //     </div>
-                      
-                  //     {learningQA.length > 0 ? (
-                  //       <div className="space-y-1.5">
-                  //         {learningQA.slice(-5).map(msg => (
-                  //           <div key={msg.id} className="p-2.5 bg-white/5 rounded-lg border border-white/13 hover:bg-white/10 transition-colors">
-                  //             <p className="text-[12px] font-medium text-white mb-1">{msg.content.slice(0, 80)}...</p>
-                  //             <div className="flex items-center gap-1 mt-1">
-                  //               <Badge variant="outline" className="text-[10px] border-white/20 text-white bg-white/5">#learning</Badge>
-                  //               <span className="text-[10px] text-white/50">
-                  //                 {msg.timestamp.toLocaleDateString()}
-                  //               </span>
-                  //             </div>
-                  //           </div>
-                  //         ))}
-                  //       </div>
-                  //     ) : (
-                  //       <p className="text-[12px] text-white/50 italic">Start chatting to see notes</p>
-                  //     )}
-                  //   </div>
-
-                  //   {/* Skills Coverage */}
-                  //   <div className="space-y-1.5 pt-2 border-t border-white/10">
-                  //     <div className="flex items-center gap-1.5">
-                  //       <Target className="w-4 h-4 text-white" />
-                  //       <h3 className="text-[14px] font-medium text-white">Skills Coverage</h3>
-                  //     </div>
-                  //     <div className="space-y-1">
-                  //       <div className="flex justify-between text-[12px]">
-                  //         <span className="text-white/60">Overall Progress</span>
-                  //         <span className="font-bold text-white">{skillCoveragePercent}%</span>
-                  //       </div>
-                  //       <Progress value={skillCoveragePercent} className="h-1.5 bg-white/10" />
-                  //     </div>
-                  //   </div>
-                  // </>
-                  <div>Comming soon</div>
-                )}
-
-                {mode === "project" && selectedProject && (
-                  <>
-                    {loadingTasks ? (
-                      <div className="text-center py-8">
-                        <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-2"></div>
-                        <p className="text-[12px] text-white/50">Loading tasks...</p>
-                      </div>
-                    ) : (
-                      <>
-                        {/* Project Info */}
-                        {currentSelectedProject && (
-                          <div className="space-y-2 bg-white/5 rounded-lg p-2.5 border border-white/10">
-                            <h3 className="text-[14px] font-semibold text-white">{currentSelectedProject.name}</h3>
-                            <p className="text-[12px] text-white/60 leading-relaxed">{currentSelectedProject.description || 'No description'}</p>
-                            
-                            {currentSelectedProject.tech_stack && currentSelectedProject.tech_stack.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {currentSelectedProject.tech_stack.map((tech: string) => (
-                                  <Badge key={tech} variant="outline" className="text-[10px] border-white/20 text-white bg-white/5">
-                                    #{tech.toLowerCase()}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Student Role Badge */}
-                        <div className="pt-2 border-t border-white/10">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[12px] text-white/60">Your Role:</span>
-                            <Badge variant="outline" className="text-[11px] border-white/20 text-white bg-white/10 capitalize">
-                              {studentRole}
-                            </Badge>
-                          </div>
-                        </div>
-
-                        {/* Tasks Checklist */}
-                        <div className="space-y-1.5 pt-2 border-t border-white/10">
-                          <h3 className="text-[14px] font-medium text-white">Your Tasks</h3>
-                          {displayTasks.length === 0 ? (
-                            <p className="text-[12px] text-white/50 py-2">No tasks available</p>
-                          ) : (
-                            <div className="space-y-1">
-                              {displayTasks
-                                .filter(task => !task.assignee || task.assignee === studentId)
-                                .map(task => {
-                                  const isActive = activeTask && activeTask.task_id === task.task_id
-                                  const isCompleted = task.status === 'completed'
-                                  return (
-                                   <button
-                                      key={task.task_id}
-                                      onClick={() => {
-                                        // 1. Set the new active task
-                                        setActiveTaskId(task.task_id)
-                                        
-                                        // 2. Clear conflicting views
-                                        setSelectedPrId(null)
-                                        setActiveResourceId(null)
-                                        setSelectedTopicId(null)
-                                        
-                                        // 3. Update URL
-                                        updateUrlParams({ 
-                                          taskId: task.task_id, 
-                                          prId: null, 
-                                          resourceId: null 
-                                        })
-                                      }}
-                                      className={`w-full flex items-start gap-1.5 p-1 rounded-md text-left transition-colors ${
-                                        isActive ? "bg-white/10 border border-white/30" : "hover:bg-white/5"
-                                      }`}
-                                    >
-                                      {isCompleted ? (
-                                        <CheckCircle2 className="w-3 h-3 text-white flex-shrink-0 mt-0.5" />
-                                      ) : (
-                                        <div className="w-3 h-3 rounded-full border border-white/30 flex-shrink-0 mt-0.5" />
-                                      )}
-                                      <div className="flex-1">
-                                        <span
-                                          className={`text-[13px] block ${
-                                            isCompleted ? "text-white/50 line-through" : "text-white font-medium"
-                                          }`}
-                                        >
-                                          {task.title}
-                                        </span>
-                                        <Badge variant="outline" className="text-[9px] border-white/20 text-white/50 bg-white/5 mt-1 capitalize">
-                                          {task.role}
-                                        </Badge>
-                                      </div>
-                                    </button>
-                                  )
-                                })}
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-
-                {mode === "project" && !currentSelectedProject && (
-                  <div className="text-center py-8 px-2">
-                    <FolderKanban className="w-8 h-8 mx-auto mb-2 text-white/30" />
-                    <p className="text-[13px] text-white/50">Choose an environment in the center to see details and tasks.</p>
-                  </div>
-                )}
+      {/* Manual Code Review Modal */}
+      <AnimatePresence>
+        {showReviewModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm bg-[#181a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-white/5">
+                <div className="flex items-center gap-2">
+                  <Github className="w-4 h-4 text-white" />
+                  <h3 className="text-sm font-semibold text-white">Request Code Review</h3>
+                </div>
+                <button onClick={() => setShowReviewModal(false)} className="text-white/50 hover:text-white transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-            </ScrollArea>
+              <div className="p-5 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-medium text-white/50 uppercase tracking-wider">Repository (owner/repo)</label>
+                  <input
+                    type="text"
+                    value={reviewRepoName}
+                    onChange={(e) => setReviewRepoName(e.target.value)}
+                    placeholder="e.g. octocat/hello-world"
+                    className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 transition-all text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-medium text-white/50 uppercase tracking-wider">PR Number</label>
+                  <input
+                    type="text"
+                    value={reviewPrNumber}
+                    onChange={(e) => setReviewPrNumber(e.target.value)}
+                    placeholder="e.g. 42"
+                    className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 transition-all text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-3 px-5 py-3 border-t border-white/10 bg-white/5">
+                <Button variant="ghost" onClick={() => setShowReviewModal(false)} className="text-white/70 hover:text-white hover:bg-white/10 text-xs">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleManualReview}
+                  disabled={isReviewLoading || !reviewRepoName.trim() || !reviewPrNumber.trim()}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs"
+                >
+                  {isReviewLoading ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> Reviewing...</>
+                  ) : (
+                    "Submit Review"
+                  )}
+                </Button>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      </div>
+        )}
+      </AnimatePresence>
 
       {/* UPDATED MODAL CODE */}
       <AnimatePresence>

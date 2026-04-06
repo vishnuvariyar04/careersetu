@@ -43,6 +43,7 @@ type SavedEnvironment = {
   description: string | null
   status: string
   created_at: string
+  tech_stack?: string[] | null
 }
 
 type SavedTask = {
@@ -79,7 +80,7 @@ export function CreateProjectPanel({ companyId }: Props) {
     try {
       const { data, error } = await supabase
         .from("virtual_environments")
-        .select("environment_id, title, description, status, created_at")
+        .select("environment_id, title, description, status, created_at, tech_stack")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
 
@@ -300,6 +301,7 @@ export function CreateProjectPanel({ companyId }: Props) {
           title: project.title,
           description: project.description,
           status: "open",
+          techStack: [],
           tasks: project.tasks.map((t, i) => ({
             title: t.title,
             description: t.description || null,

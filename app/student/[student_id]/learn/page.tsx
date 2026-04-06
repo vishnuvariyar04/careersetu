@@ -4,6 +4,9 @@ import {
   Mic, 
   ChevronRight, 
   Activity,
+  BookOpen,
+  GraduationCap,
+  Sparkles,
   Share,
   Settings,
   Layout, 
@@ -373,4 +376,49 @@ const ImmersiveLearningPlatform: React.FC = () => {
   );
 };
 
-export default ImmersiveLearningPlatform;
+function StudentLearnPageStatic() {
+  return (
+    <div className="h-full overflow-y-auto bg-[#171a1a]">
+      <div className="max-w-6xl mx-auto px-8 py-10 space-y-8">
+        <header className="space-y-3">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-white/40">Learning Workspace</p>
+          <h1 className="text-3xl font-semibold text-white">Environment Learning Hub</h1>
+          <p className="text-sm text-white/60 max-w-2xl">
+            This section will host guided learning paths, concept explainers, and hands-on labs mapped to your active environments.
+          </p>
+        </header>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+            <BookOpen className="w-6 h-6 text-blue-400 mb-3" />
+            <h3 className="text-white font-medium mb-1">Concept Tracks</h3>
+            <p className="text-[13px] text-white/55">Structured modules by stack (frontend, backend, databases, infra).</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+            <GraduationCap className="w-6 h-6 text-violet-400 mb-3" />
+            <h3 className="text-white font-medium mb-1">Task-linked Learning</h3>
+            <p className="text-[13px] text-white/55">Auto-suggested topics based on the environment and assigned tasks.</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+            <Sparkles className="w-6 h-6 text-emerald-400 mb-3" />
+            <h3 className="text-white font-medium mb-1">AI Mentoring</h3>
+            <p className="text-[13px] text-white/55">Guided explanations, checkpoints, and adaptive revision prompts.</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#1d2020] p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="w-5 h-5 text-amber-400" />
+            <h2 className="text-white font-medium">Coming Soon</h2>
+          </div>
+          <div className="space-y-3 text-sm text-white/65">
+            <p>We are preparing a dedicated learning flow connected to each environment.</p>
+            <p>You will soon be able to open a company environment and start guided learning journeys from here.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default StudentLearnPageStatic;

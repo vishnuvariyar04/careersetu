@@ -24,6 +24,9 @@ export async function POST(req: Request) {
     const status = (body.status as string) || "open"
     const tasks = (body.tasks || []) as TaskInput[]
     const referencePdfUrls = Array.isArray(body.referencePdfUrls) ? body.referencePdfUrls.map(String) : []
+    const techStack = Array.isArray(body.techStack)
+      ? (body.techStack as unknown[]).map((t) => String(t).trim()).filter(Boolean)
+      : []
 
     if (!companyId || companyId !== user.id) {
       return NextResponse.json({ error: "Invalid company scope" }, { status: 403 })
@@ -60,6 +63,7 @@ export async function POST(req: Request) {
         title,
         description: fullDescription || null,
         status: ["open", "in_progress", "completed"].includes(status) ? status : "open",
+        tech_stack: techStack.length ? techStack : [],
       })
       .select("environment_id")
       .single()

@@ -148,7 +148,10 @@ export const Navbar = () => {
                     transition={{ duration: 0.5 }}
                     className="hidden md:flex items-center gap-3 shrink-0"
                 >
-                    <button className="px-4 py-2 text-zinc-400 hover:text-white text-sm font-medium transition-all duration-300 hover:bg-white/5 rounded-full whitespace-nowrap">
+                    <button
+                        onClick={() => (window.location.href = "/auth/login")}
+                        className="px-4 py-2 text-zinc-400 hover:text-white text-sm font-medium transition-all duration-300 hover:bg-white/5 rounded-full whitespace-nowrap"
+                    >
                         Sign In
                     </button>
                     
@@ -207,7 +210,10 @@ export const Navbar = () => {
                                 transition={{ duration: 0.3, delay: 0.4 }}
                                 className="mt-6 pt-6 border-t border-white/10 flex flex-col gap-3"
                             >
-                                <button className="w-full py-3 text-zinc-300 hover:text-white font-medium transition-colors">
+                                <button
+                                    onClick={() => (window.location.href = "/auth/login")}
+                                    className="w-full py-3 text-zinc-300 hover:text-white font-medium transition-colors"
+                                >
                                     Sign In
                                 </button>
                                 <button className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors">

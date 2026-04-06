@@ -40,13 +40,12 @@ export default function OnboardingWizard() {
       if (companyId) {
         const { data: row } = await supabase
           .from('companies')
-          .select('name, industry, mission, vision, employee_count, tech_stack, evaluation_metrics, policies, onboarding_advanced')
+          .select('name, industry, mission, vision, employee_count, evaluation_metrics, policies, onboarding_advanced')
           .eq('company_id', companyId)
           .single();
         if (!cancelled && row) {
           const hasExistingData =
             row.name || row.industry || row.mission || row.vision ||
-            (row.tech_stack && row.tech_stack.length > 0) ||
             (row.evaluation_metrics && row.evaluation_metrics.length > 0) ||
             (row.onboarding_advanced as { roles?: unknown[] })?.roles?.length;
           if (hasExistingData) {
@@ -162,7 +161,6 @@ export default function OnboardingWizard() {
     if (formData.mission) updatePayload.mission = formData.mission;
     if (formData.vision) updatePayload.vision = formData.vision;
     if (employeeCount != null && !Number.isNaN(employeeCount)) updatePayload.employee_count = employeeCount;
-    if (formData.techStack.length > 0) updatePayload.tech_stack = formData.techStack;
     if (formData.metrics.length > 0) updatePayload.evaluation_metrics = formData.metrics;
     if (hasPolicies) updatePayload.policies = formData.policies;
 

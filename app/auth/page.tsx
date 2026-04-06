@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Bot, ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2, Github } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
@@ -169,6 +169,27 @@ export default function AuthPage() {
     setError("")
   }
 
+  const handleStudentGithubSignIn = async () => {
+    setIsLoading(true)
+    setError("")
+    try {
+      const next = encodeURIComponent("/auth")
+      const redirectTo = `${window.location.origin}/auth/callback?next=${next}`
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "github",
+        options: {
+          redirectTo,
+          scopes: "repo read:user user:email",
+        },
+      })
+      if (error) throw error
+    } catch (err) {
+      console.error("GitHub OAuth error:", err)
+      setError("GitHub sign-in failed. Please try again.")
+      setIsLoading(false)
+    }
+  }
+
   // --- LOADING STATE ---
   if (mode === "checking") {
     return (
@@ -328,6 +349,28 @@ export default function AuthPage() {
                   mode === "login" ? "Sign In" : "Create Account"
               )}
             </Button>
+
+            {role === "student" && (
+              <>
+                <div className="relative py-1">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-white/10" />
+                  </div>
+                  <div className="relative flex justify-center text-[10px] uppercase tracking-wider text-zinc-500">
+                    <span className="bg-[#0a0f16]/80 px-2">or</span>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleStudentGithubSignIn}
+                  disabled={isLoading}
+                  className="w-full h-11 rounded-full bg-[#111827] hover:bg-[#1f2937] text-white border border-white/10"
+                >
+                  <Github className="w-4 h-4 mr-2" />
+                  Continue with GitHub (Student)
+                </Button>
+              </>
+            )}
           </form>
 
           {/* Footer Toggle */}

@@ -73,7 +73,6 @@ interface CompanyRow {
   mission?: string | null
   vision?: string | null
   employee_count?: number | null
-  tech_stack?: string[] | null
   evaluation_metrics?: string[] | null
   onboarding_advanced?: { roles?: { name: string; skills?: string[] }[] } | null
 }
@@ -95,7 +94,7 @@ export default function SupervisorDashboard() {
       try {
         const { data } = await supabase
           .from("companies")
-          .select("name, industry, mission, vision, employee_count, tech_stack, evaluation_metrics, onboarding_advanced")
+          .select("name, industry, mission, vision, employee_count, evaluation_metrics, onboarding_advanced")
           .eq("company_id", companyId)
           .single()
         setCompany(data as CompanyRow | null)
@@ -283,16 +282,12 @@ export default function SupervisorDashboard() {
                       <dt className="text-muted-foreground">Vision</dt>
                       <dd className="font-medium">{company.vision || "—"}</dd>
                     </div>
-                    {company.tech_stack && company.tech_stack.length > 0 && (
-                      <div>
-                        <dt className="text-muted-foreground mb-1">Tech Stack</dt>
-                        <dd className="flex flex-wrap gap-1">
-                          {company.tech_stack.map((t) => (
-                            <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
-                          ))}
-                        </dd>
-                      </div>
-                    )}
+                    <div>
+                      <dt className="text-muted-foreground mb-1">Tech stack</dt>
+                      <dd className="text-muted-foreground text-sm">
+                        Set per project in <span className="font-medium text-foreground">Projects</span> when you create or edit a virtual environment.
+                      </dd>
+                    </div>
                     {company.evaluation_metrics && company.evaluation_metrics.length > 0 && (
                       <div>
                         <dt className="text-muted-foreground mb-1">Evaluation Metrics</dt>

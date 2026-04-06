@@ -1,29 +1,35 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import staticCompaniesForStudents from "@/data/static_companies_for_students.json"
 import staticStudentProfile from "@/data/static_student_profile.json"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { TECH_STACK_OPTIONS } from "@/components/onboarding/constants"
 import { 
-  Building2, 
   Search, 
-  User, 
-  LogOut, 
-  LayoutGrid, 
   ArrowRight,
   Terminal,
-  Activity,
+  Layers,
+  ChevronRight,
+  User,
+  Mail,
+  Github,
   Code2,
-  GitBranch,
-  Filter,
-  ChevronRight
+  Plus,
+  Loader2,
+  ExternalLink,
+  Sparkles,
+  AlertCircle,
+  CheckCircle2,
+  Info,
 } from "lucide-react"
-import { useParams, useRouter } from "next/navigation"
-import { storage, type StudentProgress } from "@/lib/storage"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { signOut } from "@/lib/auth-helpers"
 import { useStudentAuth } from "@/hooks/use-student-auth"
+import { StudentOnboardingSurvey } from "@/components/student/StudentOnboardingSurvey"
+import { useSidebarContext } from "@/components/student/sidebar-context"
 
 // --- 0. Professional Engineering Styles ---
 const GlobalStyles = () => (
@@ -76,20 +82,6 @@ const GlobalStyles = () => (
 
 // --- 1. UI Atoms ---
 
-const NavItem = ({ icon: Icon, label, active, onClick }: any) => (
-  <button 
-    onClick={onClick}
-    className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-[13px] font-medium transition-all duration-200 ${
-      active 
-        ? "bg-white/5 text-white border border-white/5" 
-        : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5 border border-transparent"
-    }`}
-  >
-    <Icon className="w-4 h-4" />
-    {label}
-  </button>
-)
-
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
     active: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
@@ -110,14 +102,93 @@ const StatusBadge = ({ status }: { status: string }) => {
 export default function StudentDashboardPage() {
   const [activeTab, setActiveTab] = useState("companies")
   const [student, setStudent] = useState<any>()
-  const [joinedCompanies, setJoinedCompanies] = useState<any[]>([])
   const [availableCompanies, setAvailableCompanies] = useState<any[]>([])
   const [exploreQuery, setExploreQuery] = useState("")
-  
+  const [environmentCards, setEnvironmentCards] = useState<
+    Array<{
+      environment_id: string
+      title: string
+      description: string | null
+      status: string | null
+      company_id: string
+      company_name: string
+      company_logo: string
+    }>
+  >([])
+  const [joinedEnvironmentIds, setJoinedEnvironmentIds] = useState<string[]>([])
+  const [loadingEnvironments, setLoadingEnvironments] = useState(true)
+  const [studentSkillsRows, setStudentSkillsRows] = useState<
+    Array<{
+      id?: string
+      skill_name: string
+      experience_level: string | null
+      repo_url: string | null
+    }>
+  >([])
+  const [loadingStudentSkills, setLoadingStudentSkills] = useState(true)
+  const [newSkillName, setNewSkillName] = useState("")
+  const [newSkillRepo, setNewSkillRepo] = useState("")
+  const [savingNewSkill, setSavingNewSkill] = useState(false)
+  const [skillFormError, setSkillFormError] = useState<string | null>(null)
+  /** While submitting: which UX path is active */
+  const [addSkillPhase, setAddSkillPhase] = useState<null | "ai" | "beginner">(null)
+  /** Shown after a successful add */
+  const [skillOutcome, setSkillOutcome] = useState<{
+    tone: "success" | "info" | "warning"
+    title: string
+    body: string
+  } | null>(null)
+
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const studentId = params.student_id as string
   const isAuthorized = useStudentAuth(studentId)
+  const { setStudent: setSidebarStudent, setWorkspace } = useSidebarContext()
+
+  // Clear workspace context when on dashboard (no environment open)
+  useEffect(() => { setWorkspace(null) }, [setWorkspace])
+
+  // Keep sidebar student in sync
+  useEffect(() => {
+    if (student) setSidebarStudent(student)
+  }, [student, setSidebarStudent])
+
+  useEffect(() => {
+    const tab = searchParams.get("tab")
+    if (tab === "companies" || tab === "explore" || tab === "profile") {
+      setActiveTab(tab)
+    } else {
+      setActiveTab("companies")
+    }
+  }, [searchParams])
+
+  const refreshStudentSkills = useCallback(async () => {
+    setLoadingStudentSkills(true)
+    try {
+      const { data: skillRows, error: skillsError } = await supabase
+        .from("student_skills")
+        .select("id, skill_name, experience_level, repo_url")
+        .eq("student_id", studentId)
+        .order("skill_name", { ascending: true })
+      if (!skillsError && Array.isArray(skillRows)) {
+        setStudentSkillsRows(
+          skillRows.map((row: any) => ({
+            id: row.id,
+            skill_name: row.skill_name,
+            experience_level: row.experience_level ?? null,
+            repo_url: row.repo_url ?? null,
+          }))
+        )
+      } else {
+        setStudentSkillsRows([])
+      }
+    } catch {
+      setStudentSkillsRows([])
+    } finally {
+      setLoadingStudentSkills(false)
+    }
+  }, [studentId])
 
   // --- Data Fetching Logic ---
   useEffect(() => {
@@ -130,39 +201,15 @@ export default function StudentDashboardPage() {
       const studentData = studentRow ?? { ...staticStudentProfile, student_id: studentId }
       setStudent(studentData)
 
-      const joinedCompanyIds: string[] = Array.isArray(studentData?.companies_joined) ? studentData.companies_joined : []
-
-      if (joinedCompanyIds.length > 0) {
-        const { data: companiesData } = await supabase.from("companies").select("*").in("company_id", joinedCompanyIds)
-        if (companiesData && companiesData.length > 0) {
-          setJoinedCompanies(companiesData.map((c) => ({
-            ...c,
-            requiredSkills: c.tech_stack ?? c.requiredSkills ?? [],
-            logo: c.logo ?? String(c.name || "").slice(0, 2).toUpperCase(),
-            difficulty: c.difficulty ?? "intermediate",
-            totalProjects: c.totalProjects ?? 0,
-          })))
-        } else {
-          // Static fallback for joined companies
-          const joined = (staticCompaniesForStudents as any[]).filter((c) => joinedCompanyIds.includes(c.company_id))
-          setJoinedCompanies(joined)
-        }
-      } else {
-        // Seed with 1 static company for demo when none joined (students table has no companies_joined)
-        const demoJoined = (staticCompaniesForStudents as any[]).slice(0, 1)
-        setJoinedCompanies(demoJoined)
-        joinedCompanyIds.push(...demoJoined.map((c) => c.company_id))
-      }
+      await refreshStudentSkills()
 
       const { data: allCompanies } = await supabase.from("companies").select("*")
-      const joinedIds = new Set(joinedCompanyIds)
       const staticList = staticCompaniesForStudents as Array<Record<string, unknown>>
 
-      // DB companies (when present) + static companies so static is always visible
+      // DB companies (when present) + static companies
       const dbAvailable =
         allCompanies && allCompanies.length > 0
           ? allCompanies
-              .filter((c) => !joinedIds.has(c.company_id))
               .map((c) => ({
                 ...c,
                 requiredSkills: c.tech_stack ?? (c as any).requiredSkills ?? [],
@@ -173,103 +220,282 @@ export default function StudentDashboardPage() {
           : []
 
       const dbIds = new Set(dbAvailable.map((c) => c.company_id))
-      const staticToAdd = staticList.filter((c) => !joinedIds.has(c.company_id as string) && !dbIds.has(c.company_id as string))
+      const staticToAdd = staticList.filter((c) => !dbIds.has(c.company_id as string))
       setAvailableCompanies([...dbAvailable, ...staticToAdd])
+
+      // Joined virtual environments for this student (source of truth for dashboard join state)
+      const { data: participantRows, error: participantsError } = await supabase
+        .from("environment_participants")
+        .select("environment_id")
+        .eq("student_id", studentId)
+      if (!participantsError && Array.isArray(participantRows)) {
+        setJoinedEnvironmentIds(
+          participantRows
+            .map((row: any) => row.environment_id)
+            .filter((id: unknown): id is string => typeof id === "string")
+        )
+      } else {
+        setJoinedEnvironmentIds([])
+      }
     })()
-  }, [studentId, isAuthorized])
+  }, [studentId, isAuthorized, refreshStudentSkills])
+
+  useEffect(() => {
+    if (isAuthorized !== true) return
+    const allCompanyRows = [...availableCompanies]
+    const companyIds = Array.from(
+      new Set(
+        allCompanyRows
+          .map((c: { company_id?: string }) => c.company_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    )
+
+    if (!companyIds.length) {
+      setEnvironmentCards([])
+      setLoadingEnvironments(false)
+      return
+    }
+
+    setLoadingEnvironments(true)
+    ;(async () => {
+      const { data, error } = await supabase
+        .from("virtual_environments")
+        .select("environment_id, title, description, status, company_id")
+        .in("company_id", companyIds)
+        .order("created_at", { ascending: false })
+
+      const byCompany = Object.fromEntries(
+        allCompanyRows.map((c: { company_id: string; name?: string; logo?: string }) => [
+          c.company_id,
+          c,
+        ])
+      )
+
+      if (!error && data?.length) {
+        setEnvironmentCards(
+          data.map((row: any) => ({
+            environment_id: row.environment_id,
+            title: row.title,
+            description: row.description ?? null,
+            status: row.status ?? null,
+            company_id: row.company_id,
+            company_name: byCompany[row.company_id]?.name ?? "Company",
+            company_logo:
+              byCompany[row.company_id]?.logo ??
+              String(byCompany[row.company_id]?.name ?? "C").slice(0, 2).toUpperCase(),
+          }))
+        )
+      } else {
+        setEnvironmentCards([])
+      }
+      setLoadingEnvironments(false)
+    })()
+  }, [isAuthorized, availableCompanies])
 
   // --- Actions ---
-  const handleJoinCompany = (companyId: string) => {
-    (async () => {
-      const { data: studentRow } = await supabase.from("students").select("companies_joined").eq("student_id", studentId).single();
-      const currentCompanies = (studentRow && Array.isArray(studentRow.companies_joined)) ? studentRow.companies_joined : (student?.companies_joined ?? []);
-      if (!currentCompanies.includes(companyId)) {
-        await supabase.from("students").update({ companies_joined: [...currentCompanies, companyId] }).eq("student_id", studentId);
+  const handleJoinEnvironmentFromDirectory = (companyId: string, environmentId: string) => {
+    ;(async () => {
+      const res = await fetch("/api/student/join-environment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ environmentId, companyId }),
+      })
+      if (!res.ok) return
+      setJoinedEnvironmentIds((prev) =>
+        prev.includes(environmentId) ? prev : [...prev, environmentId]
+      )
+      setActiveTab("companies")
+    })()
+  }
+
+  const normalizeSkillKey = (s: string) =>
+    s.trim().replace(/\s+/g, " ").toLowerCase()
+
+  const handleAddSkill = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const name = newSkillName.trim().replace(/\s+/g, " ")
+    if (!name) {
+      setSkillFormError("Enter a skill name.")
+      return
+    }
+    const key = normalizeSkillKey(name)
+    if (
+      studentSkillsRows.some(
+        (r) => normalizeSkillKey(r.skill_name) === key
+      )
+    ) {
+      setSkillFormError(
+        `You already have “${name}” on your profile. Each skill can only be added once.`
+      )
+      return
+    }
+    setSkillFormError(null)
+    setSkillOutcome(null)
+    const repo = newSkillRepo.trim()
+    setAddSkillPhase(repo ? "ai" : "beginner")
+    setSavingNewSkill(true)
+    try {
+      if (repo) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        const githubAccessToken = session?.provider_token ?? null
+        if (!githubAccessToken) {
+          setSkillFormError(
+            "Analyzing a repo needs a GitHub sign-in. Sign in with GitHub, or leave the repo URL empty to add the skill as beginner."
+          )
+          return
+        }
+        const res = await fetch("/api/student/onboarding/analyze-repos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            githubAccessToken,
+            skills: [{ skill_name: name, repo_url: repo }],
+          }),
+        })
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string
+          skills?: Array<{
+            experience_level?: string
+            level_source?: string
+            fallback_reason?: string | null
+          }>
+        }
+        if (!res.ok) {
+          throw new Error(data.error || "Could not analyze repository")
+        }
+        const first = data.skills?.[0]
+        if (!first) {
+          setSkillOutcome({
+            tone: "success",
+            title: "Skill saved",
+            body: "Your skill was added to your profile.",
+          })
+        } else if (first.level_source === "model") {
+          const lvl = (first.experience_level ?? "beginner").replace(/^\w/, (c) =>
+            c.toUpperCase()
+          )
+          setSkillOutcome({
+            tone: "success",
+            title: "AI assessment complete",
+            body: `Your repository was analyzed and this skill was saved as ${lvl}.`,
+          })
+        } else {
+          const reason = first.fallback_reason
+          const detail =
+            reason === "invalid_github_repo"
+              ? "The URL is not a valid github.com owner/repo path."
+              : reason === "ai_error"
+                ? "The AI service failed while assessing the repository."
+                : "The AI did not return a clear level."
+          setSkillOutcome({
+            tone: "warning",
+            title: "Saved with fallback level",
+            body: `${detail} Level was set to beginner. Fix the URL or try again later.`,
+          })
+        }
+      } else {
+        const { error } = await supabase.from("student_skills").insert({
+          student_id: studentId,
+          skill_name: name,
+          experience_level: "beginner",
+          repo_url: null,
+        })
+        if (error) throw error
+        setSkillOutcome({
+          tone: "info",
+          title: "Skill saved (no AI)",
+          body:
+            "No repository URL was provided, so we skipped AI analysis and saved this skill as beginner.",
+        })
       }
-    })();
-    router.push(`/student/${studentId}/company/${companyId}/details`)
+      setNewSkillName("")
+      setNewSkillRepo("")
+      await refreshStudentSkills()
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message?: string }).message)
+          : "Could not save skill. Check you are signed in and try again."
+      setSkillFormError(msg)
+    } finally {
+      setSavingNewSkill(false)
+      setAddSkillPhase(null)
+    }
   }
 
-  const handleSignOut = async () => {
-    await signOut()
-    router.push('/auth/login')
-  }
+  // --- Filters & derived flags ---
+  const onboardingComplete =
+    Boolean(student?.github_url) &&
+    studentSkillsRows.length > 0
+  const missingOnboardingFields = [
+    ...(student?.github_url ? [] : ["GitHub account link"]),
+    ...(studentSkillsRows.length > 0 ? [] : ["At least one skill + repository link"]),
+  ]
 
-  // --- Filters ---
-  const studentSkills: string[] = Array.isArray(student?.skills) ? student.skills : []
-  const filteredCompanies = availableCompanies.filter((company) => {
+  const joinedEnvironmentIdSet = useMemo(
+    () => new Set(joinedEnvironmentIds),
+    [joinedEnvironmentIds]
+  )
+  const joinedEnvironmentCards = useMemo(
+    () => environmentCards.filter((env) => joinedEnvironmentIdSet.has(env.environment_id)),
+    [environmentCards, joinedEnvironmentIdSet]
+  )
+  const joinedCompanies = useMemo(() => {
+    const byId = new Map<string, any>()
+    const companyLookup = new Map(
+      availableCompanies.map((company: any) => [company.company_id, company])
+    )
+    joinedEnvironmentCards.forEach((env) => {
+      if (byId.has(env.company_id)) return
+      const company = companyLookup.get(env.company_id)
+      byId.set(env.company_id, {
+        company_id: env.company_id,
+        name: company?.name ?? env.company_name ?? "Company",
+        logo:
+          company?.logo ??
+          env.company_logo ??
+          String(company?.name ?? env.company_name ?? "C").slice(0, 2).toUpperCase(),
+        requiredSkills: company?.requiredSkills ?? [],
+      })
+    })
+    return Array.from(byId.values())
+  }, [joinedEnvironmentCards, availableCompanies])
+  const directoryEnvironmentCards = useMemo(() => {
     const q = exploreQuery.trim().toLowerCase()
-    return q ? String(company?.name).toLowerCase().includes(q) : true
-  })
+    return environmentCards.filter((env) => {
+      if (joinedEnvironmentIdSet.has(env.environment_id)) return false
+      if (!q) return true
+      return (
+        env.title.toLowerCase().includes(q) ||
+        env.company_name.toLowerCase().includes(q) ||
+        (env.description ?? "").toLowerCase().includes(q)
+      )
+    })
+  }, [environmentCards, joinedEnvironmentIdSet, exploreQuery])
 
   // Loading State (student is always set via DB or static fallback once authorized)
-  if (isAuthorized === null) return <div className="min-h-screen bg-[#171a1a]" />
+  if (isAuthorized === null) return <div className="flex-1 bg-[#171a1a]" />
   if (isAuthorized === false) return null
-  if (!student) return <div className="min-h-screen bg-[#171a1a]" />
+  if (!student) return <div className="flex-1 bg-[#171a1a]" />
   return (
-    <div className="min-h-screen flex bg-[#171a1a]">
+    <div className="flex-1 overflow-y-auto bg-[#171a1a]">
       <GlobalStyles />
-
-      {/* --- SIDEBAR --- */}
-      <aside className="w-64 border-r border-white/5 bg-[#171a1a] flex flex-col fixed inset-y-0 z-50">
-        <div className="h-14 flex items-center px-5 border-b border-white/5">
-          <div className="flex items-center gap-3">
-           
-            <div>
-              <h3 className="text-sm font-semibold text-white tracking-tight">Welcome, {student?.full_name ?? student?.name ?? "Student"}</h3>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 py-6 px-3 space-y-1">
-          <div className="px-3 mb-2 flex items-center justify-between">
-            <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Main</span>
-          </div>
-          <NavItem 
-            icon={Building2} 
-            label="Virtual Companies" 
-            active={activeTab === "companies"} 
-            onClick={() => setActiveTab("companies")} 
-          />
-          <NavItem 
-            icon={LayoutGrid} 
-            label="Directory" 
-            active={activeTab === "explore"} 
-            onClick={() => setActiveTab("explore")} 
-          />
-          <div className="px-3 mt-6 mb-2">
-            <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Account</span>
-          </div>
-          <NavItem 
-            icon={User} 
-            label="Preferences" 
-            active={activeTab === "profile"} 
-            onClick={() => setActiveTab("profile")} 
-          />
-        </div>
-
-        <div className="p-4 border-t border-white/5">
-          <button onClick={handleSignOut} className="flex items-center gap-2 text-[12px] text-zinc-500 hover:text-zinc-300 transition-colors w-full px-2 py-1">
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign out</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* --- MAIN CONTENT --- */}
-      <main className="flex-1 ml-64 min-h-screen">
-        <div className="max-w-[1600px] mx-auto p-8">
+      <div className="max-w-[1600px] mx-auto p-8">
           
           {/* Header Area */}
           <div className="flex items-end justify-between mb-8 pb-4 border-b border-white/5">
             <div>
               <h1 className="text-xl font-medium text-white mb-1">
-                {activeTab === "companies" && "Your Virtual Companies"}
+                {activeTab === "companies" && "Your environments"}
                 {activeTab === "explore" && "Company Directory"}
                 {activeTab === "profile" && "Account Settings"}
               </h1>
               <p className="text-xs text-zinc-500 mono">
-                {activeTab === "companies" && `VIEWING ${joinedCompanies.length} ACTIVE ENVIRONMENTS`}
+                {activeTab === "companies" &&
+                  `${joinedEnvironmentCards.length} ENVIRONMENT${joinedEnvironmentCards.length === 1 ? "" : "S"} · ${joinedCompanies.length} COMPAN${joinedCompanies.length === 1 ? "Y" : "IES"}`}
                 {activeTab === "explore" && "AVAILABLE SIMULATIONS"}
                 {activeTab === "profile" && `USER ID: ${studentId}`}
               </p>
@@ -288,176 +514,532 @@ export default function StudentDashboardPage() {
             )}
           </div>
 
+          {/* --- ONBOARDING GATE --- */}
+          {!onboardingComplete ? (
+            <div className="w-full max-w-3xl mx-auto mt-4">
+              <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                <p className="text-sm text-amber-300 font-medium mb-1">
+                  Complete onboarding to unlock Virtual Environments
+                </p>
+                <ul className="list-disc list-inside text-xs text-amber-200/90 space-y-0.5">
+                  {missingOnboardingFields.map((field) => (
+                    <li key={field}>{field} is missing</li>
+                  ))}
+                </ul>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 text-[11px] bg-amber-600 hover:bg-amber-500 text-white"
+                    onClick={() => setActiveTab("companies")}
+                  >
+                    Fill onboarding now
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] border-amber-400/40 text-amber-200 hover:bg-amber-500/10"
+                    onClick={() => setActiveTab("profile")}
+                  >
+                    Review profile data
+                  </Button>
+                </div>
+              </div>
+              <StudentOnboardingSurvey
+                initialGithubUrl={student.github_url}
+                onCompleted={async () => {
+                  const { data: studentRow } = await supabase
+                    .from("students")
+                    .select("*")
+                    .eq("student_id", studentId)
+                    .single()
+                  if (studentRow) setStudent(studentRow)
+                  await refreshStudentSkills()
+                  setActiveTab("companies")
+                }}
+              />
+            </div>
+          ) : null}
+
           {/* --- TAB: VIRTUAL COMPANIES (TABLE VIEW) --- */}
-          {activeTab === "companies" && (
-            <div className="w-full">
+          {onboardingComplete && activeTab === "companies" && (
+            <div className="w-full space-y-10">
               {joinedCompanies.length === 0 ? (
                 <div className="py-24 text-center border border-dashed border-white/5 rounded bg-white/[0.01]">
                   <Terminal className="w-8 h-8 text-zinc-700 mx-auto mb-3" />
-                  <p className="text-zinc-500 text-sm mb-4">No virtual companies initialized.</p>
+                  <p className="text-zinc-500 text-sm mb-4">You have not joined any company yet.</p>
                   <Button onClick={() => setActiveTab("explore")} variant="outline" className="text-xs h-8 bg-transparent border-zinc-700 text-zinc-300 hover:bg-white/5">
                     Go to Directory
                   </Button>
                 </div>
-              ) : (
-                <div className="w-full overflow-hidden rounded border border-white/5">
-                  <table className="w-full">
-                    <thead className="bg-[#1c2020]">
-                      <tr>
-                        <th className="pl-6">Company Name</th>
-                        <th>Role / Stack</th>
-                        <th>Status</th>
-                        <th>Difficulty</th>
-                        <th>Projects</th>
-                        <th className="text-right pr-6">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-[#171a1a]">
-                      {joinedCompanies.map((company) => (
-                        <tr key={company.company_id} className="group cursor-pointer" onClick={() => router.push(`/student/${studentId}/company/${company.company_id}/details#project`)}>
-                          <td className="pl-6">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-zinc-900 border border-white/5 rounded flex items-center justify-center text-xs font-bold text-zinc-400">
-                                {company.logo}
-                              </div>
-                              <div>
-                                <div className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">
-                                  {company.name}
-                                </div>
-                                <div className="text-[10px] text-zinc-600 mono">ID: {company.company_id.slice(0,8)}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="flex flex-wrap gap-1">
-                              {Array.isArray(company.requiredSkills) && company.requiredSkills.slice(0, 2).map((tech: any) => (
-                                <span key={tech} className="text-[10px] bg-white/5 text-zinc-400 px-1.5 py-0.5 rounded mono border border-white/5">
-                                  {tech}
-                                </span>
-                              ))}
-                              {Array.isArray(company.requiredSkills) && company.requiredSkills.length > 2 && (
-                                <span className="text-[10px] text-zinc-600 px-1 py-0.5 font-medium">+{company.requiredSkills.length - 2}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td><StatusBadge status="Active" /></td>
-                          <td className="text-zinc-400 text-xs capitalize">{company.difficulty}</td>
-                          <td className="text-zinc-400 mono text-xs">{company.totalProjects || 0}</td>
-                          <td className="text-right pr-6">
-                            <button className="text-[11px] text-blue-400 hover:text-blue-300 font-medium uppercase tracking-wider flex items-center gap-1 justify-end">
-                              Access <ArrowRight className="w-3 h-3" />
-                            </button>
-                          </td>
+              ) : null}
+
+              {joinedCompanies.length > 0 && !loadingEnvironments && (
+                <div>
+                  <h2 className="text-[11px] font-bold text-zinc-600 uppercase tracking-widest mb-3">Your companies</h2>
+                  <div className="w-full overflow-hidden rounded border border-white/5">
+                    <table className="w-full">
+                      <thead className="bg-[#1c2020]">
+                        <tr>
+                          <th className="pl-6">Company</th>
+                          <th>Stack</th>
+                          <th className="text-right pr-6">Open</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="bg-[#171a1a]">
+                        {joinedCompanies.map((company: any) => (
+                          <tr
+                            key={company.company_id}
+                            className="group cursor-pointer"
+                            onClick={() =>
+                              router.push(
+                                `/student/${studentId}/company/${company.company_id}/details?mode=project`
+                              )
+                            }
+                          >
+                            <td className="pl-6 py-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-zinc-900 border border-white/5 rounded flex items-center justify-center text-xs font-bold text-zinc-400">
+                                  {company.logo}
+                                </div>
+                                <span className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">
+                                  {company.name}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {Array.isArray(company.requiredSkills) &&
+                                  company.requiredSkills.slice(0, 3).map((tech: string) => (
+                                    <span
+                                      key={tech}
+                                      className="text-[10px] bg-white/5 text-zinc-400 px-1.5 py-0.5 rounded mono border border-white/5"
+                                    >
+                                      {tech}
+                                    </span>
+                                  ))}
+                              </div>
+                            </td>
+                            <td className="text-right pr-6 py-3">
+                              <span className="text-[11px] text-blue-400/90 font-medium uppercase tracking-wider inline-flex items-center gap-1 justify-end">
+                                Workspace <ArrowRight className="w-3 h-3" />
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
           )}
 
           {/* --- TAB: EXPLORE (TABLE VIEW) --- */}
-          {activeTab === "explore" && (
-            <div className="w-full overflow-hidden rounded border border-white/5">
-              <table className="w-full">
-                <thead className="bg-[#1c2020]">
-                  <tr>
-                    <th className="pl-6">Company</th>
-                    <th>Required Stack</th>
-                    <th>Match Score</th>
-                    <th>Difficulty</th>
-                    <th className="text-right pr-6">Initialize</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-[#171a1a]">
-                  {filteredCompanies.map((company) => (
-                    <tr key={company.company_id}>
-                      <td className="pl-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-zinc-900 border border-white/5 rounded flex items-center justify-center text-xs font-bold text-zinc-500">
-                            {company.logo}
+          {onboardingComplete && activeTab === "explore" && (
+            <div className="w-full space-y-8">
+              {loadingEnvironments ? (
+                <div className="py-24 flex justify-center">
+                  <div className="w-8 h-8 border-2 border-white/10 border-t-white rounded-full animate-spin" />
+                </div>
+              ) : directoryEnvironmentCards.length === 0 ? (
+                <div className="py-16 text-center border border-dashed border-white/5 rounded-lg bg-white/[0.01]">
+                  <Layers className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
+                  <p className="text-zinc-500 text-sm max-w-md mx-auto">
+                    No unjoined environments available in directory right now.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {directoryEnvironmentCards.map((env) => (
+                    <div
+                      key={env.environment_id}
+                      className="text-left rounded-xl border border-white/10 bg-[#1c2020] p-5 hover:border-white/20 hover:bg-[#1f2323] transition-all group"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center text-[11px] font-bold text-zinc-400 shrink-0">
+                            {env.company_logo}
                           </div>
-                          <span className="text-sm font-medium text-white">{company.name}</span>
+                          <span className="text-[11px] text-zinc-500 truncate uppercase tracking-wide">
+                            {env.company_name}
+                          </span>
                         </div>
-                      </td>
-                      <td>
-                        <div className="flex gap-1">
-                          {Array.isArray(company.requiredSkills) && company.requiredSkills.slice(0, 3).map((tech: any) => (
-                            <span key={tech} className="text-[10px] text-zinc-500 mono">
-                              {tech}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="w-24 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-blue-600" style={{ width: '60%' }}></div>
-                        </div>
-                      </td>
-                      <td className="text-xs text-zinc-400">{company.difficulty}</td>
-                      <td className="text-right pr-6">
-                        <Button 
-                          onClick={() => handleJoinCompany(company.company_id)}
-                          size="sm" 
+                        <StatusBadge status={env.status || "open"} />
+                      </div>
+                      <div className="flex items-start gap-2 mb-2">
+                        <Layers className="w-4 h-4 text-emerald-500/80 shrink-0 mt-0.5" />
+                        <h3 className="text-[15px] font-medium text-white group-hover:text-emerald-400/90 transition-colors leading-snug">
+                          {env.title}
+                        </h3>
+                      </div>
+                      {env.description ? (
+                        <p className="text-[12px] text-zinc-500 line-clamp-3 leading-relaxed">{env.description}</p>
+                      ) : (
+                        <p className="text-[12px] text-zinc-600 italic">No description</p>
+                      )}
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            router.push(
+                              `/student/${studentId}/company/${env.company_id}/details?mode=project&projectId=${env.environment_id}`
+                            )
+                          }
+                          className="text-[11px] text-blue-400/90 font-medium uppercase tracking-wider inline-flex items-center gap-1"
+                        >
+                          View details
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                        <Button
+                          onClick={() =>
+                            handleJoinEnvironmentFromDirectory(
+                              env.company_id,
+                              env.environment_id
+                            )
+                          }
+                          size="sm"
                           variant="ghost"
                           className="h-7 text-[10px] bg-white/5 hover:bg-white/10 text-white border border-white/5 hover:border-white/10 uppercase tracking-wide"
                         >
                           Join
                         </Button>
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
           )}
 
-          {/* --- TAB: PROFILE (DEFINITION LIST) --- */}
+          {/* --- TAB: PROFILE --- */}
           {activeTab === "profile" && (
-            <div className="max-w-3xl">
-              <div className="border border-white/5 rounded bg-[#171a1a]">
-                <div className="px-6 py-4 bg-[#1c2020] border-b border-white/5">
-                  <h3 className="text-sm font-medium text-white">Developer Profile</h3>
-                </div>
-                <div className="p-0">
-                  <div className="grid grid-cols-3 border-b border-white/5">
-                    <div className="col-span-1 p-6 border-r border-white/5 bg-[#1a1d1d]">
-                      <span className="text-xs text-zinc-500 font-medium">FULL NAME</span>
-                    </div>
-                    <div className="col-span-2 p-6">
-                      <span className="text-sm text-zinc-200">{student?.full_name ?? student?.name ?? "—"}</span>
-                    </div>
+            <div className="max-w-4xl space-y-8">
+              <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#1c2020] via-[#171a1a] to-[#141616] p-6 sm:p-8 shadow-xl shadow-black/20">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-6">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-xl font-semibold text-white ring-1 ring-white/10">
+                    {(student?.full_name ?? student?.name ?? "?").charAt(0).toUpperCase()}
                   </div>
-                  <div className="grid grid-cols-3 border-b border-white/5">
-                    <div className="col-span-1 p-6 border-r border-white/5 bg-[#1a1d1d]">
-                      <span className="text-xs text-zinc-500 font-medium">EMAIL IDENTIFIER</span>
+                  <div className="min-w-0 flex-1 space-y-4">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500 mb-1">
+                        Profile
+                      </p>
+                      <h2 className="text-xl font-semibold text-white tracking-tight">
+                        {student?.full_name ?? student?.name ?? "Student"}
+                      </h2>
+                      <p className="text-sm text-zinc-500 mt-1 font-mono truncate">
+                        {studentId}
+                      </p>
                     </div>
-                    <div className="col-span-2 p-6">
-                      <span className="text-sm text-zinc-200 mono">{student.email}</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3">
-                    <div className="col-span-1 p-6 border-r border-white/5 bg-[#1a1d1d]">
-                      <span className="text-xs text-zinc-500 font-medium">TECHNICAL STACK</span>
-                    </div>
-                    <div className="col-span-2 p-6">
-                      <div className="flex flex-wrap gap-2">
-                        {studentSkills.map((s) => (
-                          <span key={s} className="px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] mono rounded">
-                            {s}
-                          </span>
-                        ))}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="flex items-start gap-3 rounded-xl border border-white/5 bg-black/20 px-4 py-3">
+                        <Mail className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">
+                            Email
+                          </p>
+                          <p className="text-sm text-zinc-200 truncate">{student.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 rounded-xl border border-white/5 bg-black/20 px-4 py-3">
+                        <Github className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">
+                            GitHub
+                          </p>
+                          {student.github_url ? (
+                            <a
+                              href={student.github_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-400 hover:text-blue-300 inline-flex items-center gap-1 truncate max-w-full"
+                            >
+                              <span className="truncate">{student.github_url}</span>
+                              <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
+                            </a>
+                          ) : (
+                            <p className="text-sm text-zinc-500">Not linked</p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/[0.08] bg-[#171a1a] overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-6 py-4 border-b border-white/5 bg-[#1c2020]/80">
+                  <div className="flex items-center gap-2">
+                    <Code2 className="w-4 h-4 text-blue-400/90" />
+                    <h3 className="text-sm font-medium text-white">Skills & repositories</h3>
+                  </div>
+                  <span className="text-[11px] text-zinc-500">
+                    {studentSkillsRows.length} on profile
+                  </span>
+                </div>
+
+                <div className="p-6 space-y-8">
+                  <form
+                    onSubmit={handleAddSkill}
+                    className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] p-4 sm:p-5 space-y-4"
+                  >
+                    <div className="flex items-center gap-2 text-white">
+                      <Plus className="w-4 h-4 text-emerald-400" />
+                      <span className="text-sm font-medium">Add a skill</span>
+                    </div>
+                    <p className="text-xs text-zinc-500 leading-relaxed">
+                      With a <strong className="text-zinc-400 font-medium">GitHub repo URL</strong>, we assess level from the code (same as onboarding). Leave the repo empty to add the skill as{" "}
+                      <strong className="text-zinc-400 font-medium">beginner</strong> only.
+                    </p>
+
+                    {loadingStudentSkills && (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className={
+                          studentSkillsRows.length > 0
+                            ? "rounded-xl border border-violet-500/35 bg-gradient-to-br from-violet-500/15 to-fuchsia-500/10 px-4 py-4 flex gap-4 items-start"
+                            : "rounded-xl border border-white/10 bg-white/[0.04] px-4 py-4 flex gap-3 items-start"
+                        }
+                      >
+                        {studentSkillsRows.length > 0 ? (
+                          <>
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/20 border border-violet-400/30">
+                              <Sparkles className="h-5 w-5 text-violet-200 animate-pulse" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-violet-100 flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin text-violet-300 shrink-0" />
+                                Loading your profile skills
+                              </p>
+                              <p className="text-xs text-violet-200/75 mt-1.5 leading-relaxed">
+                                Syncing saved skills from your account. Your list will update in a moment.
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <Loader2 className="h-5 w-5 text-zinc-400 animate-spin shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-medium text-zinc-200">Loading skills</p>
+                              <p className="text-xs text-zinc-500 mt-1">
+                                Fetching your profile from the server…
+                              </p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="skill-name" className="text-[11px] text-zinc-400">
+                          Skill name
+                        </Label>
+                        <Input
+                          id="skill-name"
+                          list="profile-tech-suggestions"
+                          disabled={savingNewSkill || loadingStudentSkills}
+                          value={newSkillName}
+                          onChange={(e) => {
+                            setNewSkillName(e.target.value)
+                            setSkillFormError(null)
+                            setSkillOutcome(null)
+                          }}
+                          placeholder="e.g. React, Go, System design"
+                          className="h-10 bg-[#111315] border-white/10 text-sm text-zinc-100 placeholder:text-zinc-600"
+                        />
+                        <datalist id="profile-tech-suggestions">
+                          {TECH_STACK_OPTIONS.map((t) => (
+                            <option key={t} value={t} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="skill-repo" className="text-[11px] text-zinc-400">
+                          GitHub repo URL <span className="text-zinc-600">(optional)</span>
+                        </Label>
+                        <Input
+                          id="skill-repo"
+                          type="url"
+                          disabled={savingNewSkill || loadingStudentSkills}
+                          value={newSkillRepo}
+                          onChange={(e) => {
+                            setNewSkillRepo(e.target.value)
+                            setSkillFormError(null)
+                            setSkillOutcome(null)
+                          }}
+                          placeholder="https://github.com/you/project"
+                          className="h-10 bg-[#111315] border-white/10 text-sm text-zinc-100 placeholder:text-zinc-600"
+                        />
+                      </div>
+                    </div>
+
+                    {savingNewSkill && addSkillPhase === "ai" && (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className="rounded-xl border border-violet-500/35 bg-gradient-to-br from-violet-500/15 to-fuchsia-500/10 px-4 py-4 flex gap-4 items-start"
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/20 border border-violet-400/30">
+                          <Sparkles className="h-5 w-5 text-violet-200 animate-pulse" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-violet-100 flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-violet-300 shrink-0" />
+                            AI is analyzing your repository
+                          </p>
+                          <p className="text-xs text-violet-200/75 mt-1.5 leading-relaxed">
+                            Pulling your README and sample files from GitHub, then running the model to estimate experience level. This often takes 30–90 seconds.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {savingNewSkill && addSkillPhase === "beginner" && (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-4 flex gap-3 items-start"
+                      >
+                        <Loader2 className="h-5 w-5 text-zinc-400 animate-spin shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-zinc-200">Saving without AI</p>
+                          <p className="text-xs text-zinc-500 mt-1">
+                            No repo URL — your skill is stored as beginner. Add a GitHub repo next time if you want an AI-assessed level.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {skillFormError && (
+                      <p className="text-xs text-red-400/90">{skillFormError}</p>
+                    )}
+
+                    {skillOutcome && !savingNewSkill && (
+                      <div
+                        role="status"
+                        className={
+                          skillOutcome.tone === "success"
+                            ? "rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 flex gap-3"
+                            : skillOutcome.tone === "info"
+                              ? "rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 flex gap-3"
+                              : "rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 flex gap-3"
+                        }
+                      >
+                        {skillOutcome.tone === "success" ? (
+                          <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+                        ) : skillOutcome.tone === "info" ? (
+                          <Info className="h-5 w-5 text-sky-400 shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-white">{skillOutcome.title}</p>
+                          <p className="text-xs text-white/65 mt-1 leading-relaxed">{skillOutcome.body}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      disabled={savingNewSkill || loadingStudentSkills}
+                      className="h-9 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium"
+                    >
+                      {savingNewSkill ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                          {newSkillRepo.trim() ? "Analyzing repository…" : "Saving…"}
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-3.5 h-3.5 mr-2" />
+                          Add skill
+                        </>
+                      )}
+                    </Button>
+                  </form>
+
+                  {loadingStudentSkills && studentSkillsRows.length > 0 ? (
+                    <div className="grid gap-3 sm:grid-cols-2 opacity-60 pointer-events-none">
+                      {studentSkillsRows.map((row) => (
+                        <div
+                          key={row.id ?? row.skill_name}
+                          className="rounded-xl border border-white/10 bg-[#111315]/90 px-4 py-3.5"
+                        >
+                          <p className="text-sm font-medium text-white truncate">
+                            {row.skill_name}
+                          </p>
+                          <p className="text-[11px] text-zinc-500 mt-2 flex items-center gap-1.5">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Refreshing…
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : loadingStudentSkills ? (
+                    <div className="py-6" aria-hidden />
+                  ) : studentSkillsRows.length === 0 ? (
+                    <div className="text-center py-12 px-4 rounded-xl border border-white/5 bg-black/15">
+                      <User className="w-10 h-10 mx-auto text-zinc-600 mb-3" />
+                      <p className="text-sm text-zinc-400 mb-1">No skills yet</p>
+                      <p className="text-xs text-zinc-600 max-w-sm mx-auto">
+                        Use the form above or complete onboarding to build your skill list. Companies use this to match you to environments.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {studentSkillsRows.map((row) => {
+                        const level = (row.experience_level || "beginner").toLowerCase()
+                        const levelClass =
+                          level === "advanced"
+                            ? "bg-violet-500/15 text-violet-200 border-violet-500/25"
+                            : level === "intermediate"
+                              ? "bg-amber-500/15 text-amber-200 border-amber-500/25"
+                              : "bg-emerald-500/15 text-emerald-200 border-emerald-500/25"
+                        return (
+                          <div
+                            key={row.id ?? row.skill_name}
+                            className="group rounded-xl border border-white/10 bg-[#111315]/90 px-4 py-3.5 hover:border-white/15 transition-colors"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-white truncate">
+                                  {row.skill_name}
+                                </p>
+                                {row.repo_url ? (
+                                  <a
+                                    href={row.repo_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-2 inline-flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 max-w-full"
+                                  >
+                                    <span className="truncate">{row.repo_url}</span>
+                                    <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
+                                  </a>
+                                ) : (
+                                  <p className="mt-2 text-[11px] text-zinc-600">No repo linked</p>
+                                )}
+                              </div>
+                              <span
+                                className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-md border ${levelClass}`}
+                              >
+                                {row.experience_level || "beginner"}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
         </div>
-      </main>
-    </div>
+      </div>
   )
 }
