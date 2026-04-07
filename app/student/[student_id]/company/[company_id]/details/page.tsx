@@ -363,9 +363,32 @@ export default function CompanyDetailsPage() {
 
   // Manual review trigger state
   const [showReviewModal, setShowReviewModal] = useState(false)
-  const [reviewRepoName, setReviewRepoName] = useState("")
   const [reviewPrNumber, setReviewPrNumber] = useState("")
   const [isReviewLoading, setIsReviewLoading] = useState(false)
+  const [environmentRepoUrl, setEnvironmentRepoUrl] = useState("")
+  const [repoInputUrl, setRepoInputUrl] = useState("")
+  const [isRepoLoading, setIsRepoLoading] = useState(false)
+  const [isSavingRepo, setIsSavingRepo] = useState(false)
+
+  const parseRepoNameFromUrl = (rawUrl: string): string | null => {
+    const value = rawUrl.trim()
+    if (!value) return null
+    const directMatch = value.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/)
+    if (directMatch) return `${directMatch[1]}/${directMatch[2]}`
+    try {
+      const parsed = new URL(value)
+      const parts = parsed.pathname.split("/").filter(Boolean)
+      if (parts.length < 2) return null
+      const owner = parts[0]
+      const repo = parts[1].replace(/\.git$/, "")
+      return owner && repo ? `${owner}/${repo}` : null
+    } catch {
+      return null
+    }
+  }
+
+  const buildPrUrl = (repoName: string, prNumber: string) =>
+    `https://github.com/${repoName}/pull/${prNumber}`
 
   // ADDED: Helper to update URL without refreshing
   const updateUrlParams = (updates: Record<string, string | null>) => {
@@ -941,6 +964,81 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     }
   }
 
+  const fetchEnvironmentRepo = async () => {
+    if (!studentId || !selectedProject || !isVirtualEnvironmentProjectId(selectedProject)) {
+      setEnvironmentRepoUrl("")
+      return
+    }
+    setIsRepoLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from("github_repos")
+        .select("id, repo_url, created_at")
+        .eq("student_id", studentId)
+        .eq("environment_id", selectedProject)
+        .order("created_at", { ascending: false })
+        .limit(1)
+      if (error) throw error
+      const repoUrl = data?.[0]?.repo_url || ""
+      setEnvironmentRepoUrl(repoUrl)
+      setRepoInputUrl(repoUrl)
+    } catch (e) {
+      console.error("fetchEnvironmentRepo", e)
+      setEnvironmentRepoUrl("")
+    } finally {
+      setIsRepoLoading(false)
+    }
+  }
+
+  const saveEnvironmentRepo = async () => {
+    if (!studentId || !selectedProject) return
+    const trimmedUrl = repoInputUrl.trim()
+    if (!trimmedUrl) {
+      alert("Please paste a GitHub repo URL to continue.")
+      return
+    }
+    if (!parseRepoNameFromUrl(trimmedUrl)) {
+      alert("Please enter a valid GitHub repository URL.")
+      return
+    }
+    setIsSavingRepo(true)
+    try {
+      const { data, error } = await supabase
+        .from("github_repos")
+        .select("id")
+        .eq("student_id", studentId)
+        .eq("environment_id", selectedProject)
+        .order("created_at", { ascending: false })
+        .limit(1)
+      if (error) throw error
+
+      const existingId = data?.[0]?.id as string | undefined
+      if (existingId) {
+        const { error: updateErr } = await supabase
+          .from("github_repos")
+          .update({ repo_url: trimmedUrl })
+          .eq("id", existingId)
+        if (updateErr) throw updateErr
+      } else {
+        const { error: insertErr } = await supabase
+          .from("github_repos")
+          .insert({
+            student_id: studentId,
+            environment_id: selectedProject,
+            repo_url: trimmedUrl,
+          })
+        if (insertErr) throw insertErr
+      }
+      setEnvironmentRepoUrl(trimmedUrl)
+      setRepoInputUrl(trimmedUrl)
+    } catch (e) {
+      console.error("saveEnvironmentRepo", e)
+      alert("Failed to save repository URL. Please try again.")
+    } finally {
+      setIsSavingRepo(false)
+    }
+  }
+
   const handleJoinProject = (projectId: string) => {
     const newJoined = new Set(joinedProjectIds)
     newJoined.add(projectId)
@@ -1231,21 +1329,84 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
 
   // --- Manual Review Trigger ---
   const handleManualReview = async () => {
-    if (!reviewRepoName.trim() || !reviewPrNumber.trim()) return
+    const repoName = parseRepoNameFromUrl(environmentRepoUrl)
+    if (!repoName) {
+      alert("Repository URL is missing for this environment. Please save it first.")
+      return
+    }
+    if (!reviewPrNumber.trim()) return
+    if (!activeTaskId) {
+      alert("Please select a task before requesting review.")
+      return
+    }
     setIsReviewLoading(true)
     try {
+      const prUrl = buildPrUrl(repoName, reviewPrNumber.trim())
+      const { data: existingProgress, error: progressFetchErr } = await supabase
+        .from("task_progress")
+        .select("id")
+        .eq("student_id", studentId)
+        .eq("task_id", activeTaskId)
+        .limit(1)
+      if (progressFetchErr) throw progressFetchErr
+
+      if (existingProgress && existingProgress.length > 0) {
+        const { error: progressUpdateErr } = await supabase
+          .from("task_progress")
+          .update({ status: "submitted", submission_url: prUrl })
+          .eq("id", existingProgress[0].id)
+        if (progressUpdateErr) throw progressUpdateErr
+      } else {
+        const { error: progressInsertErr } = await supabase
+          .from("task_progress")
+          .insert({
+            student_id: studentId,
+            task_id: activeTaskId,
+            status: "submitted",
+            submission_url: prUrl,
+          })
+        if (progressInsertErr) throw progressInsertErr
+      }
+
       const res = await fetch(
-        `/api/agent/review?repo_name=${encodeURIComponent(reviewRepoName)}&pr_number=${encodeURIComponent(reviewPrNumber)}`,
+        `/api/agent/review?repo_name=${encodeURIComponent(repoName)}&pr_number=${encodeURIComponent(reviewPrNumber)}`,
         { method: "POST" }
       )
-      if (!res.ok) throw new Error(`Review error: ${res.status}`)
+
+      const body = await res.json().catch(() => ({} as any))
+      if (!res.ok) {
+        const detail = (body as any)?.detail || (body as any)?.error || `Review error: ${res.status}`
+        throw new Error(detail)
+      }
+
+      const maybeMessage =
+        (body as any)?.message ||
+        (body as any)?.detail ||
+        (body as any)?.error ||
+        ""
+      const noReviewable =
+        typeof maybeMessage === "string" &&
+        maybeMessage.toLowerCase().includes("no reviewable tasks")
+
+      if (noReviewable) {
+        alert("Review did not run: no reviewable tasks found for this environment. Please ensure at least one task is in submitted/in_progress status before requesting review.")
+        return
+      }
+
       setShowReviewModal(false)
-      setReviewRepoName("")
       setReviewPrNumber("")
       fetchPrReviews()
+      fetchProjectTasks()
+
+      const createdCount =
+        Number((body as any)?.reviews_created ?? (body as any)?.created ?? 0) ||
+        0
+      if (createdCount === 0) {
+        alert("Review request sent, but no new review record was created yet. Please refresh after a few seconds.")
+      }
     } catch (e) {
       console.error("Manual review error:", e)
-      alert("Failed to trigger review. Make sure the CodeReviewer agent is running.")
+      alert(e instanceof Error ? e.message : "Failed to trigger review. Make sure the CodeReviewer agent is running.")
     } finally {
       setIsReviewLoading(false)
     }
@@ -1596,6 +1757,10 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     }
   }, [selectedProject, joinedEnvironmentIds])
 
+  useEffect(() => {
+    void fetchEnvironmentRepo()
+  }, [selectedProject, studentId])
+
   // Fetch tasks/resources for board + task details views after environment join checks.
   useEffect(() => {
     if (mode !== "project" && mode !== "task_details") return
@@ -1606,9 +1771,12 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     ) {
       return
     }
+    if (isVirtualEnvironmentProjectId(selectedProject) && !environmentRepoUrl) {
+      return
+    }
     fetchProjectTasks()
     fetchProjectResources()
-  }, [mode, selectedProject, joinedEnvironmentIds])
+  }, [mode, selectedProject, joinedEnvironmentIds, environmentRepoUrl])
 
   // Derived UI state + sidebar sync — must run before any early return (Rules of Hooks)
   const isVirtualSelectedProject = Boolean(
@@ -1872,6 +2040,64 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
                           "Join environment"
                         )}
                       </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : selectedProject && isVirtualSelectedProject && hasJoinedVirtualWorkspace && (!environmentRepoUrl || isRepoLoading) ? (
+                <div className="flex-1 flex flex-col overflow-y-auto px-6 py-8">
+                  <div className="max-w-2xl mx-auto w-full">
+                    <button
+                      type="button"
+                      onClick={handleBackToEnvironments}
+                      className="inline-flex items-center gap-1 text-[13px] text-white/60 hover:text-white transition-colors rounded-lg px-2 py-1.5 hover:bg-white/5 -ml-2 mb-6"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      All environments
+                    </button>
+
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-6 space-y-5">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-300/80">Required setup</p>
+                      <h2 className="text-[22px] font-semibold text-white">Connect your project repository</h2>
+                      <p className="text-[14px] text-white/60">
+                        Before starting tasks, paste your GitHub repository URL for this environment.
+                        We will use this repo automatically for code reviews.
+                      </p>
+
+                      {isRepoLoading ? (
+                        <div className="flex items-center gap-2 text-[13px] text-white/50">
+                          <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                          Loading repository setup...
+                        </div>
+                      ) : (
+                        <>
+                          <div className="space-y-1.5">
+                            <label className="text-[11px] font-medium text-white/50 uppercase tracking-wider">GitHub Repository URL</label>
+                            <input
+                              type="url"
+                              value={repoInputUrl}
+                              onChange={(e) => setRepoInputUrl(e.target.value)}
+                              placeholder="https://github.com/owner/repo"
+                              className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-white/25 focus:outline-none focus:border-white/30 transition-all text-sm"
+                            />
+                          </div>
+
+                          <Button
+                            type="button"
+                            onClick={saveEnvironmentRepo}
+                            disabled={isSavingRepo || !repoInputUrl.trim()}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white"
+                          >
+                            {isSavingRepo ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                Saving...
+                              </>
+                            ) : (
+                              "Save & Continue"
+                            )}
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2228,6 +2454,13 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
                               <div className="lg:col-span-4 space-y-6">
                                 <div className="flex items-center justify-between mb-2">
                                   <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest">Submission History</h3>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowReviewModal(true)}
+                                    className="text-[10px] text-zinc-500 hover:text-zinc-300 border-b border-zinc-800 hover:border-zinc-500 transition-all pb-0.5"
+                                  >
+                                    REQUEST REVIEW
+                                  </button>
                                 </div>
 
                                 <div className="relative pl-2 space-y-0">
@@ -2409,14 +2642,10 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
               </div>
               <div className="p-5 space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-medium text-white/50 uppercase tracking-wider">Repository (owner/repo)</label>
-                  <input
-                    type="text"
-                    value={reviewRepoName}
-                    onChange={(e) => setReviewRepoName(e.target.value)}
-                    placeholder="e.g. octocat/hello-world"
-                    className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 transition-all text-sm"
-                  />
+                  <label className="text-[11px] font-medium text-white/50 uppercase tracking-wider">Repository</label>
+                  <div className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white/85 text-sm truncate">
+                    {environmentRepoUrl || "No repository configured"}
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-medium text-white/50 uppercase tracking-wider">PR Number</label>
@@ -2435,7 +2664,7 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
                 </Button>
                 <Button
                   onClick={handleManualReview}
-                  disabled={isReviewLoading || !reviewRepoName.trim() || !reviewPrNumber.trim()}
+                  disabled={isReviewLoading || !parseRepoNameFromUrl(environmentRepoUrl) || !reviewPrNumber.trim()}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs"
                 >
                   {isReviewLoading ? (
