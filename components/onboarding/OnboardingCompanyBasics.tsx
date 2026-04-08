@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { OnboardingFormData } from './types';
 import { INDUSTRY_OPTIONS, TECH_STACK_OPTIONS } from './constants';
@@ -29,6 +29,35 @@ export function OnboardingCompanyBasics({
   onAiSuggestMission,
   onSetShowAISuggestion,
 }: OnboardingCompanyBasicsProps) {
+  const [techSearch, setTechSearch] = useState('');
+  const [customTech, setCustomTech] = useState('');
+
+  const normalize = (value: string) => value.trim().toLowerCase();
+
+  const availableTechOptions = useMemo(() => {
+    const selected = new Set(formData.techStack.map((t) => normalize(t)));
+    const filtered = TECH_STACK_OPTIONS.filter((tech) => !selected.has(normalize(tech)));
+    if (!techSearch.trim()) return filtered;
+    const q = normalize(techSearch);
+    return filtered.filter((tech) => normalize(tech).includes(q));
+  }, [formData.techStack, techSearch]);
+
+  const customExists = useMemo(() => {
+    const key = normalize(customTech);
+    if (!key) return false;
+    return (
+      formData.techStack.some((t) => normalize(t) === key) ||
+      TECH_STACK_OPTIONS.some((t) => normalize(t) === key)
+    );
+  }, [customTech, formData.techStack]);
+
+  const handleAddCustomTech = () => {
+    const value = customTech.trim();
+    if (!value || customExists) return;
+    onAddTag('techStack', value);
+    setCustomTech('');
+  };
+
   return (
     <div className="max-w-3xl mx-auto">
       <h2 className="text-2xl font-bold mb-6">Company Basics</h2>
@@ -134,8 +163,20 @@ export function OnboardingCompanyBasics({
               </span>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {TECH_STACK_OPTIONS.filter((t) => !formData.techStack.includes(t)).map((tech) => (
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="techSearch" className="text-xs text-muted-foreground">Search stack options</Label>
+              <Input
+                id="techSearch"
+                value={techSearch}
+                onChange={(e) => setTechSearch(e.target.value)}
+                placeholder="Search frameworks, databases, cloud, tools..."
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-1">
+              {availableTechOptions.map((tech) => (
               <Button
                 key={tech}
                 type="button"
@@ -147,6 +188,39 @@ export function OnboardingCompanyBasics({
                 + {tech}
               </Button>
             ))}
+              {availableTechOptions.length === 0 && (
+                <p className="text-xs text-muted-foreground">No matching options. Add a custom tech below.</p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="customTech" className="text-xs text-muted-foreground">Add custom tech</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="customTech"
+                  value={customTech}
+                  onChange={(e) => setCustomTech(e.target.value)}
+                  placeholder="e.g., Bun, LangChain, ClickHouse"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomTech();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddCustomTech}
+                  disabled={!customTech.trim() || customExists}
+                >
+                  Add
+                </Button>
+              </div>
+              {customTech.trim() && customExists && (
+                <p className="text-xs text-amber-500">This tech is already selected or exists in presets.</p>
+              )}
+            </div>
           </div>
         </div>
       </div>

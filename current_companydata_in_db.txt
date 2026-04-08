@@ -1,0 +1,350 @@
+[
+  {
+    "company_id": "164df093-1931-48ab-9a28-c08d26124545",
+    "name": "IVP",
+    "description": null,
+    "industry": "FinTech",
+    "mission": "Indus Valley Partners keeps the world’s most sophisticated investment managers one step ahead of the future with improved efficiency, insight and performance.\n\nAt IVP, no technology, product, solution or service is ever static. We deliver transformation by design.",
+    "vision": null,
+    "employee_count": 100,
+    "evaluation_metrics": [
+      "Code Quality",
+      "Innovation",
+      "Problem Solving"
+    ],
+    "policies": {
+      "requireDocs": true,
+      "codingStandards": "modular code base",
+      "enforceCodeReview": true,
+      "conventionalCommits": true,
+      "confidentialityGuidelines": ""
+    },
+    "onboarding_advanced": {
+      "roles": [
+        {
+          "name": "Backend Intern",
+          "level": "Beginner",
+          "skills": [
+            "Node.js",
+            "API Design",
+            "Database",
+            "Authentication"
+          ],
+          "students": 5
+        },
+        {
+          "name": "Frontend Intern",
+          "level": "Beginner",
+          "skills": [
+            "React",
+            "CSS",
+            "JavaScript",
+            "UI/UX"
+          ],
+          "students": 5
+        }
+      ],
+      "codeExamples": null,
+      "projectBriefs": null,
+      "evaluationRubrics": null
+    },
+    "created_at": "2026-04-08 19:18:48.056281+00",
+    "environments": [
+      {
+        "tasks": [
+          {
+            "title": "Environment Setup and Input Handling",
+            "task_id": "6e887a93-7137-48d9-93ea-5cab18f19ab6",
+            "created_at": "2026-04-08T19:33:57.5334+00:00",
+            "task_order": 1,
+            "description": "Create the project directory and a main.py file. Implement a script that prompts the user to enter their name and a single expense amount using the input() function, then prints a greeting and the entered amount using f-strings."
+          },
+          {
+            "title": "Data Structures and Expense Collection",
+            "task_id": "f26a2919-20e2-41c7-b930-c474b9bb3617",
+            "created_at": "2026-04-08T19:33:57.5334+00:00",
+            "task_order": 2,
+            "description": "Modify the script to use a list of dictionaries to store multiple expenses. Each dictionary should contain keys for 'item', 'amount', and 'category'. Implement a loop that allows the user to keep adding expenses until they type 'quit'."
+          },
+          {
+            "title": "Control Flow and Menu System",
+            "task_id": "5ff6fd42-9682-473d-8c74-96672762df0b",
+            "created_at": "2026-04-08T19:33:57.5334+00:00",
+            "task_order": 3,
+            "description": "Implement a while-loop based menu system that gives the user options: 1. Add Expense, 2. View Expenses, 3. Calculate Total, and 4. Exit. Use if-elif-else statements to route the user's choice to the correct logic."
+          },
+          {
+            "title": "File I/O for Data Persistence",
+            "task_id": "ad6f852d-06b6-43e7-a279-f497544a0931",
+            "created_at": "2026-04-08T19:33:57.5334+00:00",
+            "task_order": 4,
+            "description": "Integrate file handling to ensure data is not lost when the program closes. Create functions to save the list of expenses to a text file and load them back into the program's memory when the script starts."
+          },
+          {
+            "title": "Error Handling and Validation",
+            "task_id": "03d66aa6-b602-4b98-86c3-f3a44f5699fe",
+            "created_at": "2026-04-08T19:33:57.5334+00:00",
+            "task_order": 5,
+            "description": "Refine the application by adding try-except blocks to handle cases where the user enters non-numeric values for expense amounts. Ensure the program does not crash and provides a helpful error message to the user."
+          }
+        ],
+        "title": "CLI Personal Expense Tracker",
+        "status": "open",
+        "created_at": "2026-04-08T19:33:57.075239+00:00",
+        "tech_stack": [],
+        "description": "The Personal Expense Tracker is a command-line interface (CLI) application designed to help users manage their daily spending. This project serves as a foundational exercise for Python beginners, focusing on core programming concepts such as data types, control flow, functions, and file handling. Students will build a tool that allows users to input expenses, categorize them, and view summaries of their financial habits.\n\nThe primary goal is to bridge the gap between theoretical syntax and practical application. By the end of this project, students will have a functional script that can store data persistently on a local machine. The scope includes basic CRUD (Create, Read, Update, Delete) operations on expense records and simple data validation to ensure the application is robust against user input errors.",
+        "environment_id": "eeac289c-b7d0-4ba3-ad13-80e1d07f9c38"
+      },
+      {
+        "tasks": [
+          {
+            "title": "Project Initialization and Menu Loop",
+            "task_id": "09e9f7c1-5505-4952-b2a6-866d46a23bca",
+            "created_at": "2026-04-08T19:32:43.852263+00:00",
+            "task_order": 1,
+            "description": "Create a new C# Console Application and implement a 'while' loop that keeps the program running until the user chooses to exit. Display a text-based menu with options: 1. View Tasks, 2. Add Task, 3. Complete Task, 4. Exit."
+          },
+          {
+            "title": "Define the Task Data Model",
+            "task_id": "b89b85eb-c47b-4c32-b4ee-50294fec262c",
+            "created_at": "2026-04-08T19:32:43.852263+00:00",
+            "task_order": 2,
+            "description": "Inside the same file, define a simple class named 'TaskItem' with two properties: 'Description' (string) and 'IsCompleted' (bool). Initialize a List of TaskItem objects at the start of the program to act as the data store."
+          },
+          {
+            "title": "Implement 'Add Task' Logic",
+            "task_id": "e799bd91-86bd-401a-8793-d4a4e855f872",
+            "created_at": "2026-04-08T19:32:43.852263+00:00",
+            "task_order": 3,
+            "description": "Develop the logic for the 'Add Task' menu option. Prompt the user for a string description, instantiate a new TaskItem, and add it to the global list. Ensure the program provides feedback that the task was saved."
+          },
+          {
+            "title": "Display Task List",
+            "task_id": "179dbc4d-ad3c-49d8-bd60-f86793f9a27e",
+            "created_at": "2026-04-08T19:32:43.852263+00:00",
+            "task_order": 4,
+            "description": "Implement the 'View Tasks' functionality. Iterate through the list and print each task to the console with its index number and a visual indicator of its status (e.g., '[X]' for complete, '[ ]' for incomplete). Handle the case where the list is empty."
+          },
+          {
+            "title": "Task Completion and Validation",
+            "task_id": "52331bd4-8834-47d5-ab14-085982195220",
+            "created_at": "2026-04-08T19:32:43.852263+00:00",
+            "task_order": 5,
+            "description": "Implement the 'Complete Task' logic. Prompt the user for the index number of the task they wish to mark as done. Include error handling to ensure the input is a valid integer and within the bounds of the list, then update the 'IsCompleted' property to true."
+          }
+        ],
+        "title": "Console-Based Task Manager CLI",
+        "status": "open",
+        "created_at": "2026-04-08T19:32:43.341509+00:00",
+        "tech_stack": [],
+        "description": "This project involves building a lightweight, single-file C# console application designed to manage a personal to-do list. The primary objective is to master the fundamentals of C# syntax, including loops, conditional logic, and collection management within the .NET environment. Students will simulate a real-world utility tool that handles user input and maintains state during runtime.\n\nThe project scope covers basic CRUD (Create, Read, Update, Delete) operations simplified for a command-line interface. By the end of this project, the student will have a functional tool that can capture tasks, display them in a formatted list, and track completion status, all contained within a single Program.cs file to emphasize code organization and logic flow.",
+        "environment_id": "e5459247-2cfa-4a22-9d99-aa2e74dfab4e"
+      }
+    ]
+  },
+  {
+    "company_id": "4397c8db-6265-4a32-a4f2-0bd4b7f2cf14",
+    "name": "TCS",
+    "description": null,
+    "industry": "SaaS",
+    "mission": "Empowering the future of SaaS through innovative solutions that transform how businesses operate and scale.",
+    "vision": null,
+    "employee_count": 10,
+    "evaluation_metrics": [
+      "Innovation",
+      "Problem Solving",
+      "Teamwork",
+      "Code Quality",
+      "Project Completion"
+    ],
+    "policies": {
+      "requireDocs": false,
+      "codingStandards": "POLICIESSSS",
+      "enforceCodeReview": false,
+      "conventionalCommits": false,
+      "confidentialityGuidelines": "SHHHHH"
+    },
+    "onboarding_advanced": {
+      "roles": [
+        {
+          "name": "Backend Intern",
+          "level": "Beginner",
+          "skills": [
+            "Node.js",
+            "API Design",
+            "Database",
+            "Authentication"
+          ],
+          "students": "2"
+        },
+        {
+          "name": "Frontend Intern",
+          "level": "Beginner",
+          "skills": [
+            "React",
+            "CSS",
+            "JavaScript",
+            "UI/UX"
+          ],
+          "students": 5
+        }
+      ],
+      "codeExamples": null,
+      "projectBriefs": null,
+      "evaluationRubrics": null
+    },
+    "created_at": "2026-02-26 17:28:55.173661+00",
+    "environments": [
+      {
+        "tasks": [
+          {
+            "title": "Define the Base Student Class",
+            "task_id": "8c88104b-f9c8-47f0-a457-3e1abd982402",
+            "created_at": "2026-04-07T09:47:44.30219+00:00",
+            "task_order": 1,
+            "description": "Create a class named 'Student' with protected attributes for 'studentID' (int) and 'name' (string). Implement a constructor to initialize these values and a virtual function 'displayInfo()' that prints the student details to the console."
+          },
+          {
+            "title": "Implement the ScholarshipStudent Derived Class",
+            "task_id": "55f0f8c1-8f17-4f0f-a540-d1e99631ab4a",
+            "created_at": "2026-04-07T09:47:44.30219+00:00",
+            "task_order": 2,
+            "description": "Create a class 'ScholarshipStudent' that inherits publicly from 'Student'. Add a private attribute 'scholarshipAmount' (double). Override the 'displayInfo()' function to call the base class display method and also print the scholarship amount."
+          },
+          {
+            "title": "Develop the Main Menu Interface",
+            "task_id": "87b0e1a2-22a0-4b4c-b4bd-20feb88b6fc7",
+            "created_at": "2026-04-07T09:47:44.30219+00:00",
+            "task_order": 3,
+            "description": "In 'main.cpp', implement a loop that displays a menu with options: 1. Add Regular Student, 2. Add Scholarship Student, 3. Display All Records, and 4. Exit. Use a switch-case statement to capture the user's choice."
+          },
+          {
+            "title": "Logic for Adding Records",
+            "task_id": "04f2b180-da0e-4afc-a8ad-8ee44abaa676",
+            "created_at": "2026-04-07T09:47:44.30219+00:00",
+            "task_order": 4,
+            "description": "Inside the switch-case, implement the logic to prompt the user for input (ID, Name, and Scholarship Amount if applicable). Instantiate the appropriate object and store it in a vector of Student pointers to allow for polymorphic behavior."
+          },
+          {
+            "title": "Implement the Display Logic",
+            "task_id": "57ce154b-55fc-4236-a880-5b375c35c047",
+            "created_at": "2026-04-07T09:47:44.30219+00:00",
+            "task_order": 5,
+            "description": "Create the logic for the 'Display All' menu option. Iterate through your collection of students and call the 'displayInfo()' method for each. Ensure that the program correctly identifies and displays the specific details for both regular and scholarship students."
+          },
+          {
+            "title": "Input Validation and Cleanup",
+            "task_id": "4939be8b-a7f6-4d59-ac99-c4b3c5b740bf",
+            "created_at": "2026-04-07T09:47:44.30219+00:00",
+            "task_order": 6,
+            "description": "Add a 'default' case to your switch statement to handle invalid menu selections. Ensure that the program exits gracefully when the user chooses the exit option, and include basic memory management if pointers were used."
+          }
+        ],
+        "title": "EduTrack: C++ Student Management System",
+        "status": "open",
+        "created_at": "2026-04-07T09:47:43.678522+00:00",
+        "tech_stack": [],
+        "description": "Welcome to the CareerSetu Software Development team. Our client, a local educational institute, requires a lightweight command-line interface (CLI) application to manage their growing student database. The current manual process is prone to errors, and they need a structured way to categorize general students and those receiving financial aid. Your goal is to build a prototype that demonstrates clean object-oriented design and a user-friendly navigation system.\n\nThis project focuses on the core pillars of C++ programming: Inheritance and Control Flow. You will design a base class to handle common student attributes and a derived class to handle scholarship-specific data. The user interface will be driven by a robust switch-case menu, allowing administrators to add records, view details, and exit the system seamlessly. By the end of this project, you will have a functional tool that showcases how classes can be extended to model real-world entities.",
+        "environment_id": "f51ae61e-218e-44fc-bea3-8e42e9ad8ece"
+      },
+      {
+        "tasks": [
+          {
+            "title": "Project Initialization and Routing",
+            "task_id": "deeaad52-158d-4d13-a66c-57f4278cfa2e",
+            "created_at": "2026-03-26T17:18:51.710228+00:00",
+            "task_order": 1,
+            "description": "Set up the React application using Vite or CRA. Install and configure React Router for navigation between Login, Signup, Dashboard, and Analytics pages. Implement a basic layout wrapper with a navigation bar."
+          },
+          {
+            "title": "Authentication System Implementation",
+            "task_id": "26cc2b02-61d0-4567-89d0-68f3a91b6878",
+            "created_at": "2026-03-26T17:18:51.710228+00:00",
+            "task_order": 2,
+            "description": "Create Login and Signup forms with validation. Implement the authentication service to store JWT tokens in localStorage and manage the user's logged-in state using React Context API."
+          },
+          {
+            "title": "Task Dashboard and Data Fetching",
+            "task_id": "f8029d40-7e89-455e-93e3-dc036e6cdc30",
+            "created_at": "2026-03-26T17:18:51.710228+00:00",
+            "task_order": 3,
+            "description": "Develop the main dashboard UI. Implement a GET request to fetch the user's tasks from the API and render them in a list or grid format with appropriate loading states."
+          },
+          {
+            "title": "Task Creation and Validation",
+            "task_id": "4da8bcf8-af60-4890-99aa-a9bfc985679c",
+            "created_at": "2026-03-26T17:18:51.710228+00:00",
+            "task_order": 4,
+            "description": "Build a modal or form to create new tasks. Implement POST requests to the backend, ensuring all required fields like title, description, and deadline are validated before submission."
+          },
+          {
+            "title": "Full Task Updates and Deletion",
+            "task_id": "c63c3764-ebef-4791-9cd7-b1f1d8b2d410",
+            "created_at": "2026-03-26T17:18:51.710228+00:00",
+            "task_order": 5,
+            "description": "Implement the ability to edit existing tasks via a PUT request and delete tasks via a DELETE request. Ensure the UI updates optimistically or refreshes data upon successful API response."
+          },
+          {
+            "title": "Partial Updates with PATCH",
+            "task_id": "19bd8d8b-e8b5-429e-899c-6f9f84cba071",
+            "created_at": "2026-03-26T17:18:51.710228+00:00",
+            "task_order": 6,
+            "description": "Implement a 'Quick Toggle' feature for task completion and priority levels. Use the HTTP PATCH method to update only specific fields of a task without sending the entire object to the server."
+          },
+          {
+            "title": "Analytics Engine Setup",
+            "task_id": "44e60184-c550-4d5e-9a96-2b5d2ff2625a",
+            "created_at": "2026-03-26T17:18:51.710228+00:00",
+            "task_order": 7,
+            "description": "Integrate a charting library such as Chart.js or Recharts. Create a data processing utility that transforms the raw task array into formatted data structures required for visualization."
+          },
+          {
+            "title": "Visualization 1: Task Completion Ratio",
+            "task_id": "f4459411-f1e0-4f38-94e4-5371e8ab7830",
+            "created_at": "2026-03-26T17:18:51.710228+00:00",
+            "task_order": 8,
+            "description": "Develop a Pie or Donut chart that visualizes the ratio of 'Completed' versus 'Pending' tasks to give users an immediate sense of progress."
+          },
+          {
+            "title": "Visualization 2: Priority Distribution",
+            "task_id": "ec09e3b7-2a79-4c81-bcee-cc86c37c32e4",
+            "created_at": "2026-03-26T17:18:51.710228+00:00",
+            "task_order": 9,
+            "description": "Create a Bar chart showing the count of tasks categorized by priority levels (e.g., Low, Medium, High) to help users identify bottlenecks."
+          },
+          {
+            "title": "Visualization 3: Productivity Timeline",
+            "task_id": "1360ae19-0873-489c-95fd-1d3e15309d23",
+            "created_at": "2026-03-26T17:18:51.710228+00:00",
+            "task_order": 10,
+            "description": "Implement a Line chart that tracks the number of tasks completed over the last 7 days, requiring date manipulation and grouping logic."
+          },
+          {
+            "title": "Visualization 4: Category Workload",
+            "task_id": "1041b1c6-760a-4e04-90da-d750c3f56ffc",
+            "created_at": "2026-03-26T17:18:51.710228+00:00",
+            "task_order": 11,
+            "description": "Build a Radar or Area chart that displays the distribution of tasks across different categories or tags, highlighting where the user's focus is most heavily invested."
+          },
+          {
+            "title": "Final Polish and Error Handling",
+            "task_id": "275a46ba-e700-4713-8ee3-57bb35cf5fc5",
+            "created_at": "2026-03-26T17:18:51.710228+00:00",
+            "task_order": 12,
+            "description": "Implement global error boundaries, toast notifications for API successes/failures, and ensure the application is fully responsive across mobile and desktop devices."
+          }
+        ],
+        "title": "TaskFlow Pro: Advanced Management & Analytics Dashboard",
+        "status": "open",
+        "created_at": "2026-03-26T17:18:51.445638+00:00",
+        "tech_stack": [
+          "MongoDB",
+          "React",
+          "Python"
+        ],
+        "description": "TaskFlow Pro is a comprehensive React-based task management system designed to help users organize workflows, track progress, and visualize productivity through data-driven insights. The application serves as a professional-grade tool for individuals and teams to manage daily operations while maintaining a high-level view of their performance metrics.\n\nThe primary goal of this project is to master complex state management and API interactions in a React environment. Students will implement a secure authentication layer, a full CRUD (Create, Read, Update, Delete) interface for tasks, and a dedicated analytics module. A specific focus is placed on the use of the HTTP PATCH method for efficient partial updates to task statuses and priorities.\n\nThe scope includes building a responsive frontend that communicates with a RESTful API. Key technical challenges include handling JWT-based authentication, managing global state for task data, and integrating a charting library to render four distinct visualizations based on live task metadata.",
+        "environment_id": "8c1d24ce-75ec-4cc0-81cd-b070963fc90a"
+      }
+    ]
+  }
+]
