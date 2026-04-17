@@ -1,0 +1,109 @@
+{
+  "primitive": "SEQUENCE_DIAGRAM_V1",
+  "config": {
+    "width": 860,
+    "height": 520,
+    "headerW": 120,
+    "headerH": 34,
+    "participantGap": 190,
+    "topPad": 72,
+    "bottomPad": 38,
+    "leftPad": 60,
+    "rowGap": 44,
+    "lifelineDash": "6,5",
+    "activationW": 12,
+    "colors": {
+      "headerFill": "rgba(255, 255, 255, 0.03)",
+      "headerStroke": "rgba(255, 255, 255, 0.08)",
+      "lifeline": "#4f46e5",
+      "messageSync": "#3b82f6",
+      "messageAsync": "#10b981",
+      "messageReturn": "#eab308",
+      "text": "#ffffff",
+      "subtleText": "rgba(226, 232, 240, 0.75)",
+      "noteFill": "rgba(59, 130, 246, 0.12)",
+      "noteStroke": "rgba(59, 130, 246, 0.45)",
+      "noteText": "#c7d2fe",
+      "activationFill": "rgba(234, 179, 8, 0.18)",
+      "activationStroke": "#eab308"
+    }
+  },
+  "functions": {
+    "renderSequenceBase": {
+      "params": [
+        "participants",
+        "title",
+        "subtitle"
+      ],
+      "code": "const cfg = registry && registry.config ? registry.config : {}; const colors = cfg.colors || {}; const width = Number(cfg.width) || 860; const height = Number(cfg.height) || 520; const headerW = Number(cfg.headerW) || 120; const headerH = Number(cfg.headerH) || 34; const gap = Number(cfg.participantGap) || 190; const topPad = Number(cfg.topPad) || 72; const bottomPad = Number(cfg.bottomPad) || 38; const leftPad = Number(cfg.leftPad) || 60; const rowGap = Number(cfg.rowGap) || 44; const lifelineDash = cfg.lifelineDash || '6,5'; const participants = Array.isArray(args && args.participants) ? args.participants.filter(p => p && p.id !== undefined && p.id !== null && String(p.id).trim() !== '') : []; svg.selectAll('.sd-root, .sd-title, .sd-subtitle').remove(); if (!participants.length) return; svg.attr('data-sd-cursor-y', topPad + headerH + 28).attr('data-sd-start-y', topPad + headerH + 28).attr('data-sd-row-gap', rowGap).attr('data-sd-height', height); const root = svg.append('g').attr('class', 'sd-root'); const defs = root.append('defs'); const mkSync = defs.append('marker').attr('id', 'sd-arrow-sync').attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5).attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto'); mkSync.append('path').attr('d', 'M 0 0 L 10 5 L 0 10 z').attr('fill', colors.messageSync || '#3b82f6'); const mkAsync = defs.append('marker').attr('id', 'sd-arrow-async').attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5).attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto'); mkAsync.append('path').attr('d', 'M 0 0 L 10 5 L 0 10').attr('fill', 'none').attr('stroke', colors.messageAsync || '#10b981').attr('stroke-width', 1.8); const mkReturn = defs.append('marker').attr('id', 'sd-arrow-return').attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5).attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto'); mkReturn.append('path').attr('d', 'M 0 0 L 10 5 L 0 10').attr('fill', 'none').attr('stroke', colors.messageReturn || '#eab308').attr('stroke-width', 1.8); if (args && args.title) { root.append('text').attr('class', 'sd-title').attr('x', width / 2).attr('y', 28).attr('text-anchor', 'middle').attr('fill', colors.text || '#ffffff').style('font-family', '\"Inter\", sans-serif').style('font-size', '15px').style('font-weight', '700').text(String(args.title)); } if (args && args.subtitle) { root.append('text').attr('class', 'sd-subtitle').attr('x', width / 2).attr('y', 48).attr('text-anchor', 'middle').attr('fill', colors.subtleText || 'rgba(226,232,240,0.75)').style('font-family', '\"Inter\", sans-serif').style('font-size', '12px').style('font-weight', '500').text(String(args.subtitle)); } const staticG = root.append('g').attr('class', 'sd-static'); const dynamicG = root.append('g').attr('class', 'sd-dynamic'); dynamicG.append('g').attr('class', 'sd-messages'); dynamicG.append('g').attr('class', 'sd-activations'); dynamicG.append('g').attr('class', 'sd-notes'); dynamicG.append('g').attr('class', 'sd-dividers'); dynamicG.append('g').attr('class', 'sd-destroys'); participants.forEach((p, i) => { const id = String(p.id); const label = p.label !== undefined ? String(p.label) : id; const x = leftPad + i * gap; const pg = staticG.append('g').attr('class', `sd-participant sd-participant-${id.replace(/[^a-zA-Z0-9_-]/g, '-')}`).attr('data-id', id).attr('data-x', x); pg.append('rect').attr('class', 'sd-participant-box').attr('x', x - headerW / 2).attr('y', topPad).attr('width', headerW).attr('height', headerH).attr('rx', 6).attr('fill', colors.headerFill || 'rgba(255,255,255,0.03)').attr('stroke', colors.headerStroke || 'rgba(255,255,255,0.08)').attr('stroke-width', 1.5); pg.append('text').attr('class', 'sd-participant-label').attr('x', x).attr('y', topPad + headerH / 2 + 5).attr('text-anchor', 'middle').attr('fill', colors.text || '#ffffff').style('font-family', '\"Inter\", sans-serif').style('font-size', '13px').style('font-weight', '600').text(label); pg.append('line').attr('class', 'sd-lifeline').attr('x1', x).attr('y1', topPad + headerH).attr('x2', x).attr('y2', Math.max(topPad + headerH + 10, height - bottomPad)).attr('stroke', colors.lifeline || '#4f46e5').attr('stroke-width', 1.6).attr('stroke-dasharray', lifelineDash); });"
+    },
+    "sendMessage": {
+      "params": [
+        "from",
+        "to",
+        "text",
+        "type"
+      ],
+      "code": "const root = svg.select('.sd-root'); if (root.empty()) return; if (!args || args.from === undefined || args.to === undefined) return; const fromId = String(args.from); const toId = String(args.to); const fromP = root.select(`.sd-participant[data-id='${fromId.replace(/'/g, \"\\\\'\")}']`); const toP = root.select(`.sd-participant[data-id='${toId.replace(/'/g, \"\\\\'\")}']`); if (fromP.empty() || toP.empty()) return; const x1 = Number(fromP.attr('data-x')); const x2 = Number(toP.attr('data-x')); if (!Number.isFinite(x1) || !Number.isFinite(x2)) return; const y = Number(svg.attr('data-sd-cursor-y')); const rowGap = Number(svg.attr('data-sd-row-gap')) || 44; if (!Number.isFinite(y)) return; const cfg = registry && registry.config ? registry.config : {}; const colors = cfg.colors || {}; const type = args && typeof args.type === 'string' ? args.type : 'sync'; const color = type === 'return' ? (colors.messageReturn || '#eab308') : (type === 'async' ? (colors.messageAsync || '#10b981') : (colors.messageSync || '#3b82f6')); const marker = type === 'return' ? 'url(#sd-arrow-return)' : (type === 'async' ? 'url(#sd-arrow-async)' : 'url(#sd-arrow-sync)'); const dash = type === 'return' ? '5,4' : (type === 'async' ? '2,3' : 'none'); const msgs = root.select('.sd-messages'); const g = msgs.append('g').attr('class', 'sd-msg').attr('data-from', fromId).attr('data-to', toId); g.append('line').attr('class', 'sd-msg-line').attr('x1', x1).attr('y1', y).attr('x2', x1).attr('y2', y).attr('stroke', color).attr('stroke-width', 2).attr('stroke-dasharray', dash).attr('marker-end', marker).transition().duration(280).attr('x2', x2).attr('y2', y); if (args && args.text) { g.append('text').attr('class', 'sd-msg-label').attr('x', (x1 + x2) / 2).attr('y', y - 8).attr('text-anchor', 'middle').attr('fill', colors.subtleText || 'rgba(226,232,240,0.75)').style('font-family', '\"Inter\", sans-serif').style('font-size', '12px').style('font-weight', '500').text(String(args.text)); } const nextY = y + rowGap; svg.attr('data-sd-cursor-y', nextY); root.selectAll('.sd-activation.sd-activation-open').each(function() { const el = d3.select(this); const start = Number(el.attr('data-start')); if (!Number.isFinite(start)) return; el.attr('height', Math.max(8, nextY - start)); });"
+    },
+    "activateParticipant": {
+      "params": [
+        "id",
+        "active"
+      ],
+      "code": "const root = svg.select('.sd-root'); if (root.empty()) return; if (!args || args.id === undefined || args.id === null) return; const id = String(args.id); const p = root.select(`.sd-participant[data-id='${id.replace(/'/g, \"\\\\'\")}']`); if (p.empty()) return; const x = Number(p.attr('data-x')); const y = Number(svg.attr('data-sd-cursor-y')); const startY = Number(svg.attr('data-sd-start-y')); if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(startY)) return; const cfg = registry && registry.config ? registry.config : {}; const colors = cfg.colors || {}; const w = Number(cfg.activationW) || 12; const active = !!(args && args.active); const activations = root.select('.sd-activations'); if (active) { const existing = activations.select(`.sd-activation-open[data-id='${id.replace(/'/g, \"\\\\'\")}']`); if (!existing.empty()) return; activations.append('rect').attr('class', 'sd-activation sd-activation-open').attr('data-id', id).attr('data-start', y).attr('x', x - w / 2).attr('y', y).attr('width', w).attr('height', 8).attr('fill', colors.activationFill || 'rgba(234,179,8,0.18)').attr('stroke', colors.activationStroke || '#eab308').attr('stroke-width', 1.2); return; } const open = activations.select(`.sd-activation-open[data-id='${id.replace(/'/g, \"\\\\'\")}']`); if (open.empty()) return; const start = Number(open.attr('data-start')); if (!Number.isFinite(start)) { open.classed('sd-activation-open', false).attr('data-start', null); return; } open.interrupt().transition().duration(220).attr('height', Math.max(8, y - start)).on('end', function() { d3.select(this).classed('sd-activation-open', false).attr('data-start', null); });"
+    },
+    "createMessage": {
+      "params": [
+        "at",
+        "text"
+      ],
+      "code": "const root = svg.select('.sd-root'); if (root.empty()) return; if (!args || args.at === undefined || args.at === null) return; const id = String(args.at); const p = root.select(`.sd-participant[data-id='${id.replace(/'/g, \"\\\\'\")}']`); if (p.empty()) return; const x = Number(p.attr('data-x')); const y = Number(svg.attr('data-sd-cursor-y')); const rowGap = Number(svg.attr('data-sd-row-gap')) || 44; if (!Number.isFinite(x) || !Number.isFinite(y)) return; const cfg = registry && registry.config ? registry.config : {}; const colors = cfg.colors || {}; const msgs = root.select('.sd-messages'); const g = msgs.append('g').attr('class', 'sd-msg sd-msg-self').attr('data-from', id).attr('data-to', id); const loopW = 40; const loopH = 22; g.append('path').attr('class', 'sd-msg-line').attr('d', `M ${x} ${y} h ${loopW} v ${loopH} h ${-loopW}`).attr('fill', 'none').attr('stroke', colors.messageSync || '#3b82f6').attr('stroke-width', 2).attr('marker-end', 'url(#sd-arrow-sync)'); if (args && args.text) { g.append('text').attr('class', 'sd-msg-label').attr('x', x + loopW / 2).attr('y', y - 8).attr('text-anchor', 'middle').attr('fill', colors.subtleText || 'rgba(226,232,240,0.75)').style('font-family', '\"Inter\", sans-serif').style('font-size', '12px').style('font-weight', '500').text(String(args.text)); } const nextY = y + rowGap; svg.attr('data-sd-cursor-y', nextY); root.selectAll('.sd-activation.sd-activation-open').each(function() { const el = d3.select(this); const start = Number(el.attr('data-start')); if (!Number.isFinite(start)) return; el.attr('height', Math.max(8, nextY - start)); });"
+    },
+    "selfLoop": {
+      "params": [
+        "id",
+        "text"
+      ],
+      "code": "const root = svg.select('.sd-root'); if (root.empty()) return; if (!args || args.id === undefined || args.id === null) return; const id = String(args.id); const p = root.select(`.sd-participant[data-id='${id.replace(/'/g, \"\\\\'\")}']`); if (p.empty()) return; const x = Number(p.attr('data-x')); const y = Number(svg.attr('data-sd-cursor-y')); const rowGap = Number(svg.attr('data-sd-row-gap')) || 44; if (!Number.isFinite(x) || !Number.isFinite(y)) return; const cfg = registry && registry.config ? registry.config : {}; const colors = cfg.colors || {}; const msgs = root.select('.sd-messages'); const g = msgs.append('g').attr('class', 'sd-msg sd-msg-self sd-msg-selfloop').attr('data-from', id).attr('data-to', id); const loopW = 46; const loopH = 24; g.append('path').attr('class', 'sd-msg-line').attr('d', `M ${x} ${y} h ${loopW} v ${loopH} h ${-loopW}`).attr('fill', 'none').attr('stroke', colors.messageSync || '#3b82f6').attr('stroke-width', 2).attr('marker-end', 'url(#sd-arrow-sync)'); if (args && args.text) { g.append('text').attr('class', 'sd-msg-label').attr('x', x + loopW / 2).attr('y', y - 8).attr('text-anchor', 'middle').attr('fill', colors.subtleText || 'rgba(226,232,240,0.75)').style('font-family', '\"Inter\", sans-serif').style('font-size', '12px').style('font-weight', '500').text(String(args.text)); } const nextY = y + rowGap; svg.attr('data-sd-cursor-y', nextY); root.selectAll('.sd-activation.sd-activation-open').each(function() { const el = d3.select(this); const start = Number(el.attr('data-start')); if (!Number.isFinite(start)) return; el.attr('height', Math.max(8, nextY - start)); });"
+    },
+    "addNote": {
+      "params": [
+        "over",
+        "participant",
+        "text"
+      ],
+      "code": "const root = svg.select('.sd-root'); if (root.empty()) return; if (!args || !args.text) return; const y = Number(svg.attr('data-sd-cursor-y')); const rowGap = Number(svg.attr('data-sd-row-gap')) || 44; if (!Number.isFinite(y)) return; const cfg = registry && registry.config ? registry.config : {}; const colors = cfg.colors || {}; const notes = root.select('.sd-notes'); let x = null; let w = 150; if (Array.isArray(args.over) && args.over.length === 2) { const a = root.select(`.sd-participant[data-id='${String(args.over[0]).replace(/'/g, \"\\\\'\")}']`); const b = root.select(`.sd-participant[data-id='${String(args.over[1]).replace(/'/g, \"\\\\'\")}']`); if (a.empty() || b.empty()) return; const xa = Number(a.attr('data-x')); const xb = Number(b.attr('data-x')); if (!Number.isFinite(xa) || !Number.isFinite(xb)) return; const minX = Math.min(xa, xb); const maxX = Math.max(xa, xb); x = minX - 70; w = Math.max(150, (maxX - minX) + 140); } else if (args.participant !== undefined && args.participant !== null) { const p = root.select(`.sd-participant[data-id='${String(args.participant).replace(/'/g, \"\\\\'\")}']`); if (p.empty()) return; const px = Number(p.attr('data-x')); if (!Number.isFinite(px)) return; x = px - 75; w = 150; } else { return; } const g = notes.append('g').attr('class', 'sd-note').style('opacity', 0); g.append('rect').attr('x', x).attr('y', y - 14).attr('width', w).attr('height', 30).attr('rx', 6).attr('fill', colors.noteFill || 'rgba(59,130,246,0.12)').attr('stroke', colors.noteStroke || 'rgba(59,130,246,0.45)').attr('stroke-width', 1.2); g.append('text').attr('x', x + w / 2).attr('y', y + 5).attr('text-anchor', 'middle').attr('fill', colors.noteText || '#c7d2fe').style('font-family', 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace').style('font-size', '11px').style('font-weight', '500').text(String(args.text)); g.transition().duration(220).style('opacity', 1); const nextY = y + rowGap; svg.attr('data-sd-cursor-y', nextY); root.selectAll('.sd-activation.sd-activation-open').each(function() { const el = d3.select(this); const start = Number(el.attr('data-start')); if (!Number.isFinite(start)) return; el.attr('height', Math.max(8, nextY - start)); });"
+    },
+    "setFocusParticipants": {
+      "params": [
+        "ids"
+      ],
+      "code": "const root = svg.select('.sd-root'); if (root.empty()) return; const ids = Array.isArray(args && args.ids) ? args.ids.map(v => String(v)) : []; if (!ids.length) { root.selectAll('.sd-participant, .sd-msg, .sd-note, .sd-activation, .sd-divider, .sd-destroy').transition().duration(200).style('opacity', 1); return; } root.selectAll('.sd-participant').each(function() { const el = d3.select(this); const id = String(el.attr('data-id') || ''); const keep = ids.indexOf(id) >= 0; el.transition().duration(200).style('opacity', keep ? 1 : 0.2); }); root.selectAll('.sd-msg').each(function() { const el = d3.select(this); const from = String(el.attr('data-from') || ''); const to = String(el.attr('data-to') || ''); const keep = ids.indexOf(from) >= 0 || ids.indexOf(to) >= 0; el.transition().duration(200).style('opacity', keep ? 1 : 0.16); }); root.selectAll('.sd-note').transition().duration(200).style('opacity', 0.24); root.selectAll('.sd-activation').each(function() { const el = d3.select(this); const id = String(el.attr('data-id') || ''); const keep = ids.indexOf(id) >= 0; el.transition().duration(200).style('opacity', keep ? 1 : 0.2); }); root.selectAll('.sd-divider, .sd-destroy').transition().duration(200).style('opacity', 0.25);"
+    },
+    "clearHighlights": {
+      "params": [],
+      "code": "const root = svg.select('.sd-root'); if (root.empty()) return; root.selectAll('.sd-participant, .sd-msg, .sd-note, .sd-activation, .sd-divider, .sd-destroy').interrupt().transition().duration(180).style('opacity', 1);"
+    },
+    "resetTimeline": {
+      "params": [],
+      "code": "const startY = Number(svg.attr('data-sd-start-y')); if (!Number.isFinite(startY)) return; svg.attr('data-sd-cursor-y', startY); const root = svg.select('.sd-root'); if (root.empty()) return; root.selectAll('.sd-activation.sd-activation-open').each(function() { d3.select(this).attr('y', startY).attr('data-start', startY).attr('height', 8); });"
+    },
+    "clearDiagram": {
+      "params": [],
+      "code": "const root = svg.select('.sd-root'); if (root.empty()) return; const dyn = root.select('.sd-dynamic'); if (!dyn.empty()) dyn.selectAll('*').remove(); dyn.append('g').attr('class', 'sd-messages'); dyn.append('g').attr('class', 'sd-activations'); dyn.append('g').attr('class', 'sd-notes'); dyn.append('g').attr('class', 'sd-dividers'); dyn.append('g').attr('class', 'sd-destroys'); const startY = Number(svg.attr('data-sd-start-y')); if (Number.isFinite(startY)) svg.attr('data-sd-cursor-y', startY);"
+    },
+    "destroyParticipant": {
+      "params": [
+        "id"
+      ],
+      "code": "const root = svg.select('.sd-root'); if (root.empty()) return; if (!args || args.id === undefined || args.id === null) return; const id = String(args.id); const p = root.select(`.sd-participant[data-id='${id.replace(/'/g, \"\\\\'\")}']`); if (p.empty()) return; const x = Number(p.attr('data-x')); const y = Number(svg.attr('data-sd-cursor-y')); const rowGap = Number(svg.attr('data-sd-row-gap')) || 44; if (!Number.isFinite(x) || !Number.isFinite(y)) return; const cfg = registry && registry.config ? registry.config : {}; const colors = cfg.colors || {}; const g = root.select('.sd-destroys').append('g').attr('class', 'sd-destroy').attr('data-id', id); g.append('line').attr('x1', x - 8).attr('y1', y - 8).attr('x2', x + 8).attr('y2', y + 8).attr('stroke', colors.messageReturn || '#eab308').attr('stroke-width', 2.2); g.append('line').attr('x1', x + 8).attr('y1', y - 8).attr('x2', x - 8).attr('y2', y + 8).attr('stroke', colors.messageReturn || '#eab308').attr('stroke-width', 2.2); const nextY = y + rowGap; svg.attr('data-sd-cursor-y', nextY); root.selectAll('.sd-activation.sd-activation-open').each(function() { const el = d3.select(this); const start = Number(el.attr('data-start')); if (!Number.isFinite(start)) return; el.attr('height', Math.max(8, nextY - start)); });"
+    },
+    "addDivider": {
+      "params": [
+        "label"
+      ],
+      "code": "const root = svg.select('.sd-root'); if (root.empty()) return; const y = Number(svg.attr('data-sd-cursor-y')); const rowGap = Number(svg.attr('data-sd-row-gap')) || 44; if (!Number.isFinite(y)) return; const cfg = registry && registry.config ? registry.config : {}; const colors = cfg.colors || {}; const xs = []; root.selectAll('.sd-participant').each(function() { const x = Number(d3.select(this).attr('data-x')); if (Number.isFinite(x)) xs.push(x); }); if (!xs.length) return; const minX = Math.min.apply(null, xs) - 80; const maxX = Math.max.apply(null, xs) + 80; const g = root.select('.sd-dividers').append('g').attr('class', 'sd-divider'); g.append('line').attr('x1', minX).attr('y1', y).attr('x2', maxX).attr('y2', y).attr('stroke', colors.headerStroke || 'rgba(255,255,255,0.08)').attr('stroke-width', 1.4).attr('stroke-dasharray', '4,5'); if (args && args.label) { g.append('text').attr('x', (minX + maxX) / 2).attr('y', y - 7).attr('text-anchor', 'middle').attr('fill', colors.subtleText || 'rgba(226,232,240,0.75)').style('font-family', '\"Inter\", sans-serif').style('font-size', '11px').style('font-weight', '600').text(String(args.label)); } const nextY = y + rowGap; svg.attr('data-sd-cursor-y', nextY); root.selectAll('.sd-activation.sd-activation-open').each(function() { const el = d3.select(this); const start = Number(el.attr('data-start')); if (!Number.isFinite(start)) return; el.attr('height', Math.max(8, nextY - start)); });"
+    }
+  }
+}

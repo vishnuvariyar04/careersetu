@@ -13,6 +13,7 @@ import {
   GripVertical,
   FolderKanban,
   Calendar,
+  X,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -21,6 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
@@ -32,6 +34,7 @@ import {
 } from "@/components/ui/dialog"
 import type { GeneratedProjectPayload, GeneratedTask } from "@/types/company-project"
 import { normalizeGeneratedProject } from "@/types/company-project"
+import { TECH_STACK_OPTIONS } from "@/components/onboarding/constants"
 
 type Props = {
   companyId: string
@@ -74,6 +77,32 @@ export function CreateProjectPanel({ companyId }: Props) {
   const [refineTaskIndex, setRefineTaskIndex] = useState<number | null>(null)
   const [refineInstruction, setRefineInstruction] = useState("Make this task clearer with concrete deliverables.")
   const [refining, setRefining] = useState(false)
+
+  const normalizeTech = useCallback((s: string) => s.trim().toLowerCase(), [])
+  const [techStack, setTechStack] = useState<string[]>([])
+  const [techQuery, setTechQuery] = useState("")
+
+  const addTech = useCallback(
+    (raw: string) => {
+      const next = raw.trim()
+      if (!next) return
+      setTechStack((prev) => {
+        const key = normalizeTech(next)
+        if (prev.some((t) => normalizeTech(t) === key)) return prev
+        return [...prev, next]
+      })
+      setTechQuery("")
+    },
+    [normalizeTech]
+  )
+
+  const removeTech = useCallback(
+    (raw: string) => {
+      const key = normalizeTech(raw)
+      setTechStack((prev) => prev.filter((t) => normalizeTech(t) !== key))
+    },
+    [normalizeTech]
+  )
 
   const loadEnvironments = useCallback(async () => {
     setListLoading(true)
@@ -138,6 +167,8 @@ export function CreateProjectPanel({ companyId }: Props) {
     setPrompt("")
     setPdfFile(null)
     setReferencePdfUrls([])
+    setTechStack([])
+    setTechQuery("")
     setError(null)
   }
 
@@ -301,7 +332,7 @@ export function CreateProjectPanel({ companyId }: Props) {
           title: project.title,
           description: project.description,
           status: "open",
-          techStack: [],
+          techStack,
           tasks: project.tasks.map((t, i) => ({
             title: t.title,
             description: t.description || null,
@@ -327,6 +358,12 @@ export function CreateProjectPanel({ companyId }: Props) {
   }
 
   const selectedSaved = savedEnvironments.find((e) => e.environment_id === selectedSavedId)
+  const selectedTechSet = new Set(techStack.map((t) => normalizeTech(t)))
+  const techSuggestions = TECH_STACK_OPTIONS.filter((t) => {
+    if (selectedTechSet.has(normalizeTech(t))) return false
+    if (!techQuery.trim()) return true
+    return normalizeTech(t).includes(normalizeTech(techQuery))
+  }).slice(0, 12)
 
   return (
     <div className="flex w-full min-h-[calc(100vh-6rem)] border rounded-lg overflow-hidden bg-background">
@@ -397,6 +434,18 @@ export function CreateProjectPanel({ companyId }: Props) {
               <span className="text-xs font-medium text-muted-foreground uppercase">Status</span>
               <span className="text-sm capitalize">{selectedSaved.status}</span>
             </div>
+            {Array.isArray(selectedSaved.tech_stack) && selectedSaved.tech_stack.length > 0 && (
+              <div className="space-y-2">
+                <h2 className="text-sm font-semibold">Tech stack</h2>
+                <div className="flex flex-wrap gap-2">
+                  {selectedSaved.tech_stack.map((t) => (
+                    <Badge key={t} variant="secondary">
+                      {t}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
             {selectedSaved.description && (
               <div className="space-y-2">
                 <h2 className="text-sm font-semibold">Description</h2>
@@ -539,6 +588,48 @@ export function CreateProjectPanel({ companyId }: Props) {
                   value={project.description}
                   onChange={(e) => setProject({ ...project, description: e.target.value })}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Tech stack (saved to environment)</Label>
+                <div className="flex flex-wrap gap-2">
+                  {techStack.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">Add tags like Next.js, Supabase, Docker…</span>
+                  ) : (
+                    techStack.map((t) => (
+                      <Badge key={t} variant="secondary" className="pr-1">
+                        {t}
+                        <button
+                          type="button"
+                          className="ml-1 rounded hover:bg-muted/60 p-0.5"
+                          onClick={() => removeTech(t)}
+                          aria-label={`Remove ${t}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <Input
+                    value={techQuery}
+                    onChange={(e) => setTechQuery(e.target.value)}
+                    placeholder="Search tech (or type custom and press Enter)"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        addTech(techQuery)
+                      }
+                    }}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {techSuggestions.map((t) => (
+                      <Button key={t} type="button" size="sm" variant="outline" onClick={() => addTech(t)}>
+                        + {t}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Key features (reference)</Label>

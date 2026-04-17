@@ -9,6 +9,7 @@ import {
   BookOpen,
   FolderKanban,
   ChevronLeft,
+  ChevronRight,
   Lock,
   CheckCircle2,
   Clock,
@@ -23,7 +24,7 @@ export function StudentSidebar() {
   const params = useParams()
   const studentId = params.student_id as string
 
-  const { student, workspace } = useSidebarContext()
+  const { student, workspace, sidebarCollapsed, setSidebarCollapsed } = useSidebarContext()
 
   const isDashboard = pathname.endsWith("/dashboard")
   const isLearnRoute = pathname.endsWith("/learn")
@@ -36,44 +37,62 @@ export function StudentSidebar() {
   }
 
   return (
-    <div className="w-64 shrink-0 border-r border-white/10 bg-[#171a1a] flex flex-col">
+    <div
+      className={`shrink-0 border-r border-white/10 bg-[#171a1a] flex flex-col transition-[width] duration-200 ${
+        sidebarCollapsed ? "w-16" : "w-64"
+      }`}
+    >
       {/* Header */}
       <div className="px-4 py-3.5 border-b border-white/10">
-        {workspace?.environment ? (
-          <div>
-            <button
-              onClick={workspace.onBackToEnvironments}
-              className="flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-white/40 hover:text-white/70 transition mb-2"
-            >
-              <ChevronLeft className="w-3 h-3" />
-              {workspace.company?.name || "Back"}
-            </button>
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-[11px]">
-                {workspace.environment.name?.charAt(0) || "E"}
+        <div className={`flex items-start ${sidebarCollapsed ? "justify-center" : "justify-between"} gap-2`}>
+          <div className={`min-w-0 ${sidebarCollapsed ? "hidden" : "block"}`}>
+            {workspace?.environment ? (
+              <div>
+                <button
+                  onClick={workspace.onBackToEnvironments}
+                  className="flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-white/40 hover:text-white/70 transition mb-2"
+                >
+                  <ChevronLeft className="w-3 h-3" />
+                  {workspace.company?.name || "Back"}
+                </button>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-[11px]">
+                    {workspace.environment.name?.charAt(0) || "E"}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-white truncate">{workspace.environment.name}</p>
+                    <p className="text-[10px] text-white/40 capitalize">{workspace.environment.status || "active"}</p>
+                  </div>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-medium text-white truncate">
-                  {workspace.environment.name}
-                </p>
-                <p className="text-[10px] text-white/40 capitalize">
-                  {workspace.environment.status || "active"}
-                </p>
+            ) : (
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white font-bold text-[11px]">
+                  {student?.full_name?.charAt(0) || "S"}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-white truncate">{student?.full_name || "Student"}</p>
+                  <p className="text-[10px] text-white/40 truncate">{student?.email || ""}</p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
-        ) : (
-          <div className="flex items-center gap-2.5">
+
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="h-8 w-8 rounded-lg hover:bg-white/10 transition flex items-center justify-center text-white/60 hover:text-white"
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {sidebarCollapsed && (
+          <div className="mt-3 flex items-center justify-center">
             <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white font-bold text-[11px]">
-              {student?.full_name?.charAt(0) || "S"}
-            </div>
-            <div className="min-w-0">
-              <p className="text-[13px] font-medium text-white truncate">
-                {student?.full_name || "Student"}
-              </p>
-              <p className="text-[10px] text-white/40 truncate">
-                {student?.email || ""}
-              </p>
+              {workspace?.environment ? workspace.environment.name?.charAt(0) || "E" : student?.full_name?.charAt(0) || "S"}
             </div>
           </div>
         )}
@@ -83,32 +102,38 @@ export function StudentSidebar() {
       <div className="flex-1 overflow-y-auto">
         {/* Global nav */}
         <div className="p-2">
-          <p className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-[0.2em] text-white/30 font-medium">
-            Navigation
-          </p>
+          {!sidebarCollapsed && (
+            <p className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-[0.2em] text-white/30 font-medium">
+              Navigation
+            </p>
+          )}
           <NavButton
             icon={Building2}
             label="All Environments"
             active={isDashboard && dashboardTab === "companies"}
             onClick={() => router.push(`/student/${studentId}/dashboard`)}
+            collapsed={sidebarCollapsed}
           />
           <NavButton
             icon={LayoutGrid}
             label="Directory"
             active={isDashboard && dashboardTab === "explore"}
             onClick={() => router.push(`/student/${studentId}/dashboard?tab=explore`)}
+            collapsed={sidebarCollapsed}
           />
           <NavButton
             icon={User}
             label="Profile"
             active={isDashboard && dashboardTab === "profile"}
             onClick={() => router.push(`/student/${studentId}/dashboard?tab=profile`)}
+            collapsed={sidebarCollapsed}
           />
           <NavButton
             icon={BookOpen}
             label="Learn"
             active={isLearnRoute}
             onClick={() => router.push(`/student/${studentId}/learn`)}
+            collapsed={sidebarCollapsed}
           />
         </div>
 
@@ -117,31 +142,36 @@ export function StudentSidebar() {
           <>
             <div className="mx-3 h-px bg-white/5" />
             <div className="p-2">
-              <p className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-[0.2em] text-white/30 font-medium">
-                Workspace
-              </p>
+              {!sidebarCollapsed && (
+                <p className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-[0.2em] text-white/30 font-medium">
+                  Workspace
+                </p>
+              )}
               <NavButton
                 icon={FolderKanban}
                 label="Board & Chat"
                 active={workspace.mode === "project"}
                 onClick={() => workspace.onModeChange("project")}
+                collapsed={sidebarCollapsed}
               />
               <NavButton
                 icon={BookOpen}
                 label="Task Details"
                 active={workspace.mode === "task_details"}
                 onClick={() => workspace.onModeChange("task_details")}
+                collapsed={sidebarCollapsed}
               />
               <NavButton
                 icon={BookOpen}
                 label="Environment Learn"
                 active={workspace.mode === "learn"}
                 onClick={() => workspace.onModeChange("learn")}
+                collapsed={sidebarCollapsed}
               />
             </div>
 
             {/* Task list */}
-            {workspace.mode === "task_details" && workspace.tasks.length > 0 && (
+            {!sidebarCollapsed && workspace.mode === "task_details" && workspace.tasks.length > 0 && (
               <>
                 <div className="mx-3 h-px bg-white/5" />
                 <div className="p-2">
@@ -185,10 +215,13 @@ export function StudentSidebar() {
       <div className="p-2 border-t border-white/10">
         <button
           onClick={handleSignOut}
-          className="w-full h-9 px-3 rounded-lg flex items-center gap-2.5 text-[12px] text-white/50 hover:text-white hover:bg-white/10 transition"
+          className={`w-full h-9 px-3 rounded-lg flex items-center ${
+            sidebarCollapsed ? "justify-center" : "gap-2.5"
+          } text-[12px] text-white/50 hover:text-white hover:bg-white/10 transition`}
+          title={sidebarCollapsed ? "Sign out" : undefined}
         >
           <LogOut className="w-3.5 h-3.5" />
-          Sign out
+          {!sidebarCollapsed && "Sign out"}
         </button>
       </div>
     </div>
@@ -200,23 +233,28 @@ function NavButton({
   label,
   active,
   onClick,
+  collapsed,
 }: {
   icon: React.ComponentType<{ className?: string }>
   label: string
   active: boolean
   onClick: () => void
+  collapsed: boolean
 }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full h-9 px-3 rounded-lg flex items-center gap-2.5 text-[12px] transition ${
+      title={collapsed ? label : undefined}
+      className={`w-full h-9 px-3 rounded-lg flex items-center ${
+        collapsed ? "justify-center" : "gap-2.5"
+      } text-[12px] transition ${
         active
           ? "bg-white/10 text-white font-medium"
           : "text-white/60 hover:text-white hover:bg-white/5"
       }`}
     >
       <Icon className="w-3.5 h-3.5" />
-      {label}
+      {!collapsed && label}
     </button>
   )
 }

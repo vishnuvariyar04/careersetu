@@ -1,0 +1,314 @@
+-- =============================================================
+-- CareerSetu Dummy Student Test Data Seed (Supabase SQL)
+-- =============================================================
+-- Purpose:
+--   Populate student-related tables with realistic linked data.
+--   Uses EXISTING students + existing company environments/tasks.
+--
+-- Reads from existing:
+--   public.students
+--   public.virtual_environments
+--   public.tasks
+--
+-- Fills:
+--   public.environment_participants
+--   public.github_repos
+--   public.student_skills
+--   public.task_progress
+--   public.pr_reviews
+--   public.pm_agent_sessions
+--   public.pm_agent_messages
+--   public.learning_sessions
+--   public.learning_messages
+--
+-- IMPORTANT:
+--   Your schema has UNIQUE(environment_id) on environment_participants.
+--   So each environment can only have ONE student participant.
+--   This script assigns one student per environment (round-robin).
+--
+-- Safe rerun behavior:
+--   Cleans previously seeded rows for selected students only, then reseeds.
+-- =============================================================
+
+BEGIN;
+
+-- 1) Pick seed cohort from existing students (must already exist in auth + students)
+DROP TABLE IF EXISTS _seed_students;
+CREATE TEMP TABLE _seed_students AS
+SELECT
+  s.student_id,
+  s.full_name,
+  s.email,
+  COALESCE(NULLIF(lower(regexp_replace(split_part(s.full_name, ' ', 1), '[^a-zA-Z0-9]', '', 'g')), ''), 'student') AS handle,
+  row_number() OVER (ORDER BY s.created_at, s.student_id) AS rn
+FROM public.students s
+ORDER BY s.created_at, s.student_id
+LIMIT 12;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM _seed_students) THEN
+    RAISE EXCEPTION 'No rows found in public.students. Create student users first.';
+  END IF;
+END $$;
+
+-- 2) Use all environments from current DB (covers companies listed in your current_companydata_in_db.txt)
+DROP TABLE IF EXISTS _seed_envs;
+CREATE TEMP TABLE _seed_envs AS
+SELECT
+  ve.environment_id,
+  ve.company_id,
+  ve.title,
+  row_number() OVER (ORDER BY ve.created_at, ve.environment_id) AS rn
+FROM public.virtual_environments ve;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM _seed_envs) THEN
+    RAISE EXCEPTION 'No environments found in public.virtual_environments.';
+  END IF;
+END $$;
+
+-- 3) Map one student per environment (required because environment_participants has UNIQUE(environment_id))
+DROP TABLE IF EXISTS _seed_assignments;
+CREATE TEMP TABLE _seed_assignments AS
+SELECT
+  e.environment_id,
+  e.company_id,
+  e.title AS environment_title,
+  s.student_id,
+  s.full_name,
+  s.email,
+  s.handle
+FROM _seed_envs e
+JOIN LATERAL (
+  SELECT *
+  FROM _seed_students ss
+  WHERE ss.rn = ((e.rn - 1) % (SELECT COUNT(*) FROM _seed_students)) + 1
+) s ON TRUE;
+
+-- 4) Cleanup old seeded data for selected students only
+DELETE FROM public.learning_messages
+WHERE session_id IN (
+  SELECT ls.session_id
+  FROM public.learning_sessions ls
+  WHERE ls.student_id IN (SELECT student_id FROM _seed_students)
+);
+
+DELETE FROM public.pm_agent_messages
+WHERE session_id IN (
+  SELECT ps.session_id
+  FROM public.pm_agent_sessions ps
+  WHERE ps.student_id IN (SELECT student_id FROM _seed_students)
+);
+
+DELETE FROM public.learning_sessions
+WHERE student_id IN (SELECT student_id FROM _seed_students);
+
+DELETE FROM public.pm_agent_sessions
+WHERE student_id IN (SELECT student_id FROM _seed_students);
+
+DELETE FROM public.pr_reviews
+WHERE student_id IN (SELECT student_id FROM _seed_students);
+
+DELETE FROM public.task_progress
+WHERE student_id IN (SELECT student_id FROM _seed_students);
+
+DELETE FROM public.student_skills
+WHERE student_id IN (SELECT student_id FROM _seed_students);
+
+DELETE FROM public.github_repos
+WHERE student_id IN (SELECT student_id FROM _seed_students);
+
+DELETE FROM public.environment_participants
+WHERE student_id IN (SELECT student_id FROM _seed_students);
+
+-- 5) Environment joins (one student per env)
+INSERT INTO public.environment_participants (environment_id, student_id, joined_at)
+SELECT
+  a.environment_id,
+  a.student_id,
+  now() - ((a.environment_id::text)::uuid::text IS NOT NULL)::int * interval '0 days'
+FROM _seed_assignments a
+ON CONFLICT (environment_id) DO UPDATE
+SET
+  student_id = EXCLUDED.student_id,
+  joined_at = now();
+
+-- 6) Environment-level repo mapping
+INSERT INTO public.github_repos (student_id, environment_id, repo_url, created_at)
+SELECT
+  a.student_id,
+  a.environment_id,
+  format('https://github.com/%s/%s-%s', a.handle, regexp_replace(lower(a.environment_title), '[^a-z0-9]+', '-', 'g'), right(a.environment_id::text, 6)),
+  now() - interval '2 days'
+FROM _seed_assignments a;
+
+-- 7) Student skills (3 per student)
+INSERT INTO public.student_skills (student_id, skill_name, experience_level, repo_url, created_at)
+SELECT ss.student_id, v.skill_name, v.level, v.repo_url, now() - interval '7 days'
+FROM _seed_students ss
+CROSS JOIN LATERAL (
+  VALUES
+    ('React', 'intermediate', format('https://github.com/%s/ui-playground', ss.handle)),
+    ('Node.js', 'intermediate', format('https://github.com/%s/api-lab', ss.handle)),
+    ('PostgreSQL', 'beginner', format('https://github.com/%s/data-practice', ss.handle))
+) AS v(skill_name, level, repo_url);
+
+-- 8) Task progress for each assigned environment
+--    Pattern: first approved, middle mixed, last in_progress/submitted
+DROP TABLE IF EXISTS _seed_tasks_ranked;
+CREATE TEMP TABLE _seed_tasks_ranked AS
+SELECT
+  a.student_id,
+  a.environment_id,
+  t.task_id,
+  t.task_order,
+  row_number() OVER (PARTITION BY a.environment_id ORDER BY t.task_order, t.task_id) AS idx,
+  count(*) OVER (PARTITION BY a.environment_id) AS total_count
+FROM _seed_assignments a
+JOIN public.tasks t
+  ON t.environment_id = a.environment_id;
+
+INSERT INTO public.task_progress (task_id, student_id, status, submission_url, feedback, updated_at)
+SELECT
+  tr.task_id,
+  tr.student_id,
+  CASE
+    WHEN tr.idx = tr.total_count THEN 'submitted'
+    WHEN tr.idx = tr.total_count - 1 THEN 'in_progress'
+    WHEN tr.idx <= 2 THEN 'approved'
+    ELSE 'unlocked'
+  END AS status,
+  CASE
+    WHEN tr.idx >= tr.total_count - 1 THEN format('https://github.com/%s/work/pull/%s', ss.handle, 100 + tr.idx)
+    ELSE NULL
+  END AS submission_url,
+  CASE
+    WHEN tr.idx <= 2 THEN 'Well done. Clean structure and clear logic.'
+    WHEN tr.idx = tr.total_count THEN 'Awaiting review from CodeReviewerAgent.'
+    ELSE NULL
+  END AS feedback,
+  now() - ((tr.total_count - tr.idx) * interval '6 hours')
+FROM _seed_tasks_ranked tr
+JOIN _seed_students ss
+  ON ss.student_id = tr.student_id;
+
+-- 9) PR reviews for submitted/in_progress tasks
+INSERT INTO public.pr_reviews (
+  task_id,
+  student_id,
+  pr_url,
+  ai_score,
+  repo_name,
+  pr_number,
+  pr_title,
+  ai_verdict,
+  ai_summary,
+  ai_issues,
+  created_at
+)
+SELECT
+  tr.task_id,
+  tr.student_id,
+  format('https://github.com/%s/work/pull/%s', ss.handle, 200 + tr.idx),
+  CASE WHEN tr.idx = tr.total_count THEN 78 ELSE 88 END,
+  format('%s/work', ss.handle),
+  200 + tr.idx,
+  format('Task %s implementation for environment %s', tr.task_order, left(tr.environment_id::text, 8)),
+  CASE WHEN tr.idx = tr.total_count THEN 'changes_requested' ELSE 'approved' END,
+  CASE
+    WHEN tr.idx = tr.total_count THEN 'Good progress. Please address naming consistency and add one edge-case test.'
+    ELSE 'Solid submission with clear logic and maintainable structure.'
+  END,
+  CASE
+    WHEN tr.idx = tr.total_count THEN
+      '["Add input validation for null/empty paths", "Include unit test for boundary case"]'::jsonb
+    ELSE
+      '["Minor formatting cleanups suggested"]'::jsonb
+  END,
+  now() - (tr.idx * interval '4 hours')
+FROM _seed_tasks_ranked tr
+JOIN _seed_students ss
+  ON ss.student_id = tr.student_id
+WHERE tr.idx >= tr.total_count - 1;
+
+-- 10) PM agent sessions + messages (1 session per assignment)
+INSERT INTO public.pm_agent_sessions (session_id, environment_id, student_id, created_at)
+SELECT
+  gen_random_uuid(),
+  a.environment_id,
+  a.student_id,
+  now() - interval '1 day'
+FROM _seed_assignments a;
+
+INSERT INTO public.pm_agent_messages (session_id, role, content, created_at)
+SELECT
+  s.session_id,
+  msg.role,
+  msg.content,
+  now() - msg.offset_minutes * interval '1 minute'
+FROM public.pm_agent_sessions s
+JOIN _seed_assignments a
+  ON a.environment_id = s.environment_id
+ AND a.student_id = s.student_id
+CROSS JOIN LATERAL (
+  VALUES
+    ('student'::text, 'Can you help me break this task into steps?', 45),
+    ('agent'::text, 'Sure. Start with setup, then implement core logic, then write tests.', 43),
+    ('student'::text, 'Great, I will submit PR after test pass.', 40)
+) AS msg(role, content, offset_minutes);
+
+-- 11) Learning sessions + messages (global + environment per student)
+INSERT INTO public.learning_sessions (session_id, student_id, environment_id, context_type, title, created_at)
+SELECT
+  gen_random_uuid(),
+  ss.student_id,
+  NULL,
+  'global',
+  'Global Learning Session',
+  now() - interval '3 days'
+FROM _seed_students ss
+UNION ALL
+SELECT
+  gen_random_uuid(),
+  a.student_id,
+  a.environment_id,
+  'environment',
+  format('Learning - %s', a.environment_title),
+  now() - interval '2 days'
+FROM _seed_assignments a;
+
+INSERT INTO public.learning_messages (session_id, role, content, created_at)
+SELECT
+  ls.session_id,
+  msg.role,
+  msg.content,
+  now() - msg.offset_minutes * interval '1 minute'
+FROM public.learning_sessions ls
+JOIN _seed_students ss ON ss.student_id = ls.student_id
+CROSS JOIN LATERAL (
+  VALUES
+    ('student'::text, 'Explain the core concept for this task.', 120),
+    ('agent'::text, 'Start with data flow, then map it to your chosen stack.', 118),
+    ('student'::text, 'Can you give me a quick checklist?', 116),
+    ('agent'::text, 'Checklist: setup, implementation, tests, PR notes.', 114)
+) AS msg(role, content, offset_minutes)
+WHERE (ls.context_type = 'global')
+   OR (ls.context_type = 'environment' AND ls.environment_id IS NOT NULL);
+
+COMMIT;
+
+-- =============================================================
+-- Quick verification queries
+-- =============================================================
+-- SELECT COUNT(*) FROM public.environment_participants;
+-- SELECT COUNT(*) FROM public.github_repos;
+-- SELECT COUNT(*) FROM public.student_skills;
+-- SELECT COUNT(*) FROM public.task_progress;
+-- SELECT COUNT(*) FROM public.pr_reviews;
+-- SELECT COUNT(*) FROM public.pm_agent_sessions;
+-- SELECT COUNT(*) FROM public.pm_agent_messages;
+-- SELECT COUNT(*) FROM public.learning_sessions;
+-- SELECT COUNT(*) FROM public.learning_messages;
+

@@ -27,6 +27,8 @@ interface SidebarContextType {
   setStudent: (s: Record<string, any> | null) => void
   workspace: SidebarWorkspace | null
   setWorkspace: (w: SidebarWorkspace | null) => void
+  sidebarCollapsed: boolean
+  setSidebarCollapsed: (v: boolean) => void
 }
 
 const SidebarContext = createContext<SidebarContextType>({
@@ -34,6 +36,8 @@ const SidebarContext = createContext<SidebarContextType>({
   setStudent: () => {},
   workspace: null,
   setWorkspace: () => {},
+  sidebarCollapsed: false,
+  setSidebarCollapsed: () => {},
 })
 
 export function useSidebarContext() {
@@ -43,8 +47,27 @@ export function useSidebarContext() {
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const [student, setStudent] = useState<Record<string, any> | null>(null)
   const [workspace, setWorkspace] = useState<SidebarWorkspace | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const params = useParams()
   const studentId = params.student_id as string | undefined
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("careersetu.sidebarCollapsed")
+      if (raw === "1") setSidebarCollapsed(true)
+      if (raw === "0") setSidebarCollapsed(false)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("careersetu.sidebarCollapsed", sidebarCollapsed ? "1" : "0")
+    } catch {
+      // ignore
+    }
+  }, [sidebarCollapsed])
 
   useEffect(() => {
     if (!studentId) return
@@ -66,7 +89,16 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   }, [studentId])
 
   return (
-    <SidebarContext.Provider value={{ student, setStudent, workspace, setWorkspace }}>
+    <SidebarContext.Provider
+      value={{
+        student,
+        setStudent,
+        workspace,
+        setWorkspace,
+        sidebarCollapsed,
+        setSidebarCollapsed,
+      }}
+    >
       {children}
     </SidebarContext.Provider>
   )

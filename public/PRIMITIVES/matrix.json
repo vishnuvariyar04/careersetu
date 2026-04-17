@@ -1,0 +1,126 @@
+{
+  "primitive": "MATRIX_V1",
+  "config": {
+    "cellW": 54,
+    "cellH": 54,
+    "gap": 8,
+    "baseY": 40,
+    "baseX": 24,
+    "colors": {
+      "default": "rgba(255, 255, 255, 0.03)",
+      "stroke": "rgba(255, 255, 255, 0.08)",
+      "text": "#ffffff",
+      "accent": "#3b82f6",
+      "highlight": "#eab308",
+      "success": "#10b981",
+      "dull": "rgba(255, 255, 255, 0.01)",
+      "rowColHighlight": "rgba(59, 130, 246, 0.18)",
+      "annotation": "#93c5fd"
+    }
+  },
+  "functions": {
+    "renderMatrixBase": {
+      "params": [
+        "matrix",
+        "rowLabels",
+        "colLabels"
+      ],
+      "code": "const cfg = registry && registry.config ? registry.config : {}; const colors = cfg.colors || {}; const cellW = Number(cfg.cellW) || 54; const cellH = Number(cfg.cellH) || 54; const gap = Number(cfg.gap) || 8; const baseY = Number(cfg.baseY) || 40; const baseX = Number(cfg.baseX) || 24; svg.selectAll('.mx-root, .mx-annotation, .mx-label, .mx-diag-line, .mx-diag-label, #mx-glow').remove(); const matrix = Array.isArray(args && args.matrix) ? args.matrix : []; const rows = matrix.length; const cols = rows > 0 ? d3.max(matrix, r => Array.isArray(r) ? r.length : 0) || 0 : 0; if (rows <= 0 || cols <= 0) return; const width = (svg.node() && svg.node().getBoundingClientRect().width) || 700; const margin = 16; const usableW = Math.max(80, width - margin * 2); let effW = cellW; let effH = cellH; let effGap = gap; let totalW = cols * effW + (cols - 1) * effGap; while (totalW > usableW && effW > 24) { effW = Math.max(24, effW - 2); effH = Math.max(24, effH - 2); effGap = Math.max(4, effGap - 1); totalW = cols * effW + (cols - 1) * effGap; } const startX = Math.max(baseX, (width - totalW) / 2); const startY = baseY; svg.attr('data-mx-startx', startX).attr('data-mx-starty', startY).attr('data-mx-cellw', effW).attr('data-mx-cellh', effH).attr('data-mx-gap', effGap).attr('data-mx-rows', rows).attr('data-mx-cols', cols); const defs = svg.append('defs'); const filter = defs.append('filter').attr('id', 'mx-glow'); filter.append('feGaussianBlur').attr('stdDeviation', '4').attr('result', 'coloredBlur'); const merge = filter.append('feMerge'); merge.append('feMergeNode').attr('in', 'coloredBlur'); merge.append('feMergeNode').attr('in', 'SourceGraphic'); const root = svg.append('g').attr('class', 'mx-root'); const cells = []; for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const row = Array.isArray(matrix[r]) ? matrix[r] : []; const value = row[c] !== undefined && row[c] !== null ? row[c] : ''; cells.push({ row: r, col: c, value }); } } const groups = root.selectAll('.mx-cell').data(cells, d => `mx-${d.row}-${d.col}`).enter().append('g').attr('class', d => `mx-cell mx-cell-${d.row}-${d.col}`).attr('id', d => `mx-cell-${d.row}-${d.col}`).attr('data-row', d => d.row).attr('data-col', d => d.col).attr('transform', d => `translate(${startX + d.col * (effW + effGap)}, ${startY + d.row * (effH + effGap)})`); groups.append('rect').attr('class', 'mx-cell-rect').attr('width', effW).attr('height', effH).attr('rx', 6).attr('ry', 6).attr('fill', 'transparent').attr('stroke', '#4f46e5').attr('stroke-width', 2); const fontSize = effW < 36 ? Math.max(10, Math.round(effW / 3.4)) : 16; groups.append('text').attr('class', 'mx-cell-text').attr('x', effW / 2).attr('y', effH / 2 + 5).attr('text-anchor', 'middle').attr('fill', colors.text || '#ffffff').style('font-weight', '500').style('font-size', `${fontSize}px`).style('font-family', '\"Inter\", sans-serif').text(d => String(d.value)); const rowLabels = Array.isArray(args && args.rowLabels) ? args.rowLabels : null; const colLabels = Array.isArray(args && args.colLabels) ? args.colLabels : null; if (rowLabels && rowLabels.length) { root.selectAll('.mx-row-label').data(d3.range(rows)).enter().append('text').attr('class', d => `mx-label mx-row-label mx-row-label-${d}`).attr('x', startX - 12).attr('y', d => startY + d * (effH + effGap) + effH / 2 + 4).attr('text-anchor', 'end').attr('fill', 'rgba(226, 232, 240, 0.85)').style('font-family', '\"Inter\", sans-serif').style('font-size', '12px').style('font-weight', '500').text(d => rowLabels[d] !== undefined ? String(rowLabels[d]) : `r${d}`); } if (colLabels && colLabels.length) { root.selectAll('.mx-col-label').data(d3.range(cols)).enter().append('text').attr('class', d => `mx-label mx-col-label mx-col-label-${d}`).attr('x', d => startX + d * (effW + effGap) + effW / 2).attr('y', startY - 12).attr('text-anchor', 'middle').attr('fill', 'rgba(226, 232, 240, 0.85)').style('font-family', '\"Inter\", sans-serif').style('font-size', '12px').style('font-weight', '500').text(d => colLabels[d] !== undefined ? String(colLabels[d]) : `c${d}`); }"
+    },
+    "setCellHighlight": {
+      "params": [
+        "row",
+        "col",
+        "active"
+      ],
+      "code": "const colors = (registry && registry.config && registry.config.colors) || {}; if (!Number.isFinite(Number(args && args.row)) || !Number.isFinite(Number(args && args.col))) return; const row = Number(args.row); const col = Number(args.col); const rect = svg.select(`.mx-cell-${row}-${col} .mx-cell-rect`); if (rect.empty()) return; const active = !!(args && args.active); rect.interrupt().transition().duration(260).attr('stroke', active ? (colors.highlight || '#eab308') : '#4f46e5').attr('stroke-width', active ? 3 : 2).style('filter', active ? 'url(#mx-glow)' : 'none').attr('fill', active ? 'rgba(234, 179, 8, 0.08)' : 'transparent');"
+    },
+    "setCellValue": {
+      "params": [
+        "row",
+        "col",
+        "value"
+      ],
+      "code": "if (!Number.isFinite(Number(args && args.row)) || !Number.isFinite(Number(args && args.col))) return; const row = Number(args.row); const col = Number(args.col); const cell = svg.select(`.mx-cell-${row}-${col}`); if (cell.empty()) return; const txt = cell.select('.mx-cell-text'); if (txt.empty()) return; const nextVal = args && args.value !== undefined && args.value !== null ? String(args.value) : ''; txt.interrupt().transition().duration(130).style('opacity', 0.35).attr('transform', 'translate(0,-2)').on('end', function() { d3.select(this).text(nextVal).transition().duration(180).style('opacity', 1).attr('transform', 'translate(0,0)'); });"
+    },
+    "highlightRow": {
+      "params": [
+        "row",
+        "active"
+      ],
+      "code": "const colors = (registry && registry.config && registry.config.colors) || {}; if (!Number.isFinite(Number(args && args.row))) return; const row = Number(args.row); const active = !!(args && args.active); svg.selectAll(`.mx-cell[data-row='${row}'] .mx-cell-rect`).interrupt().transition().duration(260).attr('stroke', active ? (colors.accent || '#3b82f6') : '#4f46e5').attr('stroke-width', active ? 2.5 : 2).style('filter', active ? 'url(#mx-glow)' : 'none').attr('fill', active ? (colors.rowColHighlight || 'rgba(59,130,246,0.18)') : 'transparent'); const label = svg.select(`.mx-row-label-${row}`); if (!label.empty()) { label.interrupt().transition().duration(220).attr('fill', active ? (colors.accent || '#3b82f6') : 'rgba(226, 232, 240, 0.85)').style('font-weight', active ? '700' : '500'); }"
+    },
+    "highlightCol": {
+      "params": [
+        "col",
+        "active"
+      ],
+      "code": "const colors = (registry && registry.config && registry.config.colors) || {}; if (!Number.isFinite(Number(args && args.col))) return; const col = Number(args.col); const active = !!(args && args.active); svg.selectAll(`.mx-cell[data-col='${col}'] .mx-cell-rect`).interrupt().transition().duration(260).attr('stroke', active ? (colors.accent || '#3b82f6') : '#4f46e5').attr('stroke-width', active ? 2.5 : 2).style('filter', active ? 'url(#mx-glow)' : 'none').attr('fill', active ? (colors.rowColHighlight || 'rgba(59,130,246,0.18)') : 'transparent'); const label = svg.select(`.mx-col-label-${col}`); if (!label.empty()) { label.interrupt().transition().duration(220).attr('fill', active ? (colors.accent || '#3b82f6') : 'rgba(226, 232, 240, 0.85)').style('font-weight', active ? '700' : '500'); }"
+    },
+    "annotateCell": {
+      "params": [
+        "text"
+      ],
+      "code": "const cfg = registry && registry.config ? registry.config : {}; const colors = cfg.colors || {}; const cellW = Number(svg.attr('data-mx-cellw')) || Number(cfg.cellW) || 54; const cellH = Number(svg.attr('data-mx-cellh')) || Number(cfg.cellH) || 54; const gap = Number(svg.attr('data-mx-gap')) || Number(cfg.gap) || 8; const startX = Number(svg.attr('data-mx-startx')) || Number(cfg.baseX) || 24; const startY = Number(svg.attr('data-mx-starty')) || Number(cfg.baseY) || 40; const rows = Number(svg.attr('data-mx-rows')) || 0; const cols = Number(svg.attr('data-mx-cols')) || 0; svg.selectAll('.mx-annotation').interrupt().remove(); if (!args || !args.text || rows <= 0 || cols <= 0) return; const matrixW = cols * cellW + (cols - 1) * gap; const x = startX + matrixW / 2; const y = startY + rows * (cellH + gap) + 18; const g = svg.append('g').attr('class', 'mx-annotation').style('opacity', 0); g.append('text').attr('x', x).attr('y', y).attr('text-anchor', 'middle').attr('fill', colors.annotation || '#c7d2fe').style('font-family', 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace').style('font-size', cellW < 36 ? '11px' : '12px').style('font-weight', '500').style('filter', 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))').text(String(args.text)); g.transition().duration(300).style('opacity', 1).attr('transform', 'translate(0, -4)');"
+    },
+    "highlightMainDiagonal": {
+      "params": [
+        "active"
+      ],
+      "code": "const colors = (registry && registry.config && registry.config.colors) || {}; const rows = Number(svg.attr('data-mx-rows')) || 0; const cols = Number(svg.attr('data-mx-cols')) || 0; const n = Math.min(rows, cols); const active = !!(args && args.active); for (let i = 0; i < n; i++) { const rect = svg.select(`.mx-cell-${i}-${i} .mx-cell-rect`); if (rect.empty()) continue; rect.interrupt().transition().duration(260).attr('stroke', active ? (colors.success || '#10b981') : '#4f46e5').attr('stroke-width', active ? 3 : 2).style('filter', active ? 'url(#mx-glow)' : 'none').attr('fill', active ? 'rgba(16,185,129,0.10)' : 'transparent'); }"
+    },
+    "highlightAntiDiagonal": {
+      "params": [
+        "active"
+      ],
+      "code": "const colors = (registry && registry.config && registry.config.colors) || {}; const rows = Number(svg.attr('data-mx-rows')) || 0; const cols = Number(svg.attr('data-mx-cols')) || 0; const n = Math.min(rows, cols); const active = !!(args && args.active); for (let i = 0; i < n; i++) { const c = cols - 1 - i; const rect = svg.select(`.mx-cell-${i}-${c} .mx-cell-rect`); if (rect.empty()) continue; rect.interrupt().transition().duration(260).attr('stroke', active ? (colors.highlight || '#eab308') : '#4f46e5').attr('stroke-width', active ? 3 : 2).style('filter', active ? 'url(#mx-glow)' : 'none').attr('fill', active ? 'rgba(234,179,8,0.10)' : 'transparent'); }"
+    },
+    "swapRows": {
+      "params": [
+        "rowA",
+        "rowB"
+      ],
+      "code": "if (!Number.isFinite(Number(args && args.rowA)) || !Number.isFinite(Number(args && args.rowB))) return; const rowA = Number(args.rowA); const rowB = Number(args.rowB); if (rowA === rowB) return; const cellH = Number(svg.attr('data-mx-cellh')) || 54; const gap = Number(svg.attr('data-mx-gap')) || 8; const dy = (rowB - rowA) * (cellH + gap); const a = svg.selectAll(`.mx-cell[data-row='${rowA}']`); const b = svg.selectAll(`.mx-cell[data-row='${rowB}']`); if (a.empty() || b.empty()) return; a.interrupt().transition().duration(520).ease(d3.easeCubicInOut).attrTween('transform', function() { const t = d3.select(this).attr('transform') || ''; const m = t.match(/translate\\(([^,]+),\\s*([^)]+)\\)/); const x = m ? Number(m[1]) : 0; const y = m ? Number(m[2]) : 0; return function(k) { return `translate(${x}, ${y + dy * k})`; }; }); b.interrupt().transition().duration(520).ease(d3.easeCubicInOut).attrTween('transform', function() { const t = d3.select(this).attr('transform') || ''; const m = t.match(/translate\\(([^,]+),\\s*([^)]+)\\)/); const x = m ? Number(m[1]) : 0; const y = m ? Number(m[2]) : 0; return function(k) { return `translate(${x}, ${y - dy * k})`; }; }).on('end', function(_, i, nodes) { if (i !== nodes.length - 1) return; a.attr('data-row', rowB).attr('class', function() { const col = d3.select(this).attr('data-col'); return `mx-cell mx-cell-${rowB}-${col}`; }).attr('id', function() { const col = d3.select(this).attr('data-col'); return `mx-cell-${rowB}-${col}`; }); b.attr('data-row', rowA).attr('class', function() { const col = d3.select(this).attr('data-col'); return `mx-cell mx-cell-${rowA}-${col}`; }).attr('id', function() { const col = d3.select(this).attr('data-col'); return `mx-cell-${rowA}-${col}`; }); const la = svg.select(`.mx-row-label-${rowA}`); const lb = svg.select(`.mx-row-label-${rowB}`); if (!la.empty()) la.attr('class', `mx-label mx-row-label mx-row-label-${rowB}`); if (!lb.empty()) lb.attr('class', `mx-label mx-row-label mx-row-label-${rowA}`); });"
+    },
+    "swapCols": {
+      "params": [
+        "colA",
+        "colB"
+      ],
+      "code": "if (!Number.isFinite(Number(args && args.colA)) || !Number.isFinite(Number(args && args.colB))) return; const colA = Number(args.colA); const colB = Number(args.colB); if (colA === colB) return; const cellW = Number(svg.attr('data-mx-cellw')) || 54; const gap = Number(svg.attr('data-mx-gap')) || 8; const dx = (colB - colA) * (cellW + gap); const a = svg.selectAll(`.mx-cell[data-col='${colA}']`); const b = svg.selectAll(`.mx-cell[data-col='${colB}']`); if (a.empty() || b.empty()) return; a.interrupt().transition().duration(520).ease(d3.easeCubicInOut).attrTween('transform', function() { const t = d3.select(this).attr('transform') || ''; const m = t.match(/translate\\(([^,]+),\\s*([^)]+)\\)/); const x = m ? Number(m[1]) : 0; const y = m ? Number(m[2]) : 0; return function(k) { return `translate(${x + dx * k}, ${y})`; }; }); b.interrupt().transition().duration(520).ease(d3.easeCubicInOut).attrTween('transform', function() { const t = d3.select(this).attr('transform') || ''; const m = t.match(/translate\\(([^,]+),\\s*([^)]+)\\)/); const x = m ? Number(m[1]) : 0; const y = m ? Number(m[2]) : 0; return function(k) { return `translate(${x - dx * k}, ${y})`; }; }).on('end', function(_, i, nodes) { if (i !== nodes.length - 1) return; a.attr('data-col', colB).attr('class', function() { const row = d3.select(this).attr('data-row'); return `mx-cell mx-cell-${row}-${colB}`; }).attr('id', function() { const row = d3.select(this).attr('data-row'); return `mx-cell-${row}-${colB}`; }); b.attr('data-col', colA).attr('class', function() { const row = d3.select(this).attr('data-row'); return `mx-cell mx-cell-${row}-${colA}`; }).attr('id', function() { const row = d3.select(this).attr('data-row'); return `mx-cell-${row}-${colA}`; }); const la = svg.select(`.mx-col-label-${colA}`); const lb = svg.select(`.mx-col-label-${colB}`); if (!la.empty()) la.attr('class', `mx-label mx-col-label mx-col-label-${colB}`); if (!lb.empty()) lb.attr('class', `mx-label mx-col-label mx-col-label-${colA}`); });"
+    },
+    "clearHighlights": {
+      "params": [],
+      "code": "svg.selectAll('.mx-cell-rect').interrupt().transition().duration(240).attr('fill', 'transparent').attr('stroke', '#4f46e5').attr('stroke-width', 2).style('filter', 'none'); svg.selectAll('.mx-row-label, .mx-col-label').interrupt().transition().duration(220).attr('fill', 'rgba(226, 232, 240, 0.85)').style('font-weight', '500'); svg.selectAll('.mx-annotation').interrupt().transition().duration(140).style('opacity', 0).remove();"
+    },
+    "renderMatrixSetBase": {
+      "params": ["matrices", "labels", "operators"],
+      "code": "const cfg=registry&&registry.config?registry.config:{};const colors=cfg.colors||{};const cellW=Number(cfg.cellW)||54;const cellH=Number(cfg.cellH)||54;const gap=Number(cfg.gap)||8;const baseY=Number(cfg.baseY)||40;const baseX=Number(cfg.baseX)||24;svg.selectAll('.mxs-root,.mxs-annotation,#mxs-glow').remove();const matrices=Array.isArray(args&&args.matrices)?args.matrices:[];if(matrices.length===0)return;const labels=Array.isArray(args&&args.labels)?args.labels:matrices.map((_,i)=>String.fromCharCode(65+i));const operators=Array.isArray(args&&args.operators)?args.operators:[];const mats=matrices.map(m=>{const data=Array.isArray(m)?m:[];const rows=data.length;const cols=rows>0?d3.max(data,r=>Array.isArray(r)?r.length:0)||0:0;return{data,rows,cols};}).filter(m=>m.rows>0&&m.cols>0);if(mats.length===0)return;const n=mats.length;const opW=30;const totalCols=mats.reduce((s,m)=>s+m.cols,0);const totalGapsInside=mats.reduce((s,m)=>s+(m.cols-1),0);const width=(svg.node()&&svg.node().getBoundingClientRect().width)||700;const usable=Math.max(120,width-8);let eW=cellW,eH=cellH,eG=gap;let totW=totalCols*eW+totalGapsInside*eG+(n-1)*opW+2*baseX;while(totW>usable&&eW>16){eW=Math.max(16,eW-2);eH=Math.max(16,eH-2);eG=Math.max(3,eG-1);totW=totalCols*eW+totalGapsInside*eG+(n-1)*opW+2*baseX;}const startXs=[];let curX=baseX;for(let i=0;i<n;i++){startXs.push(curX);curX+=mats[i].cols*(eW+eG)-eG;if(i<n-1)curX+=opW;}svg.attr('data-mxs-ew',eW).attr('data-mxs-eh',eH).attr('data-mxs-eg',eG).attr('data-mxs-by',baseY).attr('data-mxs-n',n);for(let i=0;i<n;i++){svg.attr(`data-mxs-x${i}`,startXs[i]).attr(`data-mxs-r${i}`,mats[i].rows).attr(`data-mxs-c${i}`,mats[i].cols);}const defs=svg.append('defs');const flt=defs.append('filter').attr('id','mxs-glow');flt.append('feGaussianBlur').attr('stdDeviation','4').attr('result','coloredBlur');const mg=flt.append('feMerge');mg.append('feMergeNode').attr('in','coloredBlur');mg.append('feMergeNode').attr('in','SourceGraphic');const root=svg.append('g').attr('class','mxs-root');const fs=eW<36?Math.max(10,Math.round(eW/3.4)):16;const maxRows=d3.max(mats,m=>m.rows)||1;const midY=baseY+(maxRows*(eH+eG)-eG)/2+6;const labelY=baseY-16;const opFs=Math.max(14,Math.round(eW*0.55));for(let i=0;i<n;i++){const{data,rows,cols}=mats[i];const sx=startXs[i];for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){const row=Array.isArray(data[r])?data[r]:[];const v=row[c]!==undefined&&row[c]!==null?row[c]:'';const g=root.append('g').attr('class',`mxs-cell mxs-m${i}-cell mxs-m${i}-cell-${r}-${c}`).attr('id',`mxs-m${i}-cell-${r}-${c}`).attr('data-row',r).attr('data-col',c).attr('transform',`translate(${sx+c*(eW+eG)},${baseY+r*(eH+eG)})`);g.append('rect').attr('class',`mxs-rect mxs-m${i}-rect`).attr('width',eW).attr('height',eH).attr('rx',6).attr('ry',6).attr('fill','transparent').attr('stroke','#4f46e5').attr('stroke-width',2);g.append('text').attr('class',`mxs-text mxs-m${i}-text`).attr('x',eW/2).attr('y',eH/2+5).attr('text-anchor','middle').attr('fill',colors.text||'#ffffff').style('font-weight','500').style('font-size',`${fs}px`).style('font-family','\"Inter\",sans-serif').text(String(v));}}if(labels[i]!==undefined&&String(labels[i])!==''){root.append('text').attr('class','mxs-label').attr('x',sx+(cols*(eW+eG)-eG)/2).attr('y',labelY).attr('text-anchor','middle').attr('fill','rgba(226,232,240,0.85)').style('font-size','13px').style('font-weight','600').style('font-family','\"Inter\",sans-serif').text(String(labels[i]));}if(i<n-1&&operators[i]!==undefined&&String(operators[i])!==''){root.append('text').attr('class','mxs-op').attr('x',sx+cols*(eW+eG)-eG+opW/2).attr('y',midY).attr('text-anchor','middle').attr('fill','rgba(226,232,240,0.5)').style('font-size',`${opFs}px`).style('font-family','\"Inter\",sans-serif').text(String(operators[i]));}}",
+      "note": "General composite visual: N matrices side by side with operator symbols between them. Use for any multi-matrix teaching: addition, subtraction, multiplication, comparison, etc."
+    },
+    "highlightMatrixRow": {
+      "params": ["matrixIndex", "row", "active", "color"],
+      "code": "const colors=(registry&&registry.config&&registry.config.colors)||{};const mi=Number(args&&args.matrixIndex);const row=Number(args&&args.row);const active=!!(args&&args.active);const ck=(args&&args.color)||'accent';const sm={accent:colors.accent||'#3b82f6',highlight:colors.highlight||'#eab308',success:colors.success||'#10b981'};const fm={accent:colors.rowColHighlight||'rgba(59,130,246,0.18)',highlight:'rgba(234,179,8,0.15)',success:'rgba(16,185,129,0.15)'};if(!Number.isFinite(mi)||!Number.isFinite(row))return;svg.selectAll(`.mxs-m${mi}-cell[data-row='${row}'] .mxs-m${mi}-rect`).interrupt().transition().duration(260).attr('stroke',active?(sm[ck]||sm.accent):'#4f46e5').attr('stroke-width',active?2.5:2).style('filter',active?'url(#mxs-glow)':'none').attr('fill',active?(fm[ck]||fm.accent):'transparent');"
+    },
+    "highlightMatrixCol": {
+      "params": ["matrixIndex", "col", "active", "color"],
+      "code": "const colors=(registry&&registry.config&&registry.config.colors)||{};const mi=Number(args&&args.matrixIndex);const col=Number(args&&args.col);const active=!!(args&&args.active);const ck=(args&&args.color)||'accent';const sm={accent:colors.accent||'#3b82f6',highlight:colors.highlight||'#eab308',success:colors.success||'#10b981'};const fm={accent:colors.rowColHighlight||'rgba(59,130,246,0.18)',highlight:'rgba(234,179,8,0.15)',success:'rgba(16,185,129,0.15)'};if(!Number.isFinite(mi)||!Number.isFinite(col))return;svg.selectAll(`.mxs-m${mi}-cell[data-col='${col}'] .mxs-m${mi}-rect`).interrupt().transition().duration(260).attr('stroke',active?(sm[ck]||sm.accent):'#4f46e5').attr('stroke-width',active?2.5:2).style('filter',active?'url(#mxs-glow)':'none').attr('fill',active?(fm[ck]||fm.accent):'transparent');"
+    },
+    "highlightMatrixCell": {
+      "params": ["matrixIndex", "row", "col", "active", "color"],
+      "code": "const colors=(registry&&registry.config&&registry.config.colors)||{};const mi=Number(args&&args.matrixIndex);const row=Number(args&&args.row);const col=Number(args&&args.col);const active=!!(args&&args.active);const ck=(args&&args.color)||'success';const sm={accent:colors.accent||'#3b82f6',highlight:colors.highlight||'#eab308',success:colors.success||'#10b981'};const fm={accent:colors.rowColHighlight||'rgba(59,130,246,0.18)',highlight:'rgba(234,179,8,0.15)',success:'rgba(16,185,129,0.15)'};if(!Number.isFinite(mi)||!Number.isFinite(row)||!Number.isFinite(col))return;svg.select(`#mxs-m${mi}-cell-${row}-${col} .mxs-m${mi}-rect`).interrupt().transition().duration(260).attr('stroke',active?(sm[ck]||sm.success):'#4f46e5').attr('stroke-width',active?3:2).style('filter',active?'url(#mxs-glow)':'none').attr('fill',active?(fm[ck]||fm.success):'transparent');"
+    },
+    "setMatrixCellValue": {
+      "params": ["matrixIndex", "row", "col", "value"],
+      "code": "const mi=Number(args&&args.matrixIndex);const row=Number(args&&args.row);const col=Number(args&&args.col);if(!Number.isFinite(mi)||!Number.isFinite(row)||!Number.isFinite(col))return;const val=args&&args.value!==undefined&&args.value!==null?String(args.value):'';const txt=svg.select(`#mxs-m${mi}-cell-${row}-${col} .mxs-m${mi}-text`);if(txt.empty())return;txt.interrupt().transition().duration(130).style('opacity',0.35).attr('transform','translate(0,-2)').on('end',function(){d3.select(this).text(val).transition().duration(180).style('opacity',1).attr('transform','translate(0,0)');});"
+    },
+    "annotateMatrixSet": {
+      "params": ["text"],
+      "code": "const eW=Number(svg.attr('data-mxs-ew'))||54;const eH=Number(svg.attr('data-mxs-eh'))||54;const eG=Number(svg.attr('data-mxs-eg'))||8;const by=Number(svg.attr('data-mxs-by'))||40;const n=Number(svg.attr('data-mxs-n'))||1;const colors=(registry&&registry.config&&registry.config.colors)||{};svg.selectAll('.mxs-annotation').interrupt().remove();if(!args||!args.text)return;let minX=Infinity,maxX=-Infinity,maxRows=0;for(let i=0;i<n;i++){const sx=Number(svg.attr(`data-mxs-x${i}`))||0;const cols=Number(svg.attr(`data-mxs-c${i}`))||0;const rows=Number(svg.attr(`data-mxs-r${i}`))||0;minX=Math.min(minX,sx);maxX=Math.max(maxX,sx+cols*(eW+eG)-eG);maxRows=Math.max(maxRows,rows);}const midX=(minX+maxX)/2;const y=by+maxRows*(eH+eG)+14;const g=svg.append('g').attr('class','mxs-annotation').style('opacity',0);g.append('text').attr('x',midX).attr('y',y).attr('text-anchor','middle').attr('fill',colors.annotation||'#c7d2fe').style('font-family','ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace').style('font-size',eW<36?'11px':'12px').style('font-weight','500').text(String(args.text));g.transition().duration(300).style('opacity',1).attr('transform','translate(0,-4)');"
+    },
+    "clearMatrixSetHighlights": {
+      "params": [],
+      "code": "svg.selectAll('.mxs-rect').interrupt().transition().duration(240).attr('fill','transparent').attr('stroke','#4f46e5').attr('stroke-width',2).style('filter','none');svg.selectAll('.mxs-annotation').interrupt().transition().duration(140).style('opacity',0).remove();"
+    }
+  }
+}

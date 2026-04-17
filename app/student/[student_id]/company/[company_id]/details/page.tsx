@@ -886,6 +886,14 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
     return projects.length > 0 ? projects : STATIC_PROJECTS
   }, [projects])
 
+  const joinedEnvironmentProjects = useMemo(() => {
+    return environmentProjectsForPicker.filter((p: any) => joinedEnvironmentIds.includes(p.project_id))
+  }, [environmentProjectsForPicker, joinedEnvironmentIds])
+
+  const notJoinedEnvironmentProjects = useMemo(() => {
+    return environmentProjectsForPicker.filter((p: any) => !joinedEnvironmentIds.includes(p.project_id))
+  }, [environmentProjectsForPicker, joinedEnvironmentIds])
+
   // Hash-based mode persistence
   useEffect(() => {
     const hash = window.location.hash.slice(1)
@@ -1907,34 +1915,90 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
                     {environmentProjectsForPicker.length === 0 ? (
                       <p className="text-[13px] text-white/60">No environments available yet.</p>
                     ) : (
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        {environmentProjectsForPicker.map((project) => (
-                          <button
-                            key={project.project_id}
-                            type="button"
-                            onClick={() => handleProjectClick(project.project_id)}
-                            className="text-left rounded-xl border border-white/10 bg-white/5 p-4 transition-all hover:border-white/25 hover:bg-white/10"
-                          >
-                            <div className="flex items-start justify-between gap-2 mb-2">
-                              <h3 className="font-medium text-[15px] text-white">{project.name}</h3>
-                              <Badge variant="secondary" className="text-[10px] bg-white/10 text-white border-white/20 capitalize shrink-0">
-                                {project.status || "active"}
-                              </Badge>
+                      <div className="space-y-8">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-[11px] uppercase tracking-wide text-white/40">JOINED</p>
+                            <Badge variant="secondary" className="bg-white/5 text-white border-white/10">
+                              {joinedEnvironmentProjects.length}
+                            </Badge>
+                          </div>
+                          {joinedEnvironmentProjects.length === 0 ? (
+                            <p className="text-[13px] text-white/60">No joined environments yet.</p>
+                          ) : (
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              {joinedEnvironmentProjects.map((project: any) => (
+                                <button
+                                  key={project.project_id}
+                                  type="button"
+                                  onClick={() => handleProjectClick(project.project_id)}
+                                  className="text-left rounded-xl border border-white/10 bg-white/5 p-4 transition-all hover:border-white/25 hover:bg-white/10"
+                                >
+                                  <div className="flex items-start justify-between gap-2 mb-2">
+                                    <h3 className="font-medium text-[15px] text-white">{project.name}</h3>
+                                    <Badge variant="secondary" className="text-[10px] bg-white/10 text-white border-white/20 capitalize shrink-0">
+                                      {project.status || "active"}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-[12px] text-white/55 line-clamp-3 mb-3">
+                                    {project.description || "No description"}
+                                  </p>
+                                  {project.tech_stack && project.tech_stack.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {project.tech_stack.map((tech: string) => (
+                                        <Badge key={tech} variant="outline" className="text-[10px] border-white/20 text-white bg-white/5">
+                                          #{tech.toLowerCase()}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
+                                </button>
+                              ))}
                             </div>
-                            <p className="text-[12px] text-white/55 line-clamp-3 mb-3">
-                              {project.description || "No description"}
-                            </p>
-                            {project.tech_stack && project.tech_stack.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {project.tech_stack.map((tech: string) => (
-                                  <Badge key={tech} variant="outline" className="text-[10px] border-white/20 text-white bg-white/5">
-                                    #{tech.toLowerCase()}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
-                          </button>
-                        ))}
+                          )}
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-[11px] uppercase tracking-wide text-white/40">NOT JOINED YET</p>
+                            <Badge variant="secondary" className="bg-white/5 text-white border-white/10">
+                              {notJoinedEnvironmentProjects.length}
+                            </Badge>
+                          </div>
+                          {notJoinedEnvironmentProjects.length === 0 ? (
+                            <p className="text-[13px] text-white/60">Everything is joined.</p>
+                          ) : (
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              {notJoinedEnvironmentProjects.map((project: any) => (
+                                <button
+                                  key={project.project_id}
+                                  type="button"
+                                  onClick={() => handleProjectClick(project.project_id)}
+                                  className="text-left rounded-xl border border-white/10 bg-white/5 p-4 transition-all hover:border-white/25 hover:bg-white/10"
+                                >
+                                  <div className="flex items-start justify-between gap-2 mb-2">
+                                    <h3 className="font-medium text-[15px] text-white">{project.name}</h3>
+                                    <Badge variant="outline" className="text-[10px] border-white/20 text-white bg-white/5 capitalize shrink-0">
+                                      Not joined yet
+                                    </Badge>
+                                  </div>
+                                  <p className="text-[12px] text-white/55 line-clamp-3 mb-3">
+                                    {project.description || "No description"}
+                                  </p>
+                                  {project.tech_stack && project.tech_stack.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {project.tech_stack.map((tech: string) => (
+                                        <Badge key={tech} variant="outline" className="text-[10px] border-white/20 text-white bg-white/5">
+                                          #{tech.toLowerCase()}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

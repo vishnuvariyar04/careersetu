@@ -1,0 +1,28 @@
+{
+  "primitive": "TEXT_V3_FUNCTIONAL",
+  "config": {
+    "colors": {
+      "text": "rgba(255,255,255,0.95)",
+      "dim": "rgba(255,255,255,0.45)",
+      "brand": "#3b82f6",
+      "math": "#eab308"
+    }
+  },
+  "functions": {
+    "renderHeading": {
+      "params": ["title", "subtitle"],
+      "description": "Sets the main algorithm name and its high-level description at the top.",
+      "code": "const { colors } = registry.config; svg.selectAll('.heading-fo').remove(); const w = Math.max(0, svg.node().getBoundingClientRect().width); const pad = 16; const foW = Math.max(80, w - pad * 2); const fo = svg.append('foreignObject').attr('class', 'heading-fo').attr('x', pad).attr('y', 8).attr('width', foW).attr('height', 160).style('overflow', 'visible'); const div = fo.append('xhtml:div').attr('xmlns', 'http://www.w3.org/1999/xhtml').style('box-sizing', 'border-box').style('width', '100%').style('color', '#ffffff').style('text-align', 'center').style('word-wrap', 'break-word').style('overflow-wrap', 'anywhere').style('padding', '0 6px'); div.append('div').style('font-family', '\"Caveat\", cursive').style('font-size', 'clamp(26px, 4.5vw, 48px)').style('font-weight', '600').style('line-height', '1.15').text(args.title || ''); if (args.subtitle) { div.append('div').style('margin-top', '8px').style('font-family', '\"Inter\", sans-serif').style('font-size', '15px').style('font-weight', '400').style('color', '#94a3b8').style('line-height', '1.45').text(args.subtitle); }"
+    },
+    "renderInstructions": {
+      "params": ["label", "steps"],
+      "description": "Renders a vertical list of algorithm steps with wrapping within the panel.",
+      "code": "const { colors } = registry.config; svg.selectAll('.inst-fo').style('display', 'none'); const w = Math.max(0, svg.node().getBoundingClientRect().width); const pad = 16; const foW = Math.max(80, w - pad * 2); const fo = svg.append('foreignObject').attr('class', 'inst-fo').attr('x', pad).attr('y', 175).attr('width', foW).attr('height', 240).style('overflow', 'visible'); const root = fo.append('xhtml:div').attr('xmlns', 'http://www.w3.org/1999/xhtml').style('box-sizing', 'border-box').style('width', '100%').style('max-height', '236px').style('overflow-y', 'auto').style('overflow-x', 'hidden').style('padding', '0 4px'); root.append('div').style('font-family', '\"Caveat\", cursive').style('font-size', '26px').style('font-weight', '500').style('color', '#60a5fa').text(args.label || ''); const list = root.append('div').style('margin-top', '10px'); (args.steps || []).forEach((step, i) => { const row = list.append('div').style('display', 'flex').style('gap', '10px').style('align-items', 'flex-start').style('margin-top', i === 0 ? '0' : '8px').style('opacity', '0'); row.append('span').style('flex-shrink', '0').style('color', '#818cf8').style('font-family', '\"Inter\", sans-serif').style('font-size', '14px').style('line-height', '1.5').text('\u2192'); row.append('span').style('flex', '1').style('min-width', '0').style('color', '#94a3b8').style('font-family', '\"Inter\", sans-serif').style('font-size', '14px').style('line-height', '1.5').style('word-wrap', 'break-word').style('overflow-wrap', 'anywhere').text(String(step)); row.transition().delay(i * 120).duration(400).style('opacity', '1'); });"
+    },
+    "renderFormula": {
+      "params": ["description", "mathText"],
+      "description": "Renders a formula block at the bottom with wrapping and optional KaTeX.",
+      "code": "const { colors } = registry.config; svg.selectAll('.formula-fo').style('display', 'none'); const bbox = svg.node().getBoundingClientRect(); const w = Math.max(0, bbox.width); const h = Math.max(320, bbox.height); const pad = 16; const foW = Math.max(80, w - pad * 2); const foH = 220; const foY = Math.max(8, h - foH - 16); const fo = svg.append('foreignObject').attr('class', 'formula-fo').attr('x', pad).attr('y', foY).attr('width', foW).attr('height', foH).style('overflow', 'visible'); const wrap = fo.append('xhtml:div').attr('xmlns', 'http://www.w3.org/1999/xhtml').style('box-sizing', 'border-box').style('width', '100%').style('max-height', foH + 'px').style('overflow-y', 'auto').style('overflow-x', 'auto').style('padding', '14px 16px').style('border-radius', '12px').style('background', 'rgba(255,255,255,0.02)').style('border', '1px solid rgba(255,255,255,0.1)'); wrap.append('div').style('font-family', '\"Inter\", sans-serif').style('font-size', '11px').style('text-transform', 'uppercase').style('font-weight', '700').style('letter-spacing', '1.2px').style('color', colors.dim).style('margin-bottom', '8px').text(args.description || ''); const mathEl = wrap.append('div').style('color', colors.math).style('font-size', '15px').style('line-height', '1.45').style('word-break', 'break-word'); const mt = String(args.mathText || ''); try { if (typeof window !== 'undefined' && window.katex) { mathEl.html(window.katex.renderToString(mt, { displayMode: true, throwOnError: false, output: 'html' })); } else { mathEl.style('font-family', '\"JetBrains Mono\", monospace').style('font-weight', '600').text(mt); } } catch (e) { mathEl.style('font-family', '\"JetBrains Mono\", monospace').style('font-weight', '600').text(mt); }"
+    }
+  }
+}

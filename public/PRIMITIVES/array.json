@@ -1,0 +1,76 @@
+{
+  "primitive": "ARRAY_V1_PRO",
+  "config": {
+    "cW": 54,
+    "cH": 54,
+    "gap": 8,
+    "baseY": 40,
+    "colors": {
+      "default": "rgba(255, 255, 255, 0.03)",
+      "stroke": "rgba(255, 255, 255, 0.08)",
+      "accent": "#3b82f6",
+      "highlight": "#eab308",
+      "success": "#10b981",
+      "dull": "rgba(255, 255, 255, 0.01)",
+      "pointer": "#f43f5e"
+    }
+  },
+  "functions": {
+    "renderArrayBase": {
+      "params": [
+        "elements"
+      ],
+      "code": "svg.selectAll('.cell, .idx-label, defs, .range-bracket, .array-annotation, [class^=ptr-]').remove(); const { cW, cH, gap, colors, baseY } = registry.config; const width = svg.node().getBoundingClientRect().width || 500; const margin = 16; const usableW = Math.max(80, width - margin * 2); let effCw = cW; let effGap = gap; const n = args.elements.length; let totalW = n * (effCw + effGap); while (totalW > usableW && effCw > 22) { effCw = Math.max(22, effCw - 2); effGap = Math.max(4, effGap - 1); totalW = n * (effCw + effGap); } let startX = (width - totalW) / 2; if (startX < margin) startX = margin; // Overlay lanes are derived from current scaled cell width for responsive spacing.\nconst lanePointerY = baseY - 5; const laneAnnotY = baseY + cH + Math.max(24, Math.round(effCw * 0.48)); const laneBracketY = laneAnnotY + Math.max(20, Math.round(effCw * 0.4)); const laneBracketCurve = Math.max(8, Math.round(effCw * 0.2)); const laneBracketLabelOffset = Math.max(14, Math.round(effCw * 0.3)); svg.attr('data-array-cw', effCw).attr('data-array-gap', effGap).attr('data-array-startx', startX).attr('data-array-lane-pointer-y', lanePointerY).attr('data-array-lane-annot-y', laneAnnotY).attr('data-array-lane-bracket-y', laneBracketY).attr('data-array-lane-bracket-curve', laneBracketCurve).attr('data-array-lane-bracket-label-off', laneBracketLabelOffset); const fontSize = effCw < 36 ? Math.max(10, Math.round(effCw / 3.4)) : 16; const defs = svg.append('defs'); const filter = defs.append('filter').attr('id', 'glow'); filter.append('feGaussianBlur').attr('stdDeviation', '4').attr('result', 'coloredBlur'); const merge = filter.append('feMerge'); merge.append('feMergeNode').attr('in', 'coloredBlur'); merge.append('feMergeNode').attr('in', 'SourceGraphic'); const dataObj = args.elements.map((v, i) => ({ id: i, value: v })); const groups = svg.selectAll('.cell').data(dataObj, d => d.id).enter().append('g').attr('class', 'cell').attr('id', d => `cell-${d.id}`).attr('transform', (d, i) => `translate(${startX + i * (effCw + effGap)}, ${baseY})`); groups.append('rect').attr('width', effCw).attr('height', cH).attr('fill', 'transparent').attr('stroke', '#4f46e5').attr('stroke-width', 2); groups.append('text').attr('class', 'val-text').text(d => d.value).attr('x', effCw / 2).attr('y', cH / 2 + 5).attr('text-anchor', 'middle').attr('fill', '#ffffff').style('font-weight', '500').style('font-size', fontSize + 'px').style('font-family', '\"Inter\", sans-serif');"
+    },
+    "setHighlight": {
+      "params": [
+        "index",
+        "active"
+      ],
+      "description": "Toggles a glowing highlight on a specific cell.",
+      "code": "const { colors } = registry.config; const cell = svg.select(`#cell-${args.index} rect`); cell.transition().duration(300).attr('stroke', args.active ? colors.highlight : '#4f46e5');"
+    },
+    "movePointer": {
+      "params": [
+        "index",
+        "label"
+      ],
+      "description": "Creates or moves a named pointer to a specific index.",
+      "code": "const { cW, gap, colors, baseY } = registry.config; const effCw = parseFloat(svg.attr('data-array-cw')) || cW; const effGap = parseFloat(svg.attr('data-array-gap')) || gap; const storedStart = parseFloat(svg.attr('data-array-startx')); const width = svg.node().getBoundingClientRect().width || 500; const count = svg.selectAll('.cell').size(); const totalW = count * (effCw + effGap); const startX = Number.isFinite(storedStart) ? storedStart : ((width - totalW) / 2); const pointerY = parseFloat(svg.attr('data-array-lane-pointer-y')); const lanePointerY = Number.isFinite(pointerY) ? pointerY : (baseY - 5); let ptr = svg.select(`.ptr-${args.label}`); if (ptr.empty()) { ptr = svg.append('g').attr('class', `ptr-${args.label}`); ptr.append('path').attr('d', 'M -8 -15 L 0 -5 L 8 -15 Z').attr('fill', colors.pointer); ptr.append('text').attr('y', -20).attr('text-anchor', 'middle').attr('fill', colors.pointer).style('font-weight', 'bold').style('font-size', '12px').text(args.label); } ptr.interrupt().transition().duration(500).attr('transform', `translate(${startX + args.index * (effCw + effGap) + effCw / 2}, ${lanePointerY})`);"
+    },
+    "swap": {
+      "params": [
+        "i",
+        "j"
+      ],
+      "code": "const cellA = svg.select(`#cell-${args.i}`); const cellB = svg.select(`#cell-${args.j}`); if (cellA.empty() || cellB.empty()) return; const tA = cellA.attr('transform'); const tB = cellB.attr('transform'); cellA.transition().duration(600).ease(d3.easeCubicInOut).attr('transform', tB); cellB.transition().duration(600).ease(d3.easeCubicInOut).attr('transform', tA).on('end', () => { cellA.attr('id', `cell-${args.j}`); cellB.attr('id', `cell-${args.i}`); const dA = cellA.datum(); const dB = cellB.datum(); cellA.datum({ ...dA, id: args.j }); cellB.datum({ ...dB, id: args.i }); });"
+    },
+    "setRangeDull": {
+      "params": [
+        "start",
+        "end",
+        "isDull"
+      ],
+      "description": "Dims only the elements WITHIN the logical index range.",
+      "code": "svg.selectAll('.cell').filter(d => d.id >= args.start && d.id <= args.end).transition().duration(400).style('opacity', args.isDull ? 0.2 : 1).style('filter', args.isDull ? 'grayscale(80%) blur(1px)' : 'none');"
+    },
+    "setBracket": {
+      "params": [
+        "start",
+        "end",
+        "label",
+        "active"
+      ],
+      "description": "A robust, high-contrast curly bracket below the cells.",
+      "code": "const { cW, cH, gap, colors, baseY } = registry.config; svg.selectAll('.range-bracket').interrupt().remove(); if (!args.active) return; const effCw = parseFloat(svg.attr('data-array-cw')) || cW; const effGap = parseFloat(svg.attr('data-array-gap')) || gap; const storedStart = parseFloat(svg.attr('data-array-startx')); const width = svg.node().getBoundingClientRect().width || 500; const count = svg.selectAll('.cell').size(); const totalW = count * (effCw + effGap); const startX = Number.isFinite(storedStart) ? storedStart : ((width - totalW) / 2); const bracketYAttr = parseFloat(svg.attr('data-array-lane-bracket-y')); const bracketCurveAttr = parseFloat(svg.attr('data-array-lane-bracket-curve')); const bracketLabelOffAttr = parseFloat(svg.attr('data-array-lane-bracket-label-off')); const y = Number.isFinite(bracketYAttr) ? bracketYAttr : (baseY + cH + 48); const q = Number.isFinite(bracketCurveAttr) ? bracketCurveAttr : Math.max(8, Math.round(effCw * 0.2)); const labelOff = Number.isFinite(bracketLabelOffAttr) ? bracketLabelOffAttr : Math.max(14, Math.round(effCw * 0.3)); const x1 = startX + args.start * (effCw + effGap) + 2; const x2 = startX + args.end * (effCw + effGap) + effCw - 2; const midX = (x1 + x2) / 2; const pathData = `M ${x1} ${y} C ${x1} ${y+q} ${x1+q} ${y+q} ${x1+q} ${y+q} L ${midX-q} ${y+q} C ${midX-q/2} ${y+q} ${midX-q/2} ${y+q*2} ${midX} ${y+q*2} C ${midX+q/2} ${y+q*2} ${midX+q/2} ${y+q} ${midX+q} ${y+q} L ${x2-q} ${y+q} C ${x2-q} ${y+q} ${x2} ${y+q} ${x2} ${y}`; const g = svg.append('g').attr('class', 'range-bracket').style('opacity', 0); g.append('path').attr('d', pathData).attr('fill', 'none').attr('stroke', colors.accent).attr('stroke-width', 2).attr('stroke-linecap', 'round'); g.append('text').text(args.label || '').attr('x', midX).attr('y', y + q * 2 + labelOff).attr('text-anchor', 'middle').attr('fill', colors.accent).style('font-weight', 'bold').style('font-size', effCw < 34 ? '11px' : '12px').style('text-transform', 'uppercase'); g.transition().duration(400).style('opacity', 1);"
+    },
+    "annotate": {
+      "params": [
+        "index",
+        "text"
+      ],
+      "description": "Adds logic helper text (like comparisons '3 != 4', 'Swap!') aligned to specific cells. Pass a single index, an array of [i, j], or omit index for a global centered annotation.",
+      "code": "const { cW, gap, baseY, cH } = registry.config; const effCw = parseFloat(svg.attr('data-array-cw')) || cW; const effGap = parseFloat(svg.attr('data-array-gap')) || gap; const storedStart = parseFloat(svg.attr('data-array-startx')); const width = svg.node().getBoundingClientRect().width || 500; const count = svg.selectAll('.cell').size(); const totalW = count * (effCw + effGap); const startX = Number.isFinite(storedStart) ? storedStart : ((width - totalW) / 2); svg.selectAll('.array-annotation').interrupt().remove(); if (!args.text) return; let midX = width / 2; if (args.index !== undefined && args.index !== null) { if (Array.isArray(args.index) && args.index.length === 2) { const x1 = startX + args.index[0] * (effCw + effGap) + effCw / 2; const x2 = startX + args.index[1] * (effCw + effGap) + effCw / 2; midX = (x1 + x2) / 2; } else { midX = startX + Number(args.index) * (effCw + effGap) + effCw / 2; } } const annotYAttr = parseFloat(svg.attr('data-array-lane-annot-y')); const y = Number.isFinite(annotYAttr) ? annotYAttr : (baseY + cH + Math.max(24, Math.round(effCw * 0.48))); const g = svg.append('g').attr('class', 'array-annotation').style('opacity', 0); g.append('text').attr('x', midX).attr('y', y).attr('text-anchor', 'middle').attr('fill', '#c7d2fe').style('font-family', 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace').style('font-size', effCw < 34 ? '12px' : '14px').style('font-weight', '500').style('filter', 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))').text(args.text); g.transition().duration(400).style('opacity', 1).attr('transform', 'translate(0, -5)');"
+    }
+  }
+}

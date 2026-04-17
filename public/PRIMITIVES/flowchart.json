@@ -1,0 +1,137 @@
+{
+  "primitive": "FLOWCHART_V1",
+  "config": {
+    "nodeW": 160,
+    "nodeH": 42,
+    "termW": 130,
+    "termH": 36,
+    "decHalfW": 72,
+    "decHalfH": 42,
+    "connR": 6,
+    "ioSkew": 14,
+    "rankSep": 42,
+    "nodeSep": 28,
+    "edgeSep": 12,
+    "marginX": 24,
+    "marginY": 24,
+    "colors": {
+      "default": {
+        "fill": "rgba(255, 255, 255, 0.03)",
+        "stroke": "#4f46e5",
+        "text": "#ffffff"
+      },
+      "active": {
+        "fill": "rgba(59, 130, 246, 0.12)",
+        "stroke": "#3b82f6",
+        "text": "#ffffff"
+      },
+      "done": {
+        "fill": "rgba(16, 185, 129, 0.10)",
+        "stroke": "#10b981",
+        "text": "#d1fae5"
+      },
+      "highlight": {
+        "fill": "rgba(234, 179, 8, 0.10)",
+        "stroke": "#eab308",
+        "text": "#fef9c3"
+      },
+      "dull": {
+        "fill": "rgba(255, 255, 255, 0.01)",
+        "stroke": "rgba(255, 255, 255, 0.06)",
+        "text": "rgba(255, 255, 255, 0.25)"
+      },
+      "termStart": {
+        "fill": "rgba(16, 185, 129, 0.08)",
+        "stroke": "#10b981",
+        "text": "#d1fae5"
+      },
+      "termEnd": {
+        "fill": "rgba(99, 102, 241, 0.08)",
+        "stroke": "#6366f1",
+        "text": "#e0e7ff"
+      },
+      "edge": "rgba(255, 255, 255, 0.12)",
+      "edgeActive": "#3b82f6"
+    }
+  },
+  "functions": {
+    "renderFlowchartBase": {
+      "params": [
+        "nodes",
+        "edges"
+      ],
+      "code": "svg.selectAll('*').remove(); var cfg=registry.config; var col=cfg.colors; var g=new dagre.graphlib.Graph(); g.setGraph({rankdir:'TB',ranksep:cfg.rankSep||80,nodesep:cfg.nodeSep||50,edgesep:cfg.edgeSep||20,marginx:cfg.marginX||40,marginy:cfg.marginY||40}); g.setDefaultEdgeLabel(function(){return {};}); (args.nodes||[]).forEach(function(n){ var w,h; if(n.type==='terminal'){w=cfg.termW;h=cfg.termH;} else if(n.type==='decision'){w=cfg.decHalfW*2;h=cfg.decHalfH*2;} else if(n.type==='connector'){w=cfg.connR*2;h=cfg.connR*2;} else{w=cfg.nodeW;h=cfg.nodeH;} g.setNode(n.id,{label:n.label||'',width:w,height:h,type:n.type}); }); (args.edges||[]).forEach(function(e){ g.setEdge(e.from,e.to,{label:e.label||'',side:e.side||'bottom'}); }); dagre.layout(g); var nodeMap={}; g.nodes().forEach(function(id){ var nd=g.node(id); nodeMap[id]={id:id,cx:nd.x,cy:nd.y,type:nd.type,label:nd.label}; }); var svgW=0,svgH=0; Object.keys(nodeMap).forEach(function(k){ var n=nodeMap[k]; var hw=n.type==='terminal'?cfg.termW/2:n.type==='decision'?cfg.decHalfW:n.type==='connector'?cfg.connR:cfg.nodeW/2; var hh=n.type==='terminal'?cfg.termH/2:n.type==='decision'?cfg.decHalfH:n.type==='connector'?cfg.connR:cfg.nodeH/2; svgW=Math.max(svgW,n.cx+hw+40); svgH=Math.max(svgH,n.cy+hh+40); }); svg.attr('viewBox','0 0 '+svgW+' '+svgH); var defs=svg.append('defs'); var glow=defs.append('filter').attr('id','fc-glow').attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%'); glow.append('feGaussianBlur').attr('stdDeviation','4').attr('result','coloredBlur'); var mg=glow.append('feMerge'); mg.append('feMergeNode').attr('in','coloredBlur'); mg.append('feMergeNode').attr('in','SourceGraphic'); defs.append('marker').attr('id','fc-arr').attr('viewBox','0 0 10 10').attr('refX',8).attr('refY',5).attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto').append('path').attr('d','M 0 1 L 9 5 L 0 9 z').attr('fill',col.edge); defs.append('marker').attr('id','fc-arr-act').attr('viewBox','0 0 10 10').attr('refX',8).attr('refY',5).attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto').append('path').attr('d','M 0 1 L 9 5 L 0 9 z').attr('fill',col.edgeActive); var eg=svg.append('g').attr('class','fc-edges'); g.edges().forEach(function(e){ var ed=g.edge(e); var pts=ed.points||[]; if(pts.length<2) return; var src=nodeMap[e.v], tgt=nodeMap[e.w]; var pStart = {x: pts[0].x, y: pts[0].y}, startStub = null; if(src.type==='decision'){ var dx = pts[0].x - src.cx, dy = pts[0].y - src.cy; if(Math.abs(dx) > 10){ var s = dx > 0 ? 1 : -1; pStart = {x: src.cx + s*cfg.decHalfW, y: src.cy}; startStub = {x: pStart.x + s*15, y: pStart.y}; } else { var s = dy > 0 ? 1 : -1; pStart = {x: src.cx, y: src.cy + s*cfg.decHalfH}; } } var pEnd = {x: pts[pts.length-1].x, y: pts[pts.length-1].y}, endStub = null; if(tgt.type==='decision'){ var dx_t = pts[pts.length-1].x - tgt.cx, dy_t = pts[pts.length-1].y - tgt.cy; if(Math.abs(dx_t) > Math.abs(dy_t)*1.5 && Math.abs(dx_t) > 10) { var s = dx_t > 0 ? 1 : -1; pEnd = {x: tgt.cx + s*cfg.decHalfW, y: tgt.cy}; endStub = {x: pEnd.x + s*15, y: pEnd.y}; } else { var s = dy_t > 0 ? 1 : -1; pEnd = {x: tgt.cx, y: tgt.cy + s*cfg.decHalfH}; } } var newPts = [pStart]; if(startStub) newPts.push(startStub); for(var i=1; i<pts.length-1; i++){ newPts.push(pts[i]); } if(endStub) newPts.push(endStub); newPts.push(pEnd); pts = newPts; var pd='M '+pts[0].x+' '+pts[0].y; for(var i=1;i<pts.length;i++){ var px=pts[i-1].x,py=pts[i-1].y,cx=pts[i].x,cy=pts[i].y; if(Math.abs(px-cx)<1){pd+=' L '+cx+' '+cy;}else{var my=(py+cy)/2;pd+=' L '+px+' '+my+' L '+cx+' '+my+' L '+cx+' '+cy;} } eg.append('path').attr('class','fc-edge fc-edge-'+e.v+'-'+e.w).attr('d',pd).attr('fill','none').attr('stroke',col.edge).attr('stroke-width',1.5).attr('marker-end','url(#fc-arr)'); if(ed.label){ var midIdx=Math.floor(pts.length/2); var lx=pts[midIdx].x+8; var ly=pts[midIdx].y-6; eg.append('text').attr('class','fc-el fc-el-'+e.v+'-'+e.w).attr('x',lx).attr('y',ly).attr('fill','rgba(255,255,255,0.5)').attr('font-size','11px').attr('font-family','\"Inter\", sans-serif').attr('font-weight','600').text(ed.label); } }); var ngrp=svg.append('g').attr('class','fc-nodes'); (args.nodes||[]).forEach(function(n){ var nd=nodeMap[n.id]; if(!nd) return; var isStart=n.type==='terminal'&&/start|begin/i.test(n.label); var stk=n.type==='terminal'?(isStart?'termStart':'termEnd'):'default'; var c=col[stk]||col.default; var gn=ngrp.append('g').attr('class','fc-node').attr('id','fc-node-'+n.id).attr('transform','translate('+nd.cx+','+nd.cy+')').attr('data-type',n.type).attr('data-state',stk).attr('data-init-state',stk); if(n.type==='terminal'){var hw=cfg.termW/2,hh=cfg.termH/2; gn.append('rect').attr('class','fc-shape').attr('x',-hw).attr('y',-hh).attr('width',cfg.termW).attr('height',cfg.termH).attr('rx',hh).attr('fill',c.fill).attr('stroke',c.stroke).attr('stroke-width',2);}else if(n.type==='process'){var hw2=cfg.nodeW/2,hh2=cfg.nodeH/2; gn.append('rect').attr('class','fc-shape').attr('x',-hw2).attr('y',-hh2).attr('width',cfg.nodeW).attr('height',cfg.nodeH).attr('rx',6).attr('fill',c.fill).attr('stroke',c.stroke).attr('stroke-width',2);}else if(n.type==='decision'){var dhw=cfg.decHalfW,dhh=cfg.decHalfH; gn.append('polygon').attr('class','fc-shape').attr('points','0,'+(-dhh)+' '+dhw+',0 0,'+dhh+' '+(-dhw)+',0').attr('fill',c.fill).attr('stroke',c.stroke).attr('stroke-width',2);}else if(n.type==='io'){var iow=cfg.nodeW/2,ioh=cfg.nodeH/2,sk2=cfg.ioSkew; gn.append('polygon').attr('class','fc-shape').attr('points',((-iow+sk2))+','+(-ioh)+' '+((iow+sk2))+','+(-ioh)+' '+((iow-sk2))+','+ioh+' '+((-iow-sk2))+','+ioh).attr('fill',c.fill).attr('stroke',c.stroke).attr('stroke-width',2);}else if(n.type==='connector'){gn.append('circle').attr('class','fc-shape').attr('r',cfg.connR).attr('fill',c.stroke).attr('stroke',c.stroke).attr('stroke-width',1);} if(n.type!=='connector'){var maxC=n.type==='terminal'?Math.floor((cfg.termW-16)/7.5):n.type==='decision'?Math.floor((cfg.decHalfW*2-30)/7):Math.floor((cfg.nodeW-16)/7.5); var words=String(n.label).split(' '); var lines=[],cur=''; words.forEach(function(w){var t=cur?cur+' '+w:w;if(t.length>maxC&&cur){lines.push(cur);cur=w;}else{cur=t;}}); if(cur)lines.push(cur); var nlabel=String(n.label); if(nlabel.indexOf('\\n')>=0){lines=nlabel.split('\\n');} var lh=15,startY=-(lines.length*lh)/2+lh/2; lines.forEach(function(line,li){gn.append('text').attr('class','fc-label').attr('x',0).attr('y',startY+li*lh).attr('text-anchor','middle').attr('dominant-baseline','middle').attr('fill',c.text).attr('font-size','12px').attr('font-weight','500').attr('font-family','\"Inter\", sans-serif').text(line);});} });"
+    },
+    "activateNode": {
+      "params": [
+        "id"
+      ],
+      "description": "Transition a node to the active (blue) state.",
+      "code": "var nd=svg.select('#fc-node-'+args.id); if(nd.empty()) return; var c=registry.config.colors.active; nd.attr('data-state','active'); nd.select('.fc-shape').transition().duration(350).attr('fill',c.fill).attr('stroke',c.stroke).style('filter','url(#fc-glow)'); nd.selectAll('.fc-label').transition().duration(350).attr('fill',c.text);"
+    },
+    "markDone": {
+      "params": [
+        "id"
+      ],
+      "description": "Transition a node to the done (green) state.",
+      "code": "var nd=svg.select('#fc-node-'+args.id); if(nd.empty()) return; var c=registry.config.colors.done; nd.attr('data-state','done'); nd.select('.fc-shape').transition().duration(350).attr('fill',c.fill).attr('stroke',c.stroke).style('filter','none'); nd.selectAll('.fc-label').transition().duration(350).attr('fill',c.text);"
+    },
+    "highlightNode": {
+      "params": [
+        "id"
+      ],
+      "description": "Transition a node to the highlight (yellow) state.",
+      "code": "var nd=svg.select('#fc-node-'+args.id); if(nd.empty()) return; var c=registry.config.colors.highlight; nd.attr('data-state','highlight'); nd.select('.fc-shape').transition().duration(350).attr('fill',c.fill).attr('stroke',c.stroke).style('filter','url(#fc-glow)'); nd.selectAll('.fc-label').transition().duration(350).attr('fill',c.text);"
+    },
+    "dullNode": {
+      "params": [
+        "id"
+      ],
+      "description": "Transition a node to the dull (dim) state.",
+      "code": "var nd=svg.select('#fc-node-'+args.id); if(nd.empty()) return; var c=registry.config.colors.dull; nd.attr('data-state','dull'); nd.select('.fc-shape').transition().duration(350).attr('fill',c.fill).attr('stroke',c.stroke).style('filter','none'); nd.selectAll('.fc-label').transition().duration(350).attr('fill',c.text);"
+    },
+    "activateEdge": {
+      "params": [
+        "from",
+        "to"
+      ],
+      "description": "Animate a traveling dash along the edge from→to and highlight it.",
+      "code": "var edge=svg.select('.fc-edge-'+args.from+'-'+args.to); if(edge.empty()) return; var col=registry.config.colors; edge.attr('stroke',col.edgeActive).attr('stroke-width',2).attr('marker-end','url(#fc-arr-act)'); var len=edge.node().getTotalLength(); edge.attr('stroke-dasharray',len+' '+len).attr('stroke-dashoffset',len).transition().duration(500).ease(d3.easeLinear).attr('stroke-dashoffset',0).on('end',function(){ d3.select(this).attr('stroke-dasharray',null).attr('stroke-dashoffset',null); });"
+    },
+    "resetEdge": {
+      "params": [
+        "from",
+        "to"
+      ],
+      "description": "Return an edge to its default style.",
+      "code": "var edge=svg.select('.fc-edge-'+args.from+'-'+args.to); if(edge.empty()) return; edge.transition().duration(300).attr('stroke',registry.config.colors.edge).attr('stroke-width',1.5).attr('marker-end','url(#fc-arr)').attr('stroke-dasharray',null).attr('stroke-dashoffset',null);"
+    },
+    "pulseNode": {
+      "params": [
+        "id"
+      ],
+      "description": "Brief stroke-width pulse to draw momentary attention to a node.",
+      "code": "var shape=svg.select('#fc-node-'+args.id).select('.fc-shape'); if(shape.empty()) return; var sw=parseFloat(shape.attr('stroke-width'))||2; shape.transition().duration(150).attr('stroke-width',sw+3).transition().duration(150).attr('stroke-width',sw);"
+    },
+    "addAnnotation": {
+      "params": [
+        "nodeId",
+        "text"
+      ],
+      "description": "Show a callout bubble beside a node with explanatory text.",
+      "code": "svg.select('#fc-annot-'+args.nodeId).remove(); var nd=svg.select('#fc-node-'+args.nodeId); if(nd.empty()) return; var t=nd.attr('transform'); var m=t.match(/translate\\(([^,]+),([^)]+)\\)/); if(!m) return; var nx=parseFloat(m[1]),ny=parseFloat(m[2]); var tp=nd.attr('data-type'); var cfg=registry.config; var hw=tp==='terminal'?cfg.termW/2:tp==='decision'?cfg.decHalfW:cfg.nodeW/2; var lines=String(args.text).split('\\n'); var maxLen=Math.max.apply(null,lines.map(function(l){return l.length;})); var bw=maxLen*7+16; var bh=lines.length*16+12; var svgBox=svg.node().viewBox.baseVal; var svgW=svgBox?svgBox.width:800; var onRight=nx>svgW/2; var ax=onRight?nx-hw-16-bw:nx+hw+16; var lx1=onRight?nx-hw-4:nx+hw+4; var lx2=onRight?ax+bw:ax; var ay=ny; var obstacles=[]; svg.selectAll('[id^=fc-annot-]').each(function(){var r=d3.select(this).select('rect'); if(!r.empty()){var rx=parseFloat(r.attr('x')),ry=parseFloat(r.attr('y')),rw=parseFloat(r.attr('width')),rh=parseFloat(r.attr('height')); obstacles.push({left:rx,right:rx+rw,top:ry,bot:ry+rh});}}); svg.selectAll('.fc-node').each(function(){var n=d3.select(this); if(n.attr('id')==='fc-node-'+args.nodeId) return; var tt=n.attr('transform'); if(!tt) return; var mm=tt.match(/translate\\(([^,]+),([^)]+)\\)/); if(!mm) return; var nx2=parseFloat(mm[1]),ny2=parseFloat(mm[2]); var tpt=n.attr('data-type'); var nw=tpt==='terminal'?cfg.termW:tpt==='decision'?cfg.decHalfW*2:tpt==='connector'?cfg.connR*2:cfg.nodeW; var nh=tpt==='terminal'?cfg.termH:tpt==='decision'?cfg.decHalfH*2:tpt==='connector'?cfg.connR*2:cfg.nodeH; obstacles.push({left:nx2-nw/2,right:nx2+nw/2,top:ny2-nh/2,bot:ny2+nh/2});}); for(var ci=0;ci<80;ci++){var clash=false; var atop=ay-bh/2,abot=ay+bh/2; var aleft=ax,aright=ax+bw; for(var ck=0;ck<obstacles.length;ck++){var ob=obstacles[ck]; if(aleft<ob.right+4&&aright>ob.left-4&&atop<ob.bot+4&&abot>ob.top-4){clash=true; ay=ob.bot+8+bh/2; break;}} if(!clash) break;} var annotR=ax+bw+8,annotB=ay+bh/2+8; if(svgBox){var nvbW=Math.max(svgBox.width,annotR-svgBox.x),nvbH=Math.max(svgBox.height,annotB-svgBox.y); if(nvbW>svgBox.width||nvbH>svgBox.height){svg.node().setAttribute('viewBox',svgBox.x+' '+svgBox.y+' '+nvbW+' '+nvbH); svg.node().style.width=nvbW+'px'; svg.node().style.minWidth=nvbW+'px';}} var ga=svg.append('g').attr('id','fc-annot-'+args.nodeId).style('opacity',0); ga.append('line').attr('x1',lx1).attr('y1',ny).attr('x2',lx2).attr('y2',ay).attr('stroke','#4f46e5').attr('stroke-width',1).attr('stroke-dasharray','4 4').attr('opacity',0.6); ga.append('rect').attr('x',ax).attr('y',ay-bh/2).attr('width',bw).attr('height',bh).attr('rx',6).attr('fill','rgba(255, 255, 255, 0.03)').attr('stroke','#4f46e5').attr('stroke-width',1); lines.forEach(function(line,i){ga.append('text').attr('x',ax+8).attr('y',ay-bh/2+14+i*16).attr('fill','#c7d2fe').attr('font-size','11px').attr('font-weight','500').attr('font-family','\"Inter\", sans-serif').text(line);}); ga.transition().duration(250).style('opacity',1);"
+    },
+    "removeAnnotation": {
+      "params": [
+        "nodeId"
+      ],
+      "description": "Remove the callout bubble from a node.",
+      "code": "svg.select('#fc-annot-'+args.nodeId).transition().duration(200).style('opacity',0).remove();"
+    },
+    "reset": {
+      "params": [],
+      "description": "Return all nodes and edges to their initial states and remove annotations.",
+      "code": "var cfg=registry.config; svg.selectAll('.fc-node').each(function(){ var nd=d3.select(this); var stk=nd.attr('data-init-state')||'default'; var c=cfg.colors[stk]||cfg.colors.default; nd.attr('data-state',stk); nd.select('.fc-shape').transition().duration(350).attr('fill',c.fill).attr('stroke',c.stroke).style('filter','none'); nd.selectAll('.fc-label').transition().duration(350).attr('fill',c.text); }); svg.selectAll('.fc-edge').transition().duration(300).attr('stroke',cfg.colors.edge).attr('stroke-width',1.5).attr('marker-end','url(#fc-arr)').attr('stroke-dasharray',null).attr('stroke-dashoffset',null); svg.selectAll('[id^=fc-annot-]').remove();"
+    }
+  }
+}
