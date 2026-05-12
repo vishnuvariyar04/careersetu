@@ -17,14 +17,19 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}))
     const github_url = body.github_url ? String(body.github_url).trim() : undefined
+    const about = typeof body.about === "string" ? body.about.trim() : undefined
 
-    if (!github_url) {
-      return NextResponse.json({ error: "github_url is required" }, { status: 400 })
+    const updates: Record<string, string> = {}
+    if (github_url) updates.github_url = github_url
+    if (about !== undefined) updates.about = about
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
     }
 
     const { error: updateError } = await supabase
       .from("students")
-      .update({ github_url })
+      .update(updates)
       .eq("student_id", user.id)
 
     if (updateError) {

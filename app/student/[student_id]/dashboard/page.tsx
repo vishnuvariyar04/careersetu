@@ -548,6 +548,7 @@ export default function StudentDashboardPage() {
               </div>
               <StudentOnboardingSurvey
                 initialGithubUrl={student.github_url}
+                initialAbout={student.about}
                 onCompleted={async () => {
                   const { data: studentRow } = await supabase
                     .from("students")

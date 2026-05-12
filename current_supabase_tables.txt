@@ -7,6 +7,12 @@ CREATE TABLE public.companies (
   description text,
   industry text,
   created_at timestamp with time zone DEFAULT now(),
+  mission text,
+  vision text,
+  employee_count integer,
+  evaluation_metrics text[] DEFAULT '{}',
+  policies jsonb,
+  onboarding_advanced jsonb,
   CONSTRAINT companies_pkey PRIMARY KEY (company_id),
   CONSTRAINT companies_company_id_fkey FOREIGN KEY (company_id) REFERENCES auth.users(id)
 );
@@ -40,6 +46,22 @@ CREATE TABLE public.learning_messages (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT learning_messages_pkey PRIMARY KEY (id),
   CONSTRAINT learning_messages_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.learning_sessions(session_id)
+);
+CREATE TABLE public.learning_resources (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid,
+  environment_id uuid,
+  task_id uuid,
+  company_id uuid,
+  title text NOT NULL,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT learning_resources_pkey PRIMARY KEY (id),
+  CONSTRAINT learning_resources_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(student_id),
+  CONSTRAINT learning_resources_environment_id_fkey FOREIGN KEY (environment_id) REFERENCES public.virtual_environments(environment_id),
+  CONSTRAINT learning_resources_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(task_id),
+  CONSTRAINT learning_resources_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(company_id)
 );
 CREATE TABLE public.learning_sessions (
   session_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -91,6 +113,7 @@ CREATE TABLE public.students (
   student_id uuid NOT NULL,
   full_name text NOT NULL,
   email text NOT NULL UNIQUE,
+  about text,
   github_url text,  -- base GitHub profile URL
   resume_url text,  -- uploaded resume URL
   created_at timestamp with time zone DEFAULT now(),
@@ -111,13 +134,6 @@ CREATE TABLE public.student_skills (
   CONSTRAINT student_skills_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(student_id)
 );
 
--- Migration hint:
--- ALTER TABLE public.student_skills
---   ALTER COLUMN experience_level TYPE text,
---   ALTER COLUMN experience_level SET DEFAULT 'beginner',
---   DROP CONSTRAINT IF EXISTS student_skills_experience_level_check,
---   ADD CONSTRAINT student_skills_experience_level_check
---     CHECK (experience_level = ANY (ARRAY['beginner'::text, 'intermediate'::text, 'advanced'::text]));
 CREATE TABLE public.supervisors (
   supervisor_id uuid NOT NULL,
   company_id uuid,
@@ -156,58 +172,75 @@ CREATE TABLE public.virtual_environments (
   title text NOT NULL,
   description text,
   status text DEFAULT 'open'::text CHECK (status = ANY (ARRAY['open'::text, 'in_progress'::text, 'completed'::text])),
-  tech_stack text[] DEFAULT '{}',
   created_at timestamp with time zone DEFAULT now(),
+  tech_stack text[] DEFAULT '{}',
   CONSTRAINT virtual_environments_pkey PRIMARY KEY (environment_id),
   CONSTRAINT virtual_environments_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(company_id)
 );
-
-ALTER TABLE public.companies
-  ADD COLUMN mission text,
-  ADD COLUMN vision text,
-  ADD COLUMN employee_count integer,
-  ADD COLUMN evaluation_metrics text[] DEFAULT '{}',  -- from metrics[]
-  ADD COLUMN policies jsonb,                          -- coding standards etc.
-  ADD COLUMN onboarding_advanced jsonb;               -- project briefs / examples / rubrics
-
--- CareerSetu "Create New Project" (company dashboard → Projects):
--- 1) Insert into virtual_environments: company_id, title, description, status, tech_stack ('open'|'in_progress'|'completed')
--- 2) Insert into tasks: environment_id (FK), title, description, task_order (NOT NULL)
--- Optional: reference PDF public URLs are appended to virtual_environments.description (see save-environment API).
--- Optional Supabase Storage bucket: project-documents (public URL for uploads via upload-project-pdf API).
-
--- ---------------------------------------------------------------------------
--- MIGRATION: move tech_stack from companies → virtual_environments
--- Run in Supabase SQL editor (or supabase migration) after a backup.
--- Order: 1) add column  2) backfill  3) deploy app that reads ve.tech_stack  4) drop column
--- ---------------------------------------------------------------------------
-
--- Step 1 — add column on virtual_environments
--- ALTER TABLE public.virtual_environments
---   ADD COLUMN IF NOT EXISTS tech_stack text[] DEFAULT '{}';
-
--- Step 2 — backfill from companies (run before dropping companies.tech_stack)
--- UPDATE public.virtual_environments ve
--- SET tech_stack = COALESCE(c.tech_stack, '{}'::text[])
--- FROM public.companies c
--- WHERE ve.company_id = c.company_id
---   AND c.tech_stack IS NOT NULL
---   AND cardinality(c.tech_stack) > 0;
-
--- Step 3 — remove from companies (after app no longer selects companies.tech_stack)
--- ALTER TABLE public.companies DROP COLUMN IF EXISTS tech_stack;
-
--- Copy-paste (all three steps, uncommented — run 1, then 2, then deploy app, then 3):
-/*
-ALTER TABLE public.virtual_environments
-  ADD COLUMN IF NOT EXISTS tech_stack text[] DEFAULT '{}';
-
-UPDATE public.virtual_environments ve
-SET tech_stack = COALESCE(c.tech_stack, '{}'::text[])
-FROM public.companies c
-WHERE ve.company_id = c.company_id
-  AND c.tech_stack IS NOT NULL
-  AND cardinality(c.tech_stack) > 0;
-
-ALTER TABLE public.companies DROP COLUMN IF EXISTS tech_stack;
-*/
+CREATE TABLE public.job_openings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL,
+  title text NOT NULL,
+  description text,
+  required_skills text[] DEFAULT '{}',
+  min_experience_level text DEFAULT 'beginner'::text CHECK (
+    min_experience_level = ANY (ARRAY['beginner'::text, 'intermediate'::text, 'advanced'::text])
+  ),
+  job_type text DEFAULT 'internship'::text CHECK (
+    job_type = ANY (ARRAY['internship'::text, 'full_time'::text, 'part_time'::text, 'contract'::text])
+  ),
+  location text,
+  status text DEFAULT 'open'::text CHECK (
+    status = ANY (ARRAY['open'::text, 'closed'::text, 'filled'::text])
+  ),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT job_openings_pkey PRIMARY KEY (id),
+  CONSTRAINT job_openings_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(company_id)
+);
+CREATE TABLE public.job_applications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  job_id uuid NOT NULL,
+  student_id uuid NOT NULL,
+  status text DEFAULT 'matched'::text CHECK (
+    status = ANY (ARRAY['matched'::text, 'applied'::text, 'shortlisted'::text, 'interviewed'::text, 'offered'::text, 'rejected'::text])
+  ),
+  match_score integer,
+  match_reasons jsonb DEFAULT '[]'::jsonb,
+  cover_letter text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT job_applications_pkey PRIMARY KEY (id),
+  CONSTRAINT job_applications_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.job_openings(id),
+  CONSTRAINT job_applications_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(student_id),
+  CONSTRAINT job_applications_unique UNIQUE (job_id, student_id)
+);
+CREATE TABLE public.student_analytics_cache (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid NOT NULL,
+  environment_id uuid NOT NULL,
+  tasks_completed integer DEFAULT 0,
+  tasks_total integer DEFAULT 0,
+  avg_pr_score numeric(5,2),
+  completion_rate numeric(5,2),
+  overall_score numeric(5,2),
+  rank integer,
+  top_skills text[] DEFAULT '{}',
+  computed_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT student_analytics_cache_pkey PRIMARY KEY (id),
+  CONSTRAINT student_analytics_cache_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(student_id),
+  CONSTRAINT student_analytics_cache_environment_id_fkey FOREIGN KEY (environment_id) REFERENCES public.virtual_environments(environment_id),
+  CONSTRAINT student_analytics_cache_unique UNIQUE (student_id, environment_id)
+);
+CREATE TABLE public.experience (
+  experience_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid NOT NULL,
+  company_name text NOT NULL,
+  role text NOT NULL,
+  exp_years interval,  -- Using INTERVAL to store 'time' durations accurately
+  technologies_used text[],  -- Using an array for easier filtering of tech stacks
+  description text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT experience_pkey PRIMARY KEY (experience_id),
+  CONSTRAINT experience_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(student_id) ON DELETE CASCADE
+);
