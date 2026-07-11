@@ -65,6 +65,13 @@ export default function AuthPage() {
       return
     }
 
+    // GitHub provider = always student, regardless of metadata
+    const provider = user.app_metadata?.provider
+    if (provider === 'github') {
+      router.push(`/student/${user.id}/dashboard`)
+      return
+    }
+
     const role = user.user_metadata?.role || 'student'
     if (role === 'company') {
       router.push(`/company/${user.id}/dashboard`)

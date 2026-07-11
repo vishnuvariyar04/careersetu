@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
     const updates: Record<string, string> = {}
     if (github_url) updates.github_url = github_url
-    if (about !== undefined) updates.about = about
+    if (about !== undefined) updates.About = about
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "Nothing to update" }, { status: 400 })

@@ -13,6 +13,8 @@ import {
   Lock,
   CheckCircle2,
   Clock,
+  TrendingUp,
+  Briefcase,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useSidebarContext } from "./sidebar-context"
@@ -126,6 +128,20 @@ export function StudentSidebar() {
             label="Profile"
             active={isDashboard && dashboardTab === "profile"}
             onClick={() => router.push(`/student/${studentId}/dashboard?tab=profile`)}
+            collapsed={sidebarCollapsed}
+          />
+          <NavButton
+            icon={TrendingUp}
+            label="Progress"
+            active={pathname.includes("/progress")}
+            onClick={() => router.push(`/student/${studentId}/progress`)}
+            collapsed={sidebarCollapsed}
+          />
+          <NavButton
+            icon={Briefcase}
+            label="Jobs"
+            active={pathname.includes("/jobs")}
+            onClick={() => router.push(`/student/${studentId}/jobs`)}
             collapsed={sidebarCollapsed}
           />
           <NavButton

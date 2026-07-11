@@ -8,7 +8,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
     <SidebarProvider>
       <div className="h-screen w-screen overflow-hidden bg-[#181a1a] flex">
         <StudentSidebar />
-        <main className="flex-1 min-w-0 min-h-0 overflow-hidden">
+        <main className="flex-1 min-w-0 min-h-0 overflow-hidden flex flex-col">
           {children}
         </main>
       </div>

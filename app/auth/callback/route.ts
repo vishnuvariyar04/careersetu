@@ -32,19 +32,50 @@ export async function GET(request: Request) {
     )
 
     // 2. Exchange Code
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     
-    if (!error) {
-      // 3. Create Response with Redirect
+    if (!error && data.session) {
+      const user = data.session.user
+      const provider = user.app_metadata?.provider
+
+      // GitHub login = strictly student — override any stale metadata
+      if (provider === 'github') {
+        await supabase.auth.updateUser({ data: { role: 'student' } })
+
+        // Ensure a students row exists (required by FK on student_skills, etc.)
+        const meta = user.user_metadata || {}
+        const fullName = meta.full_name || meta.name || meta.user_name || meta.preferred_username || 'Student'
+        const email = user.email || meta.email || ''
+        const githubUrl = meta.user_name
+          ? `https://github.com/${meta.user_name}`
+          : meta.preferred_username
+            ? `https://github.com/${meta.preferred_username}`
+            : null
+
+        await supabase.from('students').upsert(
+          {
+            student_id: user.id,
+            full_name: fullName,
+            email,
+            ...(githubUrl ? { github_url: githubUrl } : {}),
+          },
+          { onConflict: 'student_id' }
+        )
+
+        const response = NextResponse.redirect(`${origin}/student/${user.id}/dashboard`)
+
+        cookieStore.forEach((cookie, name) => {
+          response.cookies.set({ name, value: cookie.value, ...cookie.options })
+        })
+
+        return response
+      }
+
+      // Non-GitHub (email/password) — follow the next param
       const response = NextResponse.redirect(`${origin}${next}`)
       
-      // 4. Apply Cookies to Response (Crucial for persistence)
       cookieStore.forEach((cookie, name) => {
-        response.cookies.set({
-          name,
-          value: cookie.value,
-          ...cookie.options,
-        })
+        response.cookies.set({ name, value: cookie.value, ...cookie.options })
       })
 
       return response

@@ -74,7 +74,7 @@ export default function ApplicationsPage() {
       // Fetch applications with student join
       const { data: appRows } = await supabase
         .from("job_applications")
-        .select("*, students(full_name, email, about, github_url)")
+        .select("*, students(full_name, email, About, github_url)")
         .in("job_id", jobIds)
         .order("match_score", { ascending: false })
 
@@ -335,8 +335,8 @@ export default function ApplicationsPage() {
               </div>
 
               {/* About */}
-              {detailData.student?.about && (
-                <div className="space-y-1"><p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">About</p><p className="text-sm leading-relaxed">{detailData.student.about}</p></div>
+              {detailData.student?.About && (
+                <div className="space-y-1"><p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">About</p><p className="text-sm leading-relaxed">{detailData.student.About}</p></div>
               )}
 
               {/* Match info */}

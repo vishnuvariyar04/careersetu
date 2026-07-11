@@ -59,16 +59,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null)
       setLoading(false)
 
-      // Handle auth events
+      // Handle auth events — deferred to avoid "more hooks than previous render"
       if (event === 'SIGNED_IN') {
         console.log('User signed in, refreshing router')
-        router.refresh()
+        setTimeout(() => router.refresh(), 0)
       } else if (event === 'SIGNED_OUT') {
         console.log('User signed out')
         // router.push('/auth')
       } else if (event === 'TOKEN_REFRESHED') {
         console.log('Token refreshed')
-        router.refresh()
+        setTimeout(() => router.refresh(), 0)
       }
     })
 

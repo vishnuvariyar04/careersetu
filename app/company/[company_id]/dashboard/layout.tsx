@@ -9,7 +9,6 @@ import {
   BarChart3,
   FolderKanban,
   Settings,
-  GraduationCap,
   LogOut,
   Loader2,
   Megaphone,
@@ -87,7 +86,6 @@ export default function DashboardLayout({
     { id: "projects", label: "Projects", icon: FolderKanban, href: `/company/${companyId}/dashboard/projects` },
     { id: "postjobs", label: "Post Jobs", icon: Megaphone, href: `/company/${companyId}/dashboard/postjobs` },
     { id: "applications", label: "Applns", icon: FileText, href: `/company/${companyId}/dashboard/applications` },
-    { id: "students", label: "Students", icon: GraduationCap, href: `/company/${companyId}/dashboard/students` },
     { id: "settings", label: "Settings", icon: Settings, href: `/company/${companyId}/dashboard/settings` },
   ]
 

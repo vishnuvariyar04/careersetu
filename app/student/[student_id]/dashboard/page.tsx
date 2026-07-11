@@ -24,6 +24,14 @@ import {
   AlertCircle,
   CheckCircle2,
   Info,
+  Briefcase,
+  Building2,
+  FileText,
+  Calendar,
+  Clock,
+  Pen,
+  Trash2,
+  MapPin,
 } from "lucide-react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
@@ -139,6 +147,17 @@ export default function StudentDashboardPage() {
     body: string
   } | null>(null)
 
+  // Experience state
+  const [experienceRows, setExperienceRows] = useState<any[]>([])
+  const [loadingExperience, setLoadingExperience] = useState(true)
+  const [showAddExperience, setShowAddExperience] = useState(false)
+  const [savingExperience, setSavingExperience] = useState(false)
+  const [expForm, setExpForm] = useState({ company_name: "", role: "", exp_years: "", technologies_used: "", description: "" })
+  // About editing
+  const [editingAbout, setEditingAbout] = useState(false)
+  const [aboutDraft, setAboutDraft] = useState("")
+  const [savingAbout, setSavingAbout] = useState(false)
+
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -202,6 +221,15 @@ export default function StudentDashboardPage() {
       setStudent(studentData)
 
       await refreshStudentSkills()
+
+      // Fetch experience
+      const { data: expRows } = await supabase
+        .from("experience")
+        .select("*")
+        .eq("student_id", studentId)
+        .order("created_at", { ascending: false })
+      setExperienceRows(expRows || [])
+      setLoadingExperience(false)
 
       const { data: allCompanies } = await supabase.from("companies").select("*")
       const staticList = staticCompaniesForStudents as Array<Record<string, unknown>>
@@ -548,7 +576,7 @@ export default function StudentDashboardPage() {
               </div>
               <StudentOnboardingSurvey
                 initialGithubUrl={student.github_url}
-                initialAbout={student.about}
+                initialAbout={student.About}
                 onCompleted={async () => {
                   const { data: studentRow } = await supabase
                     .from("students")
@@ -719,54 +747,91 @@ export default function StudentDashboardPage() {
             <div className="max-w-4xl space-y-8">
               <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#1c2020] via-[#171a1a] to-[#141616] p-6 sm:p-8 shadow-xl shadow-black/20">
                 <div className="flex flex-col sm:flex-row sm:items-start gap-6">
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-xl font-semibold text-white ring-1 ring-white/10">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 text-xl font-semibold text-white ring-1 ring-white/10">
                     {(student?.full_name ?? student?.name ?? "?").charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1 space-y-4">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500 mb-1">
-                        Profile
-                      </p>
-                      <h2 className="text-xl font-semibold text-white tracking-tight">
-                        {student?.full_name ?? student?.name ?? "Student"}
-                      </h2>
-                      <p className="text-sm text-zinc-500 mt-1 font-mono truncate">
-                        {studentId}
-                      </p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500 mb-1">Profile</p>
+                      <h2 className="text-xl font-semibold text-white tracking-tight">{student?.full_name ?? student?.name ?? "Student"}</h2>
+                      <p className="text-[11px] text-zinc-600 mt-1 font-mono truncate">{studentId}</p>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       <div className="flex items-start gap-3 rounded-xl border border-white/5 bg-black/20 px-4 py-3">
                         <Mail className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
                         <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">
-                            Email
-                          </p>
+                          <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Email</p>
                           <p className="text-sm text-zinc-200 truncate">{student.email}</p>
                         </div>
                       </div>
                       <div className="flex items-start gap-3 rounded-xl border border-white/5 bg-black/20 px-4 py-3">
                         <Github className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
                         <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">
-                            GitHub
-                          </p>
+                          <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">GitHub</p>
                           {student.github_url ? (
-                            <a
-                              href={student.github_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-blue-400 hover:text-blue-300 inline-flex items-center gap-1 truncate max-w-full"
-                            >
-                              <span className="truncate">{student.github_url}</span>
+                            <a href={student.github_url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 hover:text-blue-300 inline-flex items-center gap-1 truncate max-w-full">
+                              <span className="truncate">{student.github_url.replace(/^https?:\/\/(www\.)?github\.com\/?/, "")}</span>
                               <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
                             </a>
-                          ) : (
-                            <p className="text-sm text-zinc-500">Not linked</p>
-                          )}
+                          ) : (<p className="text-sm text-zinc-500">Not linked</p>)}
                         </div>
                       </div>
+                      {student.resume_url && (
+                        <div className="flex items-start gap-3 rounded-xl border border-white/5 bg-black/20 px-4 py-3">
+                          <FileText className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Resume</p>
+                            <a href={student.resume_url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 hover:text-blue-300 inline-flex items-center gap-1">
+                              View Resume <ExternalLink className="w-3 h-3 shrink-0 opacity-60" />
+                            </a>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
+                </div>
+
+                {/* About section */}
+                <div className="mt-6 pt-5 border-t border-white/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">About</p>
+                    {!editingAbout && (
+                      <button onClick={() => { setEditingAbout(true); setAboutDraft(student?.About || "") }} className="text-[10px] text-zinc-500 hover:text-zinc-300 transition flex items-center gap-1">
+                        <Pen className="w-3 h-3" />{student?.About ? "Edit" : "Add bio"}
+                      </button>
+                    )}
+                  </div>
+                  {editingAbout ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={aboutDraft}
+                        onChange={(e) => setAboutDraft(e.target.value)}
+                        rows={3}
+                        placeholder="Write a short bio about yourself..."
+                        className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-700 focus:outline-none focus:border-white/20 resize-none"
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => setEditingAbout(false)} className="text-[11px] text-zinc-500 hover:text-white px-3 py-1 rounded-lg hover:bg-white/5 transition">Cancel</button>
+                        <button
+                          disabled={savingAbout}
+                          onClick={async () => {
+                            setSavingAbout(true)
+                            await supabase.from("students").update({ About: aboutDraft.trim() || null }).eq("student_id", studentId)
+                            setStudent((prev: any) => ({ ...prev, About: aboutDraft.trim() || null }))
+                            setEditingAbout(false)
+                            setSavingAbout(false)
+                          }}
+                          className="text-[11px] text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1 rounded-lg transition disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {savingAbout && <Loader2 className="w-3 h-3 animate-spin" />}Save
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className={`text-sm leading-relaxed ${student?.About ? "text-zinc-300" : "text-zinc-600 italic"}`}>
+                      {student?.About || "No bio added yet."}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1033,6 +1098,136 @@ export default function StudentDashboardPage() {
                           </div>
                         )
                       })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Experience Section */}
+              <div className="rounded-2xl border border-white/[0.08] bg-[#171a1a] overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-6 py-4 border-b border-white/5 bg-[#1c2020]/80">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-violet-400/90" />
+                    <h3 className="text-sm font-medium text-white">Experience</h3>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] text-zinc-500">{experienceRows.length} entries</span>
+                    <button
+                      onClick={() => setShowAddExperience(!showAddExperience)}
+                      className="text-[10px] text-emerald-400 hover:text-emerald-300 transition flex items-center gap-1 font-medium"
+                    >
+                      <Plus className="w-3 h-3" />{showAddExperience ? "Cancel" : "Add"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-5">
+                  {/* Add experience form */}
+                  {showAddExperience && (
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault()
+                        if (!expForm.company_name.trim() || !expForm.role.trim()) return
+                        setSavingExperience(true)
+                        const { data: newExp } = await supabase.from("experience").insert({
+                          student_id: studentId,
+                          company_name: expForm.company_name.trim(),
+                          role: expForm.role.trim(),
+                          exp_years: expForm.exp_years.trim() || null,
+                          technologies_used: expForm.technologies_used ? expForm.technologies_used.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+                          description: expForm.description.trim() || null,
+                        }).select("*").single()
+                        if (newExp) setExperienceRows((prev) => [newExp, ...prev])
+                        setExpForm({ company_name: "", role: "", exp_years: "", technologies_used: "", description: "" })
+                        setShowAddExperience(false)
+                        setSavingExperience(false)
+                      }}
+                      className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] p-4 sm:p-5 space-y-3"
+                    >
+                      <div className="flex items-center gap-2 text-white mb-1">
+                        <Plus className="w-4 h-4 text-violet-400" />
+                        <span className="text-sm font-medium">Add experience</span>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <Label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block">Company *</Label>
+                          <Input value={expForm.company_name} onChange={(e) => setExpForm(p => ({...p, company_name: e.target.value}))} placeholder="e.g. Google" className="h-8 bg-black/30 border-white/10 text-sm text-zinc-200 placeholder:text-zinc-700" />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block">Role *</Label>
+                          <Input value={expForm.role} onChange={(e) => setExpForm(p => ({...p, role: e.target.value}))} placeholder="e.g. Frontend Intern" className="h-8 bg-black/30 border-white/10 text-sm text-zinc-200 placeholder:text-zinc-700" />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block">Duration</Label>
+                          <Input value={expForm.exp_years} onChange={(e) => setExpForm(p => ({...p, exp_years: e.target.value}))} placeholder="e.g. 6 months" className="h-8 bg-black/30 border-white/10 text-sm text-zinc-200 placeholder:text-zinc-700" />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block">Tech Stack</Label>
+                          <Input value={expForm.technologies_used} onChange={(e) => setExpForm(p => ({...p, technologies_used: e.target.value}))} placeholder="React, Node.js, Python" className="h-8 bg-black/30 border-white/10 text-sm text-zinc-200 placeholder:text-zinc-700" />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block">Description</Label>
+                        <textarea
+                          value={expForm.description}
+                          onChange={(e) => setExpForm(p => ({...p, description: e.target.value}))}
+                          rows={2}
+                          placeholder="What did you work on?"
+                          className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-700 focus:outline-none focus:border-white/20 resize-none"
+                        />
+                      </div>
+                      <Button type="submit" disabled={savingExperience || !expForm.company_name.trim() || !expForm.role.trim()} className="h-8 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium">
+                        {savingExperience ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Saving…</> : <><Plus className="w-3.5 h-3.5 mr-2" />Add experience</>}
+                      </Button>
+                    </form>
+                  )}
+
+                  {/* Experience list */}
+                  {loadingExperience ? (
+                    <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 text-zinc-600 animate-spin" /></div>
+                  ) : experienceRows.length === 0 ? (
+                    <div className="text-center py-10 px-4 rounded-xl border border-white/5 bg-black/15">
+                      <Briefcase className="w-8 h-8 mx-auto text-zinc-700 mb-2" />
+                      <p className="text-sm text-zinc-400 mb-1">No experience added</p>
+                      <p className="text-xs text-zinc-600">Add your internships and work experience to boost your profile.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {experienceRows.map((exp: any) => (
+                        <div key={exp.experience_id} className="group rounded-xl border border-white/10 bg-[#111315]/90 px-5 py-4 hover:border-white/15 transition-colors">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <p className="text-sm font-medium text-white">{exp.role}</p>
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+                                <span className="flex items-center gap-1"><Building2 className="w-3 h-3" />{exp.company_name}</span>
+                                {exp.exp_years && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{exp.exp_years}</span>}
+                              </div>
+                              {exp.description && (
+                                <p className="text-xs text-zinc-400 mt-2 leading-relaxed">{exp.description}</p>
+                              )}
+                              {exp.technologies_used?.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-2.5">
+                                  {exp.technologies_used.map((tech: string) => (
+                                    <span key={tech} className="text-[9px] px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-zinc-400 font-medium">{tech}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={async () => {
+                                await supabase.from("experience").delete().eq("experience_id", exp.experience_id)
+                                setExperienceRows((prev) => prev.filter((e: any) => e.experience_id !== exp.experience_id))
+                              }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-600 hover:text-red-400 p-1"
+                              title="Remove"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

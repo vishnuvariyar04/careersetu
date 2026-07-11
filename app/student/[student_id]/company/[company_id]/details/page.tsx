@@ -29,7 +29,16 @@ import {
   Unlock,
   MessageSquare,
   Plus,
-  Loader2
+  Loader2,
+  ShieldAlert,
+  ShieldCheck,
+  FileText,
+  AlertTriangle,
+  XCircle,
+  MinusCircle,
+  Star,
+  Award,
+  Code2
 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation"
@@ -234,7 +243,7 @@ function isVirtualEnvironmentProjectId(id: string | null): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
 }
 
-type TaskStatus = "locked" | "unlocked" | "in_progress" | "submitted" | "approved"
+type TaskStatus = "locked" | "unlocked" | "in_progress" | "approved"
 
 function resolveTaskStatus(
   progress: string | undefined,
@@ -242,8 +251,8 @@ function resolveTaskStatus(
   prevStatus: TaskStatus | undefined
 ): TaskStatus {
   if (progress === "approved") return "approved"
-  if (progress === "submitted") return "submitted"
-  if (progress === "in_progress") return "in_progress"
+  // submitted, in_progress, changes_requested, rejected → all show as "in_progress"
+  if (progress === "submitted" || progress === "in_progress" || progress === "changes_requested" || progress === "rejected") return "in_progress"
   if (progress === "unlocked") return "unlocked"
   if (progress === "locked") return "locked"
   // No progress row — derive from position
@@ -268,9 +277,12 @@ interface PrReviewData {
   author: string
   score: number
   summary: string
-  issues: string[] // We will parse the JSON string here
+  issues: string[]
   pr_url: string
   pr_number: number
+  ai_score_breakdown: any | null
+  ai_vulnerabilities: any[] | null
+  ai_verdict_details: string | null
 }
 
 // ... existing interfaces
@@ -562,7 +574,10 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
             summary: row.ai_summary,
             issues: parsedIssues,
             pr_url: row.pr_url,
-            pr_number: row.pr_number
+            pr_number: row.pr_number,
+            ai_score_breakdown: row.ai_score_breakdown,
+            ai_vulnerabilities: row.ai_vulnerabilities,
+            ai_verdict_details: row.ai_verdict_details
           }
         })
         setRealPrs(formattedPrs)
@@ -1434,27 +1449,49 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
 
       const ids = (taskRows || []).map((r: any) => r.task_id)
       const progressByTask: Record<string, string> = {}
+      const latestPrByTask: Record<string, { verdict: string; summary: string; pr_title: string }> = {}
       if (ids.length > 0) {
-        const { data: prog } = await supabase
-          .from("task_progress")
-          .select("task_id, status")
-          .eq("student_id", studentId)
-          .in("task_id", ids)
+        const [{ data: prog }, { data: prRows }] = await Promise.all([
+          supabase
+            .from("task_progress")
+            .select("task_id, status")
+            .eq("student_id", studentId)
+            .in("task_id", ids),
+          supabase
+            .from("pr_reviews")
+            .select("task_id, ai_verdict, ai_summary, pr_title, created_at")
+            .eq("student_id", studentId)
+            .in("task_id", ids)
+            .order("created_at", { ascending: false })
+        ])
         for (const row of prog || []) {
           progressByTask[(row as any).task_id] = (row as any).status
+        }
+        // Keep only the latest PR review per task
+        for (const row of prRows || []) {
+          const tid = (row as any).task_id
+          if (!latestPrByTask[tid]) {
+            latestPrByTask[tid] = {
+              verdict: (row as any).ai_verdict || "",
+              summary: (row as any).ai_summary || "",
+              pr_title: (row as any).pr_title || "",
+            }
+          }
         }
       }
 
       const mapped: any[] = []
       ;(taskRows || []).forEach((row: any, idx: number) => {
-        const p = progressByTask[row.task_id]
+        const rawProgress = progressByTask[row.task_id]
         const prevStatus = idx > 0 ? mapped[idx - 1]?.status : undefined
-        const status = resolveTaskStatus(p, idx, prevStatus)
+        const status = resolveTaskStatus(rawProgress, idx, prevStatus)
         mapped.push({
           task_id: row.task_id,
           title: row.title,
           description: row.description || "",
           status,
+          rawProgress: rawProgress || null,
+          latestPr: latestPrByTask[row.task_id] || null,
           role: studentRole,
           assignee: studentId,
           task_order: row.task_order,
@@ -2194,7 +2231,6 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
                         { id: "locked", label: "Locked", icon: Lock, color: "border-zinc-700/50 bg-zinc-800/30" },
                         { id: "unlocked", label: "Unlocked", icon: Unlock, color: "border-violet-500/30 bg-violet-500/5" },
                         { id: "in_progress", label: "In Progress", icon: Clock, color: "border-blue-500/30 bg-blue-500/5" },
-                        { id: "submitted", label: "Submitted", icon: Clock, color: "border-amber-500/30 bg-amber-500/5" },
                         { id: "approved", label: "Approved", icon: CheckCircle2, color: "border-emerald-500/30 bg-emerald-500/5" },
                       ] as const).map(col => {
                         const colTasks = displayTasks.filter((t: any) => t.status === col.id)
@@ -2202,7 +2238,7 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
                         return (
                           <div
                             key={col.id}
-                            className={`w-[240px] shrink-0 rounded-xl border ${col.color} min-h-[180px] p-3 flex flex-col`}
+                            className={`w-[280px] shrink-0 rounded-xl border ${col.color} min-h-[180px] p-3 flex flex-col`}
                           >
                             <div className="flex items-center justify-between mb-3 flex-shrink-0">
                               <span className="text-[12px] font-medium text-white/80 flex items-center gap-1.5">
@@ -2215,6 +2251,10 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
                               {colTasks.map((task: any) => {
                                 const isActive = activeTaskId === task.task_id
                                 const isLocked = task.status === "locked"
+                                const rawProg = task.rawProgress
+                                const isSubmitted = rawProg === "submitted"
+                                const isRejected = rawProg === "rejected" || rawProg === "changes_requested"
+                                const latestPr = task.latestPr
                                 return (
                                   <button
                                     key={task.task_id}
@@ -2249,12 +2289,33 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
                                           Ready
                                         </Badge>
                                       )}
-                                      {task.status === "submitted" && (
+                                      {isSubmitted && (
                                         <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">
                                           Pending Review
                                         </Badge>
                                       )}
+                                      {isRejected && (
+                                        <Badge variant="outline" className="text-[10px] border-rose-500/30 text-rose-400 bg-rose-500/10">
+                                          Changes Requested
+                                        </Badge>
+                                      )}
                                     </div>
+                                    {/* Show latest PR review message for in-progress tasks with a review */}
+                                    {task.status === "in_progress" && latestPr && (isRejected || isSubmitted) && (
+                                      <div className={`mt-2.5 p-2 rounded-md text-[11px] leading-relaxed ${
+                                        isRejected
+                                          ? "bg-rose-500/10 border border-rose-500/20 text-rose-300"
+                                          : "bg-amber-500/10 border border-amber-500/20 text-amber-300"
+                                      }`}>
+                                        <p className="font-medium mb-0.5 flex items-center gap-1">
+                                          {isRejected ? <XCircle className="w-3 h-3 shrink-0" /> : <Clock className="w-3 h-3 shrink-0" />}
+                                          {latestPr.pr_title || latestPr.verdict || "Review"}
+                                        </p>
+                                        {latestPr.summary && (
+                                          <p className="text-[10px] opacity-80 line-clamp-2">{latestPr.summary}</p>
+                                        )}
+                                      </div>
+                                    )}
                                   </button>
                                 )
                               })}
@@ -2356,6 +2417,18 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
 
                               <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
                                 <div className="lg:col-span-2 space-y-10">
+                                  {/* Evaluator Report */}
+                                  {pr.ai_verdict_details && (
+                                    <section>
+                                      <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <FileText className="w-3 h-3 text-violet-400" /> Evaluator Report
+                                      </h3>
+                                      <div className="bg-zinc-900/30 border border-zinc-800/60 rounded-lg p-5" style={{ borderLeft: '3px solid #8b5cf6' }}>
+                                        <p className="text-[14px] leading-7 text-zinc-300 font-light">{pr.ai_verdict_details}</p>
+                                      </div>
+                                    </section>
+                                  )}
+
                                   <section>
                                     <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                                       <Sparkles className="w-3 h-3" /> Analysis Summary
@@ -2364,6 +2437,122 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
                                       <p className="text-[14px] leading-7 text-zinc-300 font-light">{pr.summary}</p>
                                     </div>
                                   </section>
+
+                                  {/* Score Breakdown */}
+                                  {pr.ai_score_breakdown && typeof pr.ai_score_breakdown === 'object' && (
+                                    <section>
+                                      <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <Star className="w-3 h-3 text-amber-400" /> Score Breakdown
+                                      </h3>
+                                      <div className="border border-zinc-800/50 rounded-lg bg-zinc-900/10 p-5 space-y-4">
+                                        {([
+                                          { key: 'task_completion', label: 'Task Completion', color: '#8b5cf6', icon: <Target className="w-3.5 h-3.5" /> },
+                                          { key: 'logic_correctness', label: 'Logic Correctness', color: '#3b82f6', icon: <Code2 className="w-3.5 h-3.5" /> },
+                                          { key: 'code_quality', label: 'Code Quality', color: '#10b981', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+                                          { key: 'best_practices', label: 'Best Practices', color: '#f59e0b', icon: <Award className="w-3.5 h-3.5" /> },
+                                        ] as const).map(({ key, label, color, icon }) => {
+                                          const cat = pr.ai_score_breakdown[key]
+                                          if (!cat) return null
+                                          const pct = cat.max > 0 ? (cat.score / cat.max) * 100 : 0
+                                          const scoreColor = cat.score === cat.max ? '#10b981' : cat.score > cat.max * 0.5 ? '#f59e0b' : '#ef4444'
+                                          return (
+                                            <details key={key} className="group">
+                                              <summary className="cursor-pointer list-none">
+                                                <div className="flex items-center gap-2.5 mb-1.5">
+                                                  <span style={{ color }}>{icon}</span>
+                                                  <span className="text-[13px] text-zinc-300 font-medium flex-1">{label}</span>
+                                                  <span className="font-mono text-[13px] font-semibold" style={{ color: scoreColor }}>{cat.score}/{cat.max}</span>
+                                                  <ChevronRight className="w-3.5 h-3.5 text-zinc-600 transition-transform duration-200 group-open:rotate-90" />
+                                                </div>
+                                                <div className="h-2 bg-zinc-800/80 rounded-full overflow-hidden">
+                                                  <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${pct}%`, backgroundColor: scoreColor }} />
+                                                </div>
+                                              </summary>
+                                              <div className="mt-3 ml-6 pl-3 border-l-2 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200" style={{ borderColor: `${color}33` }}>
+                                                {cat.feedback && (
+                                                  <p className="text-[13px] text-zinc-400 leading-relaxed">{cat.feedback}</p>
+                                                )}
+                                                {cat.deductions && cat.deductions.length > 0 ? (
+                                                  <div className="space-y-1.5 pt-1">
+                                                    {cat.deductions.map((d: any, i: number) => (
+                                                      <div key={i} className="flex items-start gap-2 text-[12px]">
+                                                        <span className="shrink-0 font-mono text-rose-400 font-semibold">−{d.points}</span>
+                                                        <span className="text-zinc-400">{d.reason}</span>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                ) : (
+                                                  <p className="text-[12px] text-emerald-400/70 flex items-center gap-1.5">
+                                                    <CheckCircle2 className="w-3 h-3" /> Full marks — no deductions
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </details>
+                                          )
+                                        })}
+                                      </div>
+                                    </section>
+                                  )}
+
+                                  {/* Vulnerabilities */}
+                                  {(() => {
+                                    const vulns = Array.isArray(pr.ai_vulnerabilities) ? pr.ai_vulnerabilities : []
+                                    if (vulns.length === 0 && pr.ai_score_breakdown) {
+                                      return (
+                                        <section>
+                                          <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-emerald-500/5 border border-emerald-900/30">
+                                            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                                            <span className="text-[13px] text-emerald-400 font-medium">No security vulnerabilities detected</span>
+                                          </div>
+                                        </section>
+                                      )
+                                    }
+                                    if (vulns.length === 0) return null
+                                    return (
+                                      <section>
+                                        <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                          <ShieldAlert className="w-3 h-3 text-rose-400" /> Vulnerabilities
+                                          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-900/30">{vulns.length}</span>
+                                        </h3>
+                                        <div className="space-y-3">
+                                          {vulns.map((v: any, idx: number) => {
+                                            const sevStyles: Record<string, { bg: string; text: string; border: string; icon: React.ReactNode }> = {
+                                              critical: { bg: 'bg-red-500/5', text: 'text-red-400', border: 'border-red-900/30', icon: <XCircle className="w-4 h-4 text-red-400" /> },
+                                              major: { bg: 'bg-orange-500/5', text: 'text-orange-400', border: 'border-orange-900/30', icon: <AlertTriangle className="w-4 h-4 text-orange-400" /> },
+                                              minor: { bg: 'bg-yellow-500/5', text: 'text-yellow-400', border: 'border-yellow-900/30', icon: <MinusCircle className="w-4 h-4 text-yellow-400" /> },
+                                            }
+                                            const sev = sevStyles[v.severity] || sevStyles.minor
+                                            return (
+                                              <details key={idx} className={`rounded-lg border ${sev.border} ${sev.bg} overflow-hidden group`}>
+                                                <summary className="cursor-pointer list-none flex items-center gap-3 px-4 py-3">
+                                                  {sev.icon}
+                                                  <span className={`text-[9px] uppercase tracking-wider font-bold ${sev.text} px-1.5 py-0.5 rounded bg-black/20`}>{v.severity}</span>
+                                                  <span className="text-[13px] text-zinc-200 font-medium flex-1 truncate">{v.type}</span>
+                                                  <span className="font-mono text-[11px] text-zinc-500 shrink-0">{v.file}:{v.line}</span>
+                                                  <ChevronRight className="w-3.5 h-3.5 text-zinc-500 transition-transform duration-200 group-open:rotate-90" />
+                                                </summary>
+                                                <div className="px-4 pb-4 space-y-3 border-t border-white/5 animate-in fade-in duration-200">
+                                                  <p className="text-[13px] text-zinc-300 leading-relaxed pt-3">{v.description}</p>
+                                                  {v.code_snippet && (
+                                                    <div>
+                                                      <p className="text-[9px] uppercase tracking-widest text-zinc-600 font-semibold mb-1.5">Problematic Code</p>
+                                                      <pre className="font-mono text-[12px] bg-black/30 rounded-md px-4 py-3 text-rose-300 overflow-x-auto border border-zinc-800/50"><code>{v.code_snippet}</code></pre>
+                                                    </div>
+                                                  )}
+                                                  {v.recommendation && (
+                                                    <div>
+                                                      <p className="text-[9px] uppercase tracking-widest text-zinc-600 font-semibold mb-1.5">Recommended Fix</p>
+                                                      <pre className="font-mono text-[12px] bg-emerald-500/5 rounded-md px-4 py-3 text-emerald-300 overflow-x-auto border border-emerald-900/20"><code>{v.recommendation}</code></pre>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </details>
+                                            )
+                                          })}
+                                        </div>
+                                      </section>
+                                    )
+                                  })()}
 
                                   <section>
                                     <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4">Key Improvements & Issues</h3>
@@ -2398,6 +2587,23 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
                                     </div>
                                   </div>
 
+                                  {/* Category mini scores in sidebar */}
+                                  {pr.ai_score_breakdown && typeof pr.ai_score_breakdown === 'object' && (
+                                    <div className="border border-zinc-800/40 rounded-lg p-4 space-y-3">
+                                      {(['task_completion', 'logic_correctness', 'code_quality', 'best_practices'] as const).map((key) => {
+                                        const labels: Record<string, string> = { task_completion: 'Task Completion', logic_correctness: 'Logic', code_quality: 'Code Quality', best_practices: 'Best Practices' }
+                                        const cat = pr.ai_score_breakdown[key]
+                                        if (!cat) return null
+                                        return (
+                                          <div key={key} className="flex justify-between text-xs">
+                                            <span className="text-zinc-500">{labels[key]}</span>
+                                            <span className={`font-mono ${cat.score === cat.max ? 'text-emerald-400' : cat.score > cat.max * 0.5 ? 'text-amber-400' : 'text-rose-400'}`}>{cat.score}/{cat.max}</span>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+
                                   <div className="border border-zinc-800/40 rounded-lg p-4 space-y-3">
                                     <div className="flex justify-between text-xs">
                                       <span className="text-zinc-500">PR Number</span>
@@ -2411,6 +2617,14 @@ const fetchResourceTopics = async (resourceId: string, taskId: string) => {
                                       <span className="text-zinc-500">Review Status</span>
                                       <span className="text-zinc-300 capitalize">{normalizedStatus}</span>
                                     </div>
+                                    {pr.ai_vulnerabilities && (
+                                      <div className="flex justify-between text-xs">
+                                        <span className="text-zinc-500">Vulnerabilities</span>
+                                        <span className={`font-mono ${(pr.ai_vulnerabilities?.length || 0) > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                          {(pr.ai_vulnerabilities?.length || 0) > 0 ? pr.ai_vulnerabilities.length : '✓ None'}
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </div>
