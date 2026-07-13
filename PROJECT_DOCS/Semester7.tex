@@ -1,0 +1,924 @@
+\documentclass[12pt,a4paper]{report}
+
+% -------------------- Packages --------------------
+\usepackage{graphicx}
+\usepackage{setspace}
+\usepackage{geometry}
+\usepackage{caption}
+\usepackage{tocloft}
+\usepackage{acronym}
+\usepackage{lipsum} % For Lorem Ipsum text
+\usepackage{hyperref}
+\usepackage{float}
+
+% -------------------- Page Setup --------------------
+\geometry{
+  left=1.25in,
+  right=1in,
+  top=1in,
+  bottom=1in
+}
+
+\setstretch{1.5}
+
+\begin{document}
+
+% ==================================================
+% TITLE + CERTIFICATE (SINGLE PAGE)
+% ==================================================
+
+\begin{titlepage}
+\begin{center}
+
+\vspace*{0.5cm}
+
+{\Large \textbf {CareerSETU: AI-Driven Career\\
+Simulation Platform for Practical Skill\\
+Building and Industry Readiness}}\\[1.5cm]
+
+{\large
+Vishnu Variyar (22B-CO-072)\\
+Shivesh Rane (22B-CO-054)\\
+Shubham Chede (22B-CO-057)\\
+Mohan Soham Ghotge (22B-CO-030)
+}\\[1cm]
+
+{\large
+Project Report submitted in partial fulfillment of the requirements for the degree of\\[0.3cm]
+\textbf{BACHELOR OF ENGINEERING}
+}\\[0.5cm]
+
+{\large
+Branch: \textbf{Computer Engineering} \hspace{1cm}
+Semester: \textbf{VII}
+}\\[0.5cm]
+
+{\large \textbf{GOA UNIVERSITY}}\\[0.5cm]
+
+\includegraphics[width=0.25\textwidth]{logo.png}\\[0.4cm]
+
+{\large \textbf{JANUARY 2026}}\\[0.5cm]
+
+{\large
+\textbf{COMPUTER ENGINEERING DEPARTMENT}\\
+\textbf{GOA COLLEGE OF ENGINEERING}\\
+(GOVERNMENT OF GOA)\\
+FARMAGUDI, PONDA – GOA 403401
+}
+
+\end{center}
+\end{titlepage}
+
+
+\thispagestyle{empty}
+
+\begin{center}
+
+\textbf{\Large GOA COLLEGE OF ENGINEERING}\\
+\textbf{(GOVERNMENT OF GOA)}\\
+FARMAGUDI, PONDA, GOA - 403401\\[0.1cm]
+
+\includegraphics[width=3cm]{logo.png}\\[0.1cm]
+
+\textbf{\Large CareerSETU: AI-Driven Career\\
+Simulation Platform for Practical Skill\\
+Building and Industry Readiness}\\[0.1cm]
+
+Bona fide record of work done by\\[0.1cm]
+
+\textbf{
+Vishnu Variyar \; (22B-CO-072)\\
+Shivesh Rane \; (22B-CO-054)\\
+Shubham Chede \; (22B-CO-057)\\
+Mohan Soham Ghotge \; (22B-CO-030)
+}\\[0.3cm]
+
+Project Report submitted in partial fulfillment of the requirements for the degree of\\[0.2cm]
+
+\textbf{BACHELOR OF ENGINEERING}\\[0.2cm]
+
+Branch: COMPUTER ENGINEERING \hspace{0.1cm}
+Semester: VII\\[0.2cm]
+
+of GOA UNIVERSITY\\[0.3cm]
+
+\textbf{JANUARY 2026}
+
+\end{center}
+
+\vspace{2.8cm}
+
+% -------------------- Guide & HoD (Same Row) --------------------
+\begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+\textbf{[Prof. Amit Patil]} & \hfill \textbf{[Dr. J. A. Laxminarayana]} \\
+Faculty Guide & \hfill Head of Computer Engg. Dept.
+\end{tabular}
+
+\vspace{0.3cm}
+
+Certified that the candidate was examined in the viva-voce examination held on \dotfill
+
+\vspace{1.7cm}
+
+% -------------------- Examiners (Same Row) --------------------
+\begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+\textbf{(Internal Examiner)} & \hfill \textbf{(External Examiner)}
+\end{tabular}
+
+\newpage
+
+% ==================================================
+% TABLE OF CONTENTS
+% ==================================================
+\pagenumbering{roman}
+\tableofcontents
+\newpage
+
+% ==================================================
+% FRONT MATTER
+% ==================================================
+\chapter*{Acknowledgement}
+\addcontentsline{toc}{chapter}{Acknowledgement}
+
+We would like to take this opportunity to express our sincere gratitude to 
+Dr. M. S. Krupashankara, Principal, Goa College of Engineering, Farmagudi, 
+for providing us with the necessary facilities and a conducive environment 
+for the successful completion of this project.\\[0.1cm]
+
+We extend our heartfelt thanks to Dr. J. A. Laxminarayana, Head of the 
+Computer Engineering Department, Goa College of Engineering, for his 
+valuable guidance, constant encouragement, and unwavering support 
+throughout the course of this project.\\[0.1cm]
+
+We express our deepest appreciation to Prof. Amit Patil, our project guide, 
+whose enthusiasm, insightful suggestions, and continuous motivation were 
+instrumental in guiding us at every stage of this work.\\[0.1cm]
+
+We also thank the teaching and non-teaching staff of the Computer Engineering 
+Department for their cooperation, assistance, and support during the 
+completion of this project.
+
+% -------------------- Synopsis --------------------
+\chapter*{Synopsis}
+\addcontentsline{toc}{chapter}{Synopsis}
+
+The rapid evolution of the technology industry has highlighted a significant gap between
+academic learning and real-world professional requirements. While engineering curricula
+provide strong theoretical foundations, students often graduate with limited exposure to
+industry workflows, collaborative practices, and role-specific responsibilities. CareerSETU
+is an AI-driven career simulation platform designed to bridge this gap by enabling
+experiential, industry-aligned learning within an academic environment.\\[0.1cm]
+
+CareerSETU simulates a real-world software company where students work in teams and are
+assigned specific roles such as frontend developer, backend engineer, quality assurance
+tester, or project lead. Based on an initial skill assessment, the platform dynamically
+allocates roles and tasks tailored to each student’s capabilities and learning goals.
+AI-powered agents guide students through role-specific tasks, provide contextual feedback,
+monitor progress, and simulate mentorship commonly found in professional settings.\\[0.1cm]
+
+The platform integrates modern development practices such as version control systems,
+task boards, sprint-based workflows, and collaborative documentation, enabling students
+to gain hands-on experience with industry-standard tools and methodologies. Performance
+metrics including task completion, collaboration effectiveness, code quality, and
+consistency are continuously analyzed to generate personalized learning paths and career
+roadmaps. CareerSETU also automatically generates role-based resume content by summarizing
+verified project contributions, helping students present practical experience to potential
+employers.\\[0.1cm]
+
+Additionally, the platform allows industry participation by enabling organizations to
+contribute real-world problem statements and observe anonymized performance insights to
+identify suitable talent. By combining gamification, artificial intelligence, and
+experiential learning principles, CareerSETU enhances student engagement while fostering
+professional skills such as accountability, adaptability, and teamwork.\\[0.1cm]
+
+Overall, CareerSETU aims to transform conventional academic learning into an immersive,
+skill-oriented experience that prepares students not only for their initial employment
+but also for sustained growth in an ever-evolving career landscape.\\[0.1cm]
+% -------------------- List of Figures --------------------
+\chapter*{List of Figures}
+\addcontentsline{toc}{chapter}{List of Figures}
+\listoffigures
+\newpage
+
+% -------------------- List of Tables --------------------
+\chapter*{List of Tables}
+\addcontentsline{toc}{chapter}{List of Tables}
+\listoftables
+\newpage
+
+% -------------------- Abbreviations --------------------
+\chapter*{Abbreviations}
+\addcontentsline{toc}{chapter}{Abbreviations}
+
+\begin{acronym}[AI]
+\acro{AI}{Artificial Intelligence}
+\acro{ML}{Machine Learning}
+\acro{API}{Application Programming Interface}
+\acro{DB}{Database}
+\acro{UI}{User Interface}
+\end{acronym}
+
+\newpage
+\pagenumbering{arabic}
+
+% ==================================================
+% CHAPTERS
+% ==================================================
+
+\chapter{Introduction}
+
+The increasing gap between academic learning and industry expectations has become a
+significant challenge for engineering graduates. While students acquire strong theoretical
+knowledge during their academic journey, they often lack exposure to real-world
+development workflows, collaborative environments, and role-specific responsibilities.
+This gap affects their readiness to adapt to professional settings immediately after
+graduation. CareerSETU addresses this challenge by providing an AI-driven, experiential
+learning platform that simulates real-world industry environments and prepares students
+for practical, skill-oriented careers.
+
+\section{Motivation}
+
+The transition from academic education to real-world employment is often abrupt and
+challenging. Students graduating from engineering programs frequently face difficulties
+adjusting to team collaboration, agile development processes, version control systems,
+and real-time project expectations. Traditional classroom learning primarily emphasizes
+theoretical concepts and examinations, offering limited exposure to the actual workflows
+followed in technology-driven organizations.\\[0.1cm]
+
+CareerSETU is motivated by the growing demand for graduates who are not only technically
+competent but also industry-ready in terms of communication, problem-solving ability,
+and professional behavior. By leveraging artificial intelligence and workflow automation,
+the platform enables students to immerse themselves in simulated industry environments
+before entering the workforce, thereby reducing the learning curve during their initial
+professional roles.\\[0.1cm]
+
+This vision aligns with insights shared by Nitin Sharma, Founding Partner at Antler, in
+his work on “GenAI and the Future of Learning,” which emphasizes that generative AI has
+the potential to fundamentally transform education by making learning contextual,
+adaptive, and mastery-driven. CareerSETU embodies this transformation by combining
+AI-driven agents with role-based workflows to ensure not only participation but measurable
+learning outcomes.\\[0.1cm]
+
+Furthermore, the project is aligned with the broader perspective of the Theory of Next
+(NEXT100) initiative, which advocates for adaptable systems focused on real-world skill
+development and human potential. By integrating gamification, AI-guided mentorship, and
+experiential learning, CareerSETU aims to serve as a scalable and future-ready model for
+modern technical education intended to prepare students for a continuously evolving
+career landscape.
+\newpage
+\section{Objectives of the Project}
+
+The primary objectives of the CareerSETU platform are as follows:
+
+\begin{itemize}
+    \item To simulate real-world roles within a virtual technology company using a
+    team-based project structure.
+    \item To integrate AI-driven agents that provide role-specific mentorship, task
+    guidance, and personalized feedback to students.
+    \item To enable students to gain hands-on experience with industry tools and
+    workflows such as Git, stand-up meetings, sprint planning, and collaborative task
+    management.
+    \item To generate skill-based career roadmaps and dynamically updated resumes
+    based on individual student performance and project contributions.
+    \item To provide a scalable platform interface that allows companies to contribute
+    real-world challenges and evaluate potential talent.
+\end{itemize}
+
+\chapter{Literature Survey}
+
+This chapter presents a review of existing research and policy documents relevant to the
+CareerSETU platform. The survey focuses on three primary areas that form the foundation
+of the proposed system: gamification in education, the role of artificial intelligence in
+learning environments, and experiential learning theory. These works collectively validate
+the need for an adaptive, industry-oriented, and learner-centric educational platform.
+
+
+\section{Paper Title: AI and education: guidance for policy-makers}
+\textbf{Authors, Year of Pub:} Miao, Fengchun; Holmes, Wayne; Ronghuai Huang; Hui Zhang. 2021.
+
+\subsection{Abstract}
+\begin{itemize}
+  \item \textbf{Goal Alignment:} Artificial Intelligence (AI) is viewed as a critical new tool to accelerate progress towards Sustainable Development Goal 4 (SDG 4)--ensuring inclusive and equitable quality education and promoting lifelong learning opportunities for all.
+  \item \textbf{Policy Imperative:} The rapid development of AI brings significant opportunities to innovate teaching and learning but also presents risks, such as exacerbating inequalities and ethical concerns. Policy debates and regulatory frameworks have not kept pace with the technology.
+  \item \textbf{Core Purpose:} This publication offers essential guidance for policy-makers to understand the capacities and limitations of AI and develop appropriate strategies to maximize its benefits while mitigating potential risks in the education sector.
+  \item \textbf{Guiding Principle:} The effective and ethical deployment of AI in education must be governed by the humanistic principles of inclusion, equity, and human rights. The global market for AI in education is projected to be worth \$6 billion by 2024.
+\end{itemize}
+
+\subsection{Methodology}
+The guidance outlines three primary domains where AI can be applied and three established policy methodologies:
+
+\paragraph{Areas of AI Application:}
+\begin{enumerate}
+  \item \textbf{System-Facing AI:} AI used for education management and administration, such as optimizing school timetables, performing school inspections, and utilizing Learning Analytics to provide data-driven insights for policy-making.
+  \item \textbf{Student-Facing AI:} AI applications for learning and assessment, including Intelligent Tutoring Systems (ITS) for personalized learning, automated essay scoring, and interactive learning environments.
+  \item \textbf{Teacher-Facing AI:} AI tools designed to empower educators by automating administrative tasks, providing AI-based formative assessment to track student progress, and offering personalized professional development.
+\end{enumerate}
+
+\paragraph{Policy Methodologies:}
+The document summarizes three policy responses adopted by countries globally:
+\begin{itemize}
+  \item \textbf{Independent Approach:} Creating a distinct, dedicated strategy solely for AI in Education.
+  \item \textbf{Integrated Approach:} Embedding AI in education within broader national AI or digitalization strategies.
+  \item \textbf{Thematic Approach:} Focusing on specific, narrow applications of AI in education (e.g., only in skills training).
+\end{itemize}
+
+\subsection{Conclusion}
+\begin{itemize}
+  \item \textbf{Ethical and Human-Centric:} All policies must be driven by a humanistic, ethical approach to protect fundamental human rights, promote inclusion, and prepare people for life and work in an AI-infused world.
+  \item \textbf{Risk Mitigation is Key:} Policy-makers must urgently address major risks, particularly algorithmic bias, the protection of sensitive learner data, and the risk that AI may deepen the digital and learning divides.
+  \item \textbf{Inclusive Access:} AI must be leveraged to ensure that education is inclusive and equitable, especially for marginalized and vulnerable populations.
+  \item \textbf{Actionable Plan:} The publication offers 10 key recommendations for developing a robust, national-level AI and education policy, emphasizing the need for a holistic vision and coordinated action.
+\end{itemize}
+
+\subsection{Future Scope}
+\begin{itemize}
+  \item \textbf{AI Literacy and Competencies:} The immediate future requires educational systems to equip all citizens with essential AI competencies, including skills to understand AI principles, interact with AI systems, and safeguard personal data.
+  \item \textbf{Gender and Equity:} Future policy must actively promote gender equity by incentivizing AI applications that close the gender gap and encouraging girls and women to pursue AI-related careers.
+  \item \textbf{Regulatory Frameworks:} There is a critical need to establish comprehensive national data protection and ethical regulatory frameworks to guarantee the transparent, auditable, and non-discriminatory use of AI in education.
+  \item \textbf{Continuous Monitoring:} The effectiveness of AI in education at scale remains largely unproven. Future work must prioritize pilot testing, monitoring, and evaluation to build a strong, evidence-based foundation for successful long-term AI integration.
+\end{itemize}
+
+\section{Paper Title: Gamification In Education}
+\textbf{Authors and Year Of Pub:} Gabriela Kiryakova, Nadezhda Angelova, Lina Yordanova. 2014.
+
+\subsection{Abstract}
+\begin{itemize}
+  \item \textbf{Learner Context:} The current generation of learners are digital natives who grew up immersed in digital technologies, resulting in new learning styles and higher demands on the educational process.
+  \item \textbf{Educational Challenge:} Teachers face the challenge of adapting the learning process to meet the needs and preferences of these students and must use methods that promote active participation, motivation, and engagement.
+  \item \textbf{Solution:} Gamification is presented as one of the modern educational trends and techniques that leverage ICT to address these issues by increasing learner motivation and engagement.
+  \item \textbf{Paper Aim:} The primary goal of this paper is to study and present the nature and benefits of gamification and to provide concrete ideas on how to implement it within the educational environment.
+  \item \textbf{Key Words:} e-learning, gamification, LMS, Moodle.
+\end{itemize}
+
+\subsection{Methodologies (Implementation Strategy)}
+The paper proposes a detailed five-step strategy for the effective implementation of gamification in an e-learning environment:
+\begin{itemize}
+  \item \textbf{Determination of Learners' Characteristics:} Teachers must first define student profiles, focusing on their predisposition to competitive learning and ensuring that the tasks are neither too easy nor too difficult to avoid demotivation.
+  \item \textbf{Definition of Learning Objectives:} Objectives must be specific and clearly defined, as they determine the educational content and guide the selection of appropriate game mechanics.
+  \item \textbf{Creation of Educational Content and Activities:} Content should be interactive and rich in multimedia. Activities should be designed to allow for:
+  \begin{itemize}
+    \item \textbf{Multiple Performances:} Students can repeat activities to improve skills and achieve the ultimate goal.
+    \item \textbf{Feasibility:} Tasks must be achievable and tailored to students' potential.
+    \item \textbf{Increasing Difficulty:} Subsequent tasks should become more complex, corresponding to newly acquired knowledge.
+    \item \textbf{Multiple Paths:} Students should be able to reach objectives by various paths, allowing them to build their own strategies.
+  \end{itemize}
+  \item \textbf{Adding Game Elements and Mechanisms:} Tasks lead to the accumulation of points, transitions to higher levels, and awards. Examples include:
+  \begin{itemize}
+    \item \textbf{Badges:} Individual awards for independent work and achievements.
+    \item \textbf{Leaderboards:} Public ranking lists that add a social and competitive element.
+  \end{itemize}
+  \item \textbf{Software Tools Integration (LMS):} LMS (e.g., Moodle) provides the ideal environment for gamification because they automatically track student data and progress. Moodle's built-in features that support gamification include the \emph{Progress bar}, \emph{Quiz results block}, the \emph{Level up!} block, and \emph{Conditional activities} to restrict access based on completion criteria.
+\end{itemize}
+
+\subsection{Conclusion}
+\begin{itemize}
+  \item \textbf{Effectiveness in E-learning:} E-learning platforms are highly suitable for the easy and effective integration of game techniques and mechanisms.
+  \item \textbf{Positive Change:} Gamification is a proven, effective approach to induce a positive change in students' behavior and attitude towards learning.
+  \item \textbf{Bilateral Impact:} This positive change improves students' motivation and engagement and results in better learning outcomes and understanding of educational content, thereby creating conditions for an effective learning process.
+  \item \textbf{Final Recommendation:} Game mechanics are implemented as purposeful activities to achieve learning objectives in a friendly competitive environment.
+\end{itemize}
+
+\section{Paper Title: Experiential Learning: Experience As The Source Of Learning And Development.}
+\textbf{Author and Year of Publication:} David A. Kolb. 1984.
+
+\subsection{Abstract}
+\begin{itemize}
+  \item \textbf{Central Thesis:} The work introduces and establishes the Experiential Learning Theory (ELT), defining learning as a dynamic process where knowledge is created through the transformation of experience. Experience is thus the sole source of learning and development.
+  \item \textbf{Dynamic Knowledge:} Knowledge is not a fixed or external entity but rather a continuous outcome of the transactional relationship between a person and the environment.
+  \item \textbf{Process over Outcome:} ELT stresses that learning is fundamentally a process of adaptation and not merely a collection of end-results or fixed outcomes. The failure to change ideas or habits based on new experience is paradoxically considered a definition of non-learning from this perspective.
+  \item \textbf{Integration:} The theory synthesizes the works of influential experiential theorists like John Dewey, Kurt Lewin, and Jean Piaget to provide a holistic model that connects experience, perception, cognition, and behavior.
+\end{itemize}
+
+\subsection{Methodologies}
+The core methodology of the theory is the Experiential Learning Cycle (ELC), which describes the continuous, four-stage process that a learner must navigate for effective learning:
+\begin{itemize}
+  \item \textbf{Concrete Experience (CE):} Feeling/Doing -- The learner has a new, immediate, or tangible experience, or re-engages with a previous one.
+  \item \textbf{Reflective Observation (RO):} Watching -- The learner steps back to observe and reflect on the experience from various viewpoints, noting any discrepancies between what happened and their current understanding.
+  \item \textbf{Abstract Conceptualization (AC):} Thinking -- The reflections are processed and synthesized into new ideas, logical theories, or generalized conclusions.
+  \item \textbf{Active Experimentation (AE):} Acting/Testing -- The learner uses the new concepts to test them out, solve problems, and make decisions, which in turn leads to a new Concrete Experience, restarting the cycle.
+  \item \textbf{Dialectical Tension:} Effective learning requires the successful resolution of creative tension between the opposing learning modes: the tension between Concrete Experience and Abstract Conceptualization (grasping experience) and between Reflective Observation and Active Experimentation (transforming experience).
+\end{itemize}
+
+\subsection{Conclusion}
+\begin{itemize}
+  \item \textbf{Adaptation is Key:} The ability to learn is synonymous with the ability to adapt and change. The ELC provides the blueprint for this lifelong adaptive process.
+  \item \textbf{Holistic Approach:} Kolb’s model is holistic, arguing that learners need all four types of abilities (Experiencing, Reflecting, Thinking, Acting) to be truly effective; relying on only one or two modes results in a limited learning style.
+  \item \textbf{Critique of Traditional Views:} By defining learning as a continuous process of construction and invention, ELT offers a significant challenge to behavioral and cognitive theories that view knowledge as a fixed object to be acquired or memorized.
+\end{itemize}
+
+
+\chapter{Project Requirements}
+
+This chapter outlines the hardware and software requirements necessary for the
+development and deployment of the CareerSETU platform. The system is designed to be
+scalable, cloud-based, and accessible using standard development resources, ensuring
+ease of adoption in academic environments.
+
+\section{Software Requirements}
+
+The development of CareerSETU requires the following software components:
+
+\begin{itemize}
+    \item \textbf{Frontend Technologies:} Next.js (React framework) and Tailwind CSS
+    for building a responsive, component-driven, and user-friendly interface.
+    A Content Delivery Network (CDN) is utilized to ensure fast asset delivery and
+    improved performance across geographic regions.
+    
+    \item \textbf{Backend Technologies:} Server-side application logic implemented
+    using Node.js with Express.js as the primary backend framework. Flask may be used
+    optionally for specific microservices or AI-related endpoints where required.
+    
+    \item \textbf{Database System:} Supabase with PostgreSQL for secure, reliable, and
+    structured data storage, including user profiles, task data, and performance metrics.
+    
+    \item \textbf{AI Services:} Integration with AI service providers leveraging
+    large language models such as the Qwen (Quen) model to enable intelligent task
+    generation, feedback mechanisms, and adaptive career guidance.
+    
+    \item \textbf{Workflow Orchestration:} n8n and LangChain-based workflows for managing
+    automated processes, task pipelines, and AI-driven workflow coordination.
+    
+    \item \textbf{Version Control and Deployment:} GitHub for source code management
+    and collaboration, along with deployment platforms such as Vercel and Render
+    for hosting, continuous integration, and continuous deployment.
+\end{itemize}
+
+\section{AI Architecture and Implementation}
+
+For the project's core reasoning engine, we implemented the Qwen 3 Coder-30B Large Language Model, a 30-billion parameter model with 3 billion active parameters, specifically fine-tuned for code generation and technical problem-solving. To optimize the model for deployment constraints, we utilized the BitsAndBytes library to apply 8-bit quantization. This process compresses the model weights from standard floating-point precision to 8-bit integers, significantly reducing the VRAM footprint while maintaining high inference accuracy. The optimized model is deployed using RunPod Serverless architecture. This hosting strategy ensures cost-efficiency and scalability by dynamically provisioning GPU resources only during active inference requests, eliminating the overhead of maintaining idle servers.\\[0.1cm]
+
+The platform employs a multi-agent architecture orchestrated through LangChain to create sophisticated workflows. Different specialized agents are implemented to handle distinct responsibilities within the system, including task generation, mentorship, feedback provision, and performance analysis. These agents work collaboratively to provide a comprehensive learning experience. The use of LangChain enables seamless integration and coordination between agents, allowing for complex workflow automation and intelligent decision-making processes.\\[0.1cm]
+
+All agents are powered by the Qwen3 model, which we have kept open source. This choice provides us with better control over the model's behavior, allows for custom fine-tuning to meet specific platform requirements, and ensures transparency in the AI-driven processes. The open-source nature of Qwen3 also enables us to maintain data privacy and avoid dependency on proprietary API services, giving us full autonomy over the AI infrastructure and its evolution.
+
+\section{Hardware Requirements}
+
+The hardware requirements for developing and accessing the CareerSETU platform are
+minimal and suitable for standard academic and professional environments:
+
+\begin{itemize}
+    \item Standard development laptops or desktops with a minimum of 8 GB RAM and
+    processors equivalent to Intel i5 or AMD Ryzen 5 or higher.
+    
+    \item A stable and reliable internet connection to support cloud-based services,
+    version control operations, and AI API integration.
+\end{itemize}
+
+\chapter{Project Design}
+
+This chapter describes the overall design and architecture of the CareerSETU platform.
+The system is structured to seamlessly integrate students, graduates, and industry
+participants into a unified ecosystem that supports learning, assessment, and recruitment.
+The design focuses on modularity, scalability, and continuous feedback to ensure that
+learning outcomes are closely aligned with real-world industry expectations.
+
+\section{Overall System Flowchart}
+
+The overall workflow of the CareerSETU platform is illustrated in Figure~\ref{fig:flowchart}.
+It depicts the interaction between learners, AI-driven components, and industry modules,
+highlighting how learning activities are transformed into measurable job readiness and
+recruitment outcomes.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\linewidth]{flowchart.jpg}
+\caption{Overall System Architecture and Workflow of CareerSETU}
+\label{fig:flowchart}
+\end{figure}
+
+\section{Project Modules}
+
+The CareerSETU platform is composed of several interconnected modules, each responsible
+for a specific function within the learning-to-employment pipeline.
+
+\subsection{Enrollment Module}
+
+The Enrollment Module serves as the entry point to the platform. It manages student
+registration, profile creation, and onboarding. This module ensures that learners are
+properly authenticated and guided into the system before accessing learning content
+and simulations.
+
+\subsection{Learning Module}
+
+Once enrolled, users interact with the Learning Module, which provides structured tasks,
+simulations, and activities aligned with industry practices. The module supports
+collaborative learning by organizing students into teams and assigning role-specific
+responsibilities that reflect real-world software development environments.
+
+\subsection{Job Posting Module}
+
+The Job Posting Module enables companies to contribute industry-relevant problem
+statements, tasks, and role requirements. These inputs continuously inform and update
+the learning pathways, ensuring that students work on challenges that reflect actual
+hiring needs and skill demands.
+
+\subsection{AI Mentor System}
+
+The AI Mentor System is a core component of the platform. It provides personalized
+guidance, feedback, and recommendations based on individual learner performance.
+By analyzing task completion, behavioral patterns, and progress metrics, the AI mentor
+simulates human mentorship and supports students throughout their learning journey.
+
+\subsection{Assessment and Scoring Module}
+
+This module evaluates student performance across multiple dimensions, including task
+quality, collaboration, consistency, and professional behavior. The collected evaluations
+are aggregated into a Job Readiness Score, which represents a quantifiable measure of a
+student’s preparedness for industry roles.
+
+\subsection{Analytics Dashboard}
+
+The Analytics Dashboard provides administrators and industry participants with high-level
+insights into platform usage, learning trends, and performance metrics. This module
+supports data-driven decision-making by visualizing learner progress and system-wide
+patterns.
+
+\subsection{Matching Module}
+
+Based on the Job Readiness Score and learner profiles, the Matching Module compares
+candidate competencies with available job opportunities. It recommends suitable roles
+to students and highlights potential candidates for companies.
+
+\subsection{Hiring and Recruitment Module}
+
+The Hiring and Recruitment Module represents the final stage of the platform workflow.
+It enables companies to shortlist, evaluate, and recruit candidates based on verified
+performance data, AI-generated insights, and readiness scores. This module ensures a
+direct and transparent connection between learning outcomes and employment
+opportunities.
+\section{Sequence Diagram}
+
+\subsection{Overview}
+The sequence diagram illustrates the complete interaction flow between the Student, Website System, AI Mentor Module, and the Company. It demonstrates how a student progresses through the platform—beginning with authentication, accessing the learning module, receiving AI-generated feedback, updating performance metrics, and finally being evaluated and shortlisted by the company. This visual model effectively captures the logical flow of actions and responses across all major system components.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\linewidth]{sequence_diagram.png}
+\caption{Sequence Diagram Showing Student–AI–Company Interaction}
+\label{fig:sequence}
+\end{figure}
+
+\subsection{Explanation}
+The sequence diagram provides a structured view of communication between different layers of the platform. The process begins with the student accessing the system, logging in, and navigating to the learning module. Upon requesting a task, the website communicates with the AI Mentor Module, which generates the appropriate task. After completing the task, the student submits the solution, which is processed by the AI Mentor to generate both textual and audio/video feedback. The system updates the student's progress dashboard, ensuring that performance metrics remain current. This updated profile is shared with the company, enabling evaluation of the student's readiness. Based on this assessment, candidates are shortlisted and the final hiring decision is communicated through the platform. The diagram clearly represents the sequential communication path and interaction hierarchy across all key components of the system.
+
+\section{Website Flow Diagram}
+
+\subsection{Overview}
+The website flow diagram presents the navigational structure and page hierarchy of the platform. It illustrates how users move from the entry pages toward their respective dashboards and interact with the features available for each role. By outlining the connections between the various sections of the system, this diagram helps understand how students and companies access and use platform functionalities.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\linewidth]{wfd.png}
+\caption{Website Navigation and User Flow}
+\label{fig:wfd}
+\end{figure}
+
+\subsection{Explanation}
+The website flow diagram outlines the major interaction pathways within the platform. Users begin at the landing page, progressing to login or registration. Once authenticated, students access their dashboard, which links to the profile page, learning modules, task board, mentor chat, media-based learning section, and the progress dashboard. Companies, on the other hand, access their dashboard to manage their profile, review student submissions, and conduct evaluations. Shared pages such as the settings and logout options maintain a consistent user interface. The flow clearly highlights how each section is interconnected, ensuring smooth navigation and logical organization across the platform.
+
+\section{Design Implementation}
+
+\subsection{Register and Survey}
+\subsubsection{Account Creation}\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{Reg1.png}
+\caption{User Registration Interface}
+\label{fig:reg1}
+\end{figure}
+    \newline
+    The journey begins on the registration page, where new users sign up for the DevFlow AI platform. The interface is designed to be clean and straightforward, requiring users to input standard credentials such as their full name, email address, and a secure password. A key feature of this step is the "Role" selection dropdown, which categorizes the user (e.g., as a student or developer) immediately. This initial classification ensures that the system can adjust permissions and interface options to suit the user's specific needs from the moment they log in.
+
+    \subsubsection{Survey Introduction}
+ \begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{Reg2.png}
+\caption{Survey Introduction Interface}
+\label{fig:reg2}
+\end{figure}
+    Immediately after registration, users are transitioned to the Student Onboarding Survey. Instead of a traditional static form, this module uses a conversational interface to make the process feel more engaging and personal. The AI assistant introduces itself and explains that the purpose of the chat is to learn about the user's professional background to tailor their future experience. A progress bar is displayed at the top to provide visual feedback on how much of the survey remains, respecting the user's time and setting clear expectations.
+
+   \subsubsection{Domain and Experience Assessment}
+    \begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{Reg3.png}
+\caption{Domain and Experience Selection}
+\label{fig:reg3}
+\end{figure}
+    \newline
+    As the conversation proceeds, the system gathers specific data points regarding the user's expertise. The chatbot asks the user to identify their primary field of interest—in this case, "Software Development"—and follows up by querying their current experience level. Users are presented with intuitive, quick-select options such as "Just starting out" or "Working professionally." This interactive approach allows the platform to quickly build a user profile without requiring manual data entry for every question.
+
+    \subsubsection{Project Experience Overview}
+    \begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{Reg4.png}
+\caption{Project Experience Input}
+\label{fig:reg4}
+\end{figure}
+    \newline
+To capture a more complete picture of the user's abilities, the survey includes open-ended questions. In this final stage of the onboarding flow, the AI asks the user to briefly describe a recent project or experience related to their field. This step allows users to provide context that multiple-choice questions might miss, giving the system qualitative data to better understand their specific skills and interests. The interface provides a simple text input field, maintaining the chat-like aesthetic to keep the interaction natural.
+
+    
+
+\subsection{Dashboard and Navigation}
+\subsubsection{Explore Companies}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{MD_S1.jpg}
+\caption{Explore Companies Dashboard}
+\label{fig:dash1}
+\end{figure}
+\newline
+The "Explore Companies" dashboard serves as the primary discovery hub for users looking for new opportunities. This interface allows students to browse through available organizations using a robust search system. To ensure users find roles that match their expertise, the page includes difficulty filters such as "Beginner," "Intermediate," and "Advanced," along with a sorting mechanism for relevance. Each company is presented as a card displaying key details and required technologies, featuring a prominent "Join Company" button that allows for instant enrollment into that organization's workspace.
+
+
+\subsubsection{My Companies Interface}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{MD_S2.jpg}
+\caption{My Companies Dashboard}
+\label{fig:dash2}
+\end{figure}
+\newline
+Once a user joins an organization, it is tracked in the "My Companies" section. This page is designed to separate active work from the discovery process. It lists the specific organizations the user is currently engaged with, clearly marked with status tags like "Active." The design focuses on workflow efficiency, offering a direct "View Projects" button on each card. This allows users to transition seamlessly from a high-level overview of their enrollments into the specific tasks and project deliverables associated with that company.
+
+\subsubsection{User Profile Management}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{MD_S3.jpg}
+\caption{User Profile Management}
+\label{fig:dash3}
+\end{figure}
+\newline
+The Profile section acts as the user's personal command center for managing their identity on the platform. It displays essential account information, such as the user's full name and registered email address, in a clean, read-only format for quick verification. Additionally, this page tracks the user's professional growth by listing their declared skills. It also provides a summary of "Companies Joined," giving users a high-level view of their current affiliations without needing to navigate away from their personal settings.
+
+\subsection{ Skill Development and Project Work}
+
+\subsubsection{Skills Gap Analysis}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{SD_3.png}
+\caption{Skill Gap Analysis}
+\label{fig:skill1}
+\end{figure}
+\newline
+Once a user joins a company, the platform performs an automated gap analysis to align their current capabilities with the organization's technical requirements. The "Skills" dashboard visually segments competencies into "Your Skills" (those already mastered) and "Missing Skills" (those required for upcoming projects). This immediate feedback loop provides a clear, actionable roadmap for the user, offering direct "Start module" links for specific technologies like React or Node.js. This ensures that learning is relevant and directly tied to the user's immediate goals within the platform.
+
+\subsubsection{Interactive AI Tutoring}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{SD_2.png}
+\caption{Interactive AI Tutoring}
+\label{fig:skill2}
+\end{figure}
+\newline
+To address these identified gaps, the platform features a "Teacher Agent," a personalized AI tutor designed to deliver just-in-time learning. Unlike traditional passive courses, this interface combines a conversational chat system with multimedia content, including AI-generated video lessons. Users can interact naturally with the agent—asking for examples, clarification, or visual aids—making the educational experience dynamic and tailored to their specific learning style. This allows users to quickly grasp necessary concepts without leaving the platform environment.
+
+\subsubsection{Project Integration}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{SD_1.png}
+\caption{Project Integration Interface}
+\label{fig:skill3}
+\end{figure}
+\newline
+The ultimate goal of the upskilling process is practical application, which is managed through the "Projects" dashboard. This section lists available initiatives within the company, such as e-commerce platforms, and displays the tech stack required for each. The interface employs a "lock-and-key" mechanism where users may need to "Learn skills" before they can "Join" or "Open" specific projects. This safeguards the quality of contributions by ensuring users have the requisite knowledge while simultaneously gamifying the learning process by treating project access as a reward for upskilling.
+
+\subsection{Task Management and Learning Support}
+
+\subsubsection{Task Assignment and AI Guidance}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{TM_3.png}
+\caption{Task Assignment and AI Guidance}
+\label{fig:task1}
+\end{figure}
+
+\newline \newline
+The "Tasks" dashboard is the central hub for individual execution, allowing users to view specific assignments such as building authentication pages. Each task card provides clear details, including priority levels (e.g., "medium"), deadlines, and comprehensive descriptions of the work required. Uniquely, this interface integrates a "PM Agent" (Product Management Assistant) directly alongside the task list. This allows users to instantly chat with an AI project manager to clarify requirements, ask about scope, or get guidance on how to approach the task without waiting for a human response.
+
+\subsubsection{Visual Progress Tracking}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{TM_2.png}
+\caption{Kanban Progress Tracker}
+\label{fig:task2}
+\end{figure}
+\newline
+To provide a broader view of the project's lifecycle, the platform utilizes a "Tracker" interface built on the Kanban methodology. This board visually organizes work into columns like "In Progress," "Completed," and "Issues," giving every team member a real-time snapshot of the project's status. Moving a task card, such as the "Authentication Pages" assignment, into the "In Progress" column automatically updates the status for the entire team. This visual approach helps identify bottlenecks early and ensures transparency regarding who is working on what.
+% \newpage
+\subsubsection{Immersive Learning Environment}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{TM_1.png}
+\caption{Immersive Learning Interface}
+\label{fig:task3}
+\end{figure}
+\newline
+When a user encounters a new concept or gets stuck, they can utilize the dedicated "Learning" interface. This section provides a rich, multimedia educational experience featuring video walkthroughs alongside a specialized "Learning Assistant" chatbot. This AI companion is more advanced than a standard search tool; it offers specific commands like \textbf{/explain} for detailed written breakdowns or \textbf{/video} for script-based learning. This setup ensures that users can acquire deep, contextual knowledge about their specific tasks without ever having to leave the application environment.
+
+
+
+\section{Waterfall Model}
+
+\subsection{Process Flow Diagram}\begin{figure}[H]
+\centering
+\includegraphics[width=0.35\linewidth]{waterfall2.png}
+\caption{Waterfall Development Model}
+\label{fig:waterfall}
+\end{figure}
+
+
+
+
+\subsection{Why the Waterfall Model Fits Our Project}
+The Waterfall Model aligns exceptionally well with the structure and execution of this project, as the development naturally progressed through clearly defined, sequential phases. Each stage—ranging from proposal formulation to deployment—was completed in order, with stable requirements and minimal need for revisiting earlier steps. This made Waterfall an efficient and dependable choice.
+
+\subsubsection*{Well-Defined Phases}
+The project followed distinct phases such as the proposal stage, literature survey, design, implementation, testing, and final deployment. Each phase had a fixed scope and clear boundaries, which reflects the phase-oriented nature of the Waterfall methodology.
+
+\subsubsection*{Stable Requirements}
+The core system requirements for CareerSETU were established early and remained consistent throughout development. Since Waterfall performs best in scenarios where requirements do not undergo frequent changes, it complemented the project’s stability.
+
+\subsubsection*{Strong Documentation Alignment}
+Academic final-year projects require extensive documentation and structured deliverables. Waterfall emphasizes thorough documentation at every stage, making it the most suitable methodology for the project's academic expectations.
+
+\subsubsection*{Sequential Dependencies}
+Key components of the system depended on earlier phases being completed. For instance, backend and ML elements required prior design clarity, while integration and testing depended on full implementation. Waterfall supports such dependency-driven workflows effectively.
+
+\subsubsection*{Time-Bound Academic Structure}
+The project followed a semester-based schedule with fixed deadlines. Waterfall’s milestone-driven planning ensured predictable progress and clear tracking of deliverables across Semesters 7 and 8.
+
+In summary, the project’s structured timeline, stable requirements, academic documentation needs, and sequential dependencies collectively make the Waterfall Model the most appropriate development approach for CareerSETU.
+
+
+\chapter{Conclusion}
+
+The CareerSETU project was undertaken with the objective of addressing the gap between
+academic learning and real-world industry expectations. Traditional education systems,
+while strong in theoretical foundations, often fall short in providing students with
+practical exposure to industry workflows, collaborative environments, and role-based
+responsibilities. CareerSETU demonstrates how an AI-driven, experiential learning
+platform can effectively bridge this gap.
+
+The platform introduces a simulated industry environment where students work in
+team-based structures, perform role-specific tasks, and engage with workflows that
+closely resemble those followed in professional technology organizations. By integrating
+AI-driven mentorship, automated feedback mechanisms, and performance evaluation,
+CareerSETU ensures that learners receive continuous guidance while maintaining
+accountability and measurable progress.
+
+Through the use of modern development practices, workflow automation, and adaptive
+learning strategies, the system enables students to develop both technical and
+professional skills. The generation of personalized career roadmaps and dynamically
+updated resumes further enhances the practical value of the platform by translating
+learning outcomes into tangible career assets.
+
+In addition, the inclusion of industry participation through problem contributions and
+candidate evaluation establishes a direct link between learning and employment. This
+approach benefits students by improving job readiness while providing organizations with
+a transparent and skill-focused talent discovery mechanism.
+
+Overall, CareerSETU successfully demonstrates the potential of combining artificial
+intelligence, gamification, and experiential learning to create a scalable and future-ready
+educational model. The platform lays a strong foundation for further enhancements and
+can be extended to support additional domains, advanced analytics, and deeper industry
+collaboration, making it a valuable contribution toward modernizing technical education
+and improving graduate employability.
+
+\chapter{Timeline}
+
+This chapter presents the project timeline and work plan for the development of the
+CareerSETU platform. The timeline spans across Semester VII and Semester VIII and
+outlines the major phases, activities, and their distribution over the academic year. The
+planning ensures a structured progression from research and design to implementation,
+testing, and final deployment.
+
+\section{Project Timeline and Work Plan}
+
+Figure~\ref{fig:timeline} illustrates the overall project timeline using a Gantt-style
+representation. It provides a high-level view of task sequencing, overlaps, and
+dependencies across the two semesters.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1.0\linewidth, height=8.0cm]{timeline.png}
+\caption{Project Timeline Across Semester VII and Semester VIII}
+\label{fig:timeline}
+\end{figure}
+
+\section{Phase-wise Work Plan}
+
+The detailed phase-wise activities and their expected duration are summarized in
+Table~\ref{tab:timeline}.
+
+\begin{table}[H]
+\centering
+\caption{Project Timeline for Semester VII}
+\label{tab:timeline_sem7}
+\begin{tabular}{|p{4cm}|p{8cm}|p{3cm}|}
+\hline
+\textbf{Phase} & \textbf{Major Activities} & \textbf{Duration} \\
+\hline
+Project Proposal Phase &
+Brainstorming project ideas, feasibility analysis, scope finalization, and synopsis
+submission &
+July -- Mid August \\
+\hline
+Literature Survey and Planning &
+Review of research on AI in education, gamification, experiential learning, and initial
+system planning &
+August -- October \\
+\hline
+Design Phase and Workflow Planning &
+System architecture design, workflow diagrams, UI/UX planning, and preliminary ER
+diagrams &
+October -- November \\
+\hline
+Frontend Core Development &
+Development of UI components, role dashboards, authentication screens, and reusable
+design elements &
+November \\
+\hline
+Database and Schema Design &
+Database schema creation, relationships, constraints, and preparation of test data &
+Mid November -- January \\
+\hline
+Semester Examinations &
+Pause in development activities due to university examinations &
+December \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Project Timeline for Semester VIII}
+\label{tab:timeline_sem8}
+\begin{tabular}{|p{4cm}|p{8cm}|p{3cm}|}
+\hline
+\textbf{Phase} & \textbf{Major Activities} & \textbf{Duration} \\
+\hline
+Setup and Foundation &
+Repository setup, environment configuration, frontend and backend initialization, and
+base UI structure &
+Late December -- January \\
+\hline
+Backend Development &
+API development, AI service integration, workflow orchestration, and implementation of
+business logic &
+January -- March \\
+\hline
+Workflow Automation and Enhancements &
+Implementation of task assignment logic, automation workflows, multi-agent mentorship,
+and handling of edge cases &
+November -- April \\
+\hline
+Machine Learning Development &
+Development of multi-agent systems and mentor agent pipelines for personalization and
+adaptive learning &
+December -- May \\
+\hline
+Frontend--Backend Integration &
+Integration of UI with backend APIs, data validation, workflow testing, and bug fixing &
+March \\
+\hline
+Testing Phase &
+Unit testing, API testing, UI validation, performance optimization, and user acceptance
+testing &
+April -- May \\
+\hline
+Deployment and Final Submission &
+System deployment, documentation preparation, final report compilation, demonstrations,
+and submission &
+May End -- June \\
+\hline
+\end{tabular}
+\end{table}
+
+\newpage
+\chapter*{References}
+\addcontentsline{toc}{chapter}{References}
+
+\begin{enumerate}
+    \item UNESCO, \textit{AI and Education: Guidance for Policymakers}, 2021.
+    \item Kolb, D., \textit{Experiential Learning}, 1984.
+    \item Kiryakova et al., \textit{Gamification in Education}, 2014.
+    \item Next.js Documentation, \textit{Next.js - The React Framework for Production}, Available: \url{https://nextjs.org/docs}
+    \item React Documentation, \textit{React - A JavaScript Library for Building User Interfaces}, Available: \url{https://react.dev}
+    \item Tailwind CSS Documentation, \textit{Tailwind CSS - Rapidly Build Modern Websites}, Available: \url{https://tailwindcss.com/docs}
+    \item Node.js Documentation, \textit{Node.js - JavaScript Runtime Built on Chrome's V8}, Available: \url{https://nodejs.org/docs}
+    \item Express.js Documentation, \textit{Express - Fast, Unopinionated, Minimalist Web Framework}, Available: \url{https://expressjs.com}
+    \item Supabase Documentation, \textit{Supabase - The Open Source Firebase Alternative}, Available: \url{https://supabase.com/docs}
+    \item PostgreSQL Documentation, \textit{PostgreSQL - The World's Most Advanced Open Source Relational Database}, Available: \url{https://www.postgresql.org/docs}
+    \item LangChain Documentation, \textit{LangChain - Build LLM-Powered Applications}, Available: \url{https://python.langchain.com/docs}
+    \item n8n Documentation, \textit{n8n - Workflow Automation Tool}, Available: \url{https://docs.n8n.io}
+    \item GitHub Documentation, \textit{GitHub - Where Software is Built}, Available: \url{https://docs.github.com}
+    \item Vercel Documentation, \textit{Vercel - Frontend Cloud Platform}, Available: \url{https://vercel.com/docs}
+    \item Render Documentation, \textit{Render - Cloud Platform for Web Services}, Available: \url{https://render.com/docs}
+    \item Qwen Documentation, \textit{Qwen - Large Language Model}, Available: \url{https://github.com/QwenLM/Qwen}
+    \item BitsAndBytes Documentation, \textit{BitsAndBytes - 8-bit Optimizers and Quantization}, Available: \url{https://github.com/TimDettmers/bitsandbytes}
+    \item RunPod Documentation, \textit{RunPod - Serverless GPU Platform}, Available: \url{https://docs.runpod.io}
+\end{enumerate}
+
+\end{document}

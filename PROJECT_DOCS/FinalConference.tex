@@ -1,0 +1,308 @@
+\documentclass[runningheads]{llncs}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+\begin{document}
+
+\title{CareerSETU: An AI-Driven Career Simulation Platform for Practical Skill Building and Industry Readiness}
+
+\titlerunning{CareerSETU: An AI-Driven Career Simulation Platform}
+
+\author{Shivesh Rane\inst{1} \and
+Amit Patil\inst{2} \and
+Vishnu Variyar\inst{1} \and
+Shubham Chede\inst{1} \and
+Soham Ghotge\inst{1}}
+
+\authorrunning{V. Variyar et al.}
+
+\institute{Research Scholar, Dept. of Computer Engineering, Goa College of Engineering, Farmagudi, Ponda, Goa, India \and
+Assistant Professor, Dept. of Computer Engineering, Goa College of Engineering, Farmagudi, Ponda, Goa, India}
+
+\maketitle
+
+\begin{abstract}
+The growing gap between academic learning and industry expectations has become a critical challenge for engineering graduates. While students develop strong theoretical foundations, they often lack exposure to real-world software development workflows, collaborative team environments, and role-specific responsibilities essential for professional readiness. This paper presents CareerSETU, an AI-driven career simulation platform designed to bridge this gap by immersing students in simulated industry environments. The platform employs a multi-agent architecture consisting of a Learning Agent, a Project Manager (PM) Agent, and a Code Reviewer Agent, which collaboratively guide students through sequential tasks modeled after real-world software development workflows including GitHub-based version control, pull request cycles, and Kanban task management. Companies can create virtual environments tailored to specific tech stacks and publish job openings matched to verified student performance metrics. The system integrates large language models for automated code review, pedagogical tutoring, and AI-assisted skill scoring based on repository analysis. Preliminary results demonstrate feasibility in automating mentorship, task evaluation, and talent-to-opportunity matching, suggesting CareerSETU as a viable solution for experiential, industry-aligned technical education.
+
+\keywords{Career simulation \and AI agents \and Experiential learning \and Code review automation \and Industry readiness \and Large language models \and Multi-agent systems \and Skill assessment}
+\end{abstract}
+
+\section{Introduction}
+
+The disconnect between academic curricula and professional industry expectations is a well-documented challenge in engineering education \cite{b1}. Engineering graduates frequently possess strong theoretical competencies but lack the practical experience necessary to contribute effectively in professional settings from day one. This gap manifests as unfamiliarity with collaborative tools such as Git, agile workflows such as sprint planning and stand-up meetings, and the iterative nature of real-world software development involving code reviews, pull requests, and feedback cycles.
+
+Traditional approaches to bridging this gap---internships, project-based learning, and hackathons---are limited in scale, accessibility, and consistency. Not all students have equal access to industry mentors or internship opportunities, and one-size-fits-all academic projects rarely simulate the multi-role dynamics present in actual software teams.
+
+Artificial intelligence has emerged as a transformative tool in education \cite{b2}, enabling personalized, adaptive, and scalable learning experiences. AI-powered tutoring systems, automated code evaluation, and intelligent recommendation engines have demonstrated promise across various domains \cite{b3}. The application of these technologies to career preparation, however, remains underexplored.
+
+CareerSETU addresses this gap by creating a two-sided platform connecting students and companies within a simulated employment ecosystem. Students onboard with GitHub authentication, join company-created virtual environments, complete sequentially structured tasks, receive automated AI-driven feedback on their code, and earn performance metrics that feed into job recommendations. Companies configure virtual environments aligned with their real tech stacks, monitor student progress, and recruit based on verified, objective performance data rather than traditional resume screening.
+
+The key contributions of this work are as follows:
+\begin{itemize}
+    \item A multi-agent architecture with three specialized AI agents---Learning, PM, and Code Reviewer---operating collaboratively within a shared database.
+    \item A structured task lifecycle enforcing sequential completion with automated pull request evaluation using large language models (LLMs).
+    \item An AI-assisted skill scoring mechanism that analyzes GitHub repositories to determine student experience levels.
+    \item A two-sided platform enabling companies to create, configure, and publish virtual work environments and job openings matched to student performance.
+\end{itemize}
+
+The remainder of this paper is organized as follows. Section~\ref{sec:related} reviews related work. Section~\ref{sec:arch} describes the system architecture. Section~\ref{sec:agents} details the multi-agent implementation. Section~\ref{sec:frontend} covers the frontend and user experience. Section~\ref{sec:ecosystem} outlines the employment ecosystem. Section~\ref{sec:results} discusses results and future work, and Section~\ref{sec:conclusion} concludes the paper.
+
+\section{Related Work}
+\label{sec:related}
+
+\subsection{AI in Recruitment and Talent Assessment}
+
+Prior work on AI-driven recruitment systems, such as Singh et al. \cite{b4}, demonstrates the viability of automating candidate screening through resume parsing, keyword mapping, and personality assessment using IBM Watson services. Their system reduces manual effort in shortlisting through a pipeline of registration, technical evaluation via chatbot, and personality insight analysis. While effective for recruitment automation, such systems evaluate candidates on the basis of static documents and test scores rather than verifiable, hands-on contributions.
+
+CareerSETU extends this paradigm by grounding candidate evaluation in real code produced within simulated industry projects, providing richer and more reliable signals of candidate capability.
+
+\subsection{Gamification and Experiential Learning}
+
+Gamification techniques---points, progress tracking, badges, and sequential challenges---have been shown to increase student motivation and engagement in educational settings \cite{b5}. Project-based learning research further establishes that students retain knowledge more effectively when working on applied, goal-oriented tasks. CareerSETU operationalizes these principles through a Kanban board interface, sequential task unlocking, and PR-based task approval, embedding game-like progression within an authentic development workflow.
+
+\subsection{Automated Code Review}
+
+Automated code review using static analysis and machine learning has been explored extensively in software engineering research \cite{b6}. Recent advances with LLMs have enabled nuanced evaluation of code quality, style, correctness, and adherence to task requirements. CareerSETU's Code Reviewer Agent leverages LLM capabilities to score pull requests against specific task acceptance criteria, providing students with detailed feedback on issues and improvements.
+
+\subsection{Conversational AI in Education}
+
+Chatbot-based tutoring systems have demonstrated effectiveness in delivering on-demand instructional support, particularly for technical subjects \cite{b7}. The use of streaming, session-persistent conversational agents enables sustained pedagogical interaction. CareerSETU's PM Agent and Learning Agent both employ session-aware conversational architectures that maintain context across interactions, enabling coherent, progressive mentorship.
+
+\section{System Architecture}
+\label{sec:arch}
+
+CareerSETU is structured as a two-sided platform with distinct interfaces and workflows for students and companies, unified by a shared backend and database layer.
+
+\subsection{Overall System Architecture}
+
+The overall system connects the company side and student side through a shared Supabase database instance. Companies create and post virtual environments; students browse, join, and complete tasks within those environments. The platform facilitates cross-side interactions including environment discovery, task assignment, job posting, and application submission.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{overarch.jpeg}
+\caption{Overall System Architecture of CareerSETU.}
+\label{fig:overall}
+\end{figure}
+
+As shown in Fig.~\ref{fig:overall}, sequential flows on each side are connected by cross-side interactions: students join company-created environments, companies monitor student progress, companies post job openings visible to students, and students apply for matched opportunities.
+
+\subsection{Student-Side Architecture}
+
+The student flow begins with mandatory GitHub authentication, which establishes the link between the student's identity and their code repositories. Following onboarding, students browse available virtual environments and join those aligned with their interests and skill levels.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{studarch.jpeg}
+\caption{Student Architecture and Task Workflow.}
+\label{fig:student}
+\end{figure}
+
+Within each environment (Fig.~\ref{fig:student}), students create a GitHub repository and submit its URL as the entry gate to tasks. Tasks are presented on a Kanban board with three states: \textit{To Do}, \textit{In Progress}, and \textit{Done}. Students pick tasks, work on them with the support of three AI agents available throughout the environment, raise pull requests for completed work, and progress upon agent-approved PRs. Upon completing all tasks, earned performance metrics feed into personalized job recommendations.
+
+\subsection{Company-Side Architecture}
+
+Companies onboard by providing organizational details including name, industry, team size, and technology focus. The company dashboard (Fig.~\ref{fig:company}) provides access to an analytics dashboard, environment management, and an enrolled students view.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{comparch.jpeg}
+\caption{Company Architecture and Environment Management.}
+\label{fig:company}
+\end{figure}
+
+Environment creation supports two modes: an \textit{AI Mode} where companies describe a project in natural language (optionally uploading a PDF specification) to auto-generate task structures, and a \textit{Manual Mode} where companies directly define the environment from a blank template. Companies configure environment name, description, difficulty level, tech stack (e.g., React, Node.js, Python, DevOps), and define a series of tasks with specific acceptance criteria. Published environments become visible to students matched by tech stack. The hiring pipeline enables companies to post job openings specifying role, required stack, and eligibility criteria, and to view matched applicants enriched with platform performance data.
+
+\subsection{Database Schema}
+
+The platform uses Supabase (PostgreSQL) as the central data store. Key tables include: \texttt{students}, \texttt{companies}, \texttt{virtual\_environments}, \texttt{tasks}, \texttt{task\_progress}, \texttt{pr\_reviews}, \texttt{github\_repos}, \texttt{pm\_agent\_sessions}, and \texttt{pm\_agent\_messages}. Both AI agents read from and write to the same instance, enabling coordination without direct inter-agent communication.
+
+\section{Multi-Agent System}
+\label{sec:agents}
+
+CareerSETU implements three AI agents that collectively support students throughout their learning journey. Each agent is specialized for a distinct responsibility, and together they form a collaborative mentorship pipeline.
+
+\subsection{Task Lifecycle}
+
+Tasks follow a strict sequential lifecycle enforced by the agent system:
+
+\begin{equation}
+\text{locked} \rightarrow \text{unlocked} \rightarrow \text{in\_progress} \rightarrow \text{submitted} \rightarrow \text{approved}
+\end{equation}
+
+Task 1 in each environment is unlocked by default. Subsequent tasks unlock only upon Code Reviewer Agent approval of the preceding task's pull request. If a submission is rejected (score below threshold), the task reverts to \textit{in\_progress} with detailed review feedback. This enforces mastery-based progression, ensuring students fully address each task before advancing.
+
+\subsection{Code Reviewer Agent}
+
+The Code Reviewer Agent provides automated evaluation of student pull requests against task-specific requirements and company-defined evaluation standards.
+
+\noindent\textbf{Operation:}
+\begin{enumerate}
+    \item Receives a GitHub PR event via webhook (HMAC-verified) or manual trigger.
+    \item Resolves the student and environment from the repository URL via \texttt{github\_repos}.
+    \item Fetches the PR diff from the GitHub API.
+    \item Submits the diff, task requirements, and company evaluation criteria to an LLM for scoring.
+    \item Stores the review result (score, verdict, issues list, summary) in \texttt{pr\_reviews}.
+    \item Updates \texttt{task\_progress}: if score $\geq$ threshold, approves and unlocks the next task; otherwise, rejects with feedback.
+\end{enumerate}
+
+API endpoints include \texttt{/webhook/github} (POST, HMAC-verified), \texttt{/review} (POST, manual trigger), and \texttt{/health} (GET).
+
+\subsection{PM Agent (Project Manager)}
+
+The PM Agent is a conversational AI assistant that guides students through their tasks, contextualizes code review feedback, and manages task state transitions from \textit{unlocked} to \textit{in\_progress}.
+
+\noindent\textbf{Operation:}
+\begin{enumerate}
+    \item Student sends a message via the \texttt{/chat} endpoint.
+    \item Agent loads conversation history from the associated Supabase session.
+    \item Builds a system prompt enriched with student context, task details, environment policies, and prior PR feedback.
+    \item Executes a tool-calling loop (up to 5 rounds) to gather required information before responding.
+    \item Streams the final response token-by-token to the frontend.
+    \item Persists the updated conversation to the session.
+\end{enumerate}
+
+Available tools include \texttt{get\_student\_profile}, \texttt{get\_student\_tasks}, \texttt{get\_task\_details}, \texttt{get\_pr\_reviews}, \texttt{get\_environment\_info}, \texttt{start\_task}, and \texttt{call\_learning\_agent} for delegating conceptual questions.
+
+\subsection{Learning Agent}
+
+The Learning Agent is a WebSocket-based instructional service that teaches students on demand using a two-phase LLM pipeline designed for pedagogical coherence.
+
+\noindent\textbf{Two-Phase Pipeline:}
+\begin{itemize}
+    \item \textbf{Phase 1 --- Planner:} An LLM determines the teaching plan and selects visual primitives (diagrams, code illustrations, animations) appropriate for the concept being explained.
+    \item \textbf{Phase 2 --- Executor:} A second LLM streams structured NDJSON output including narration, visual steps, and code steps, which are rendered progressively on the frontend canvas.
+\end{itemize}
+
+The WebSocket endpoint \texttt{/ws} supports both authenticated (JWT-verified) and guest sessions. Audio narration is streamed via TTS alongside visual content. The frontend can send \texttt{pause}, \texttt{resume}, or \texttt{stop} commands, and partial narration is trimmed and stored to maintain coherent session history. Session history is persisted to the database, enabling resumption across visits.
+
+\subsection{AI-Assisted Skill Scoring}
+
+When students add skills to their profile, they provide a GitHub repository URL. The system analyzes the repository content using an LLM and returns an experience level---beginner, intermediate, or advanced---with a source indicator (model-inferred or fallback). This eliminates subjective self-assessment and provides explainable, verifiable skill classification.
+
+\section{Frontend Implementation}
+\label{sec:frontend}
+
+The frontend is built with Next.js and React, styled using Tailwind CSS, and communicates with backend services via REST APIs and WebSocket connections. The interface is divided into student-facing and company-facing sections, each with role-specific views.
+
+\subsection{Student Interface}
+
+\noindent\textbf{Authentication.} Students authenticate via GitHub OAuth, which simultaneously establishes their identity and links their GitHub account for repository access and PR review triggers. During profile onboarding, students submit a repository URL mapped to their student ID and environment ID, which is reused across all subsequent code review operations.
+
+\noindent\textbf{Environment Dashboard.} The dashboard displays all environments the student has joined, with progress indicators. A shared sidebar, persistent across all pages, provides global navigation (environments, directory, profile, learn) and workspace-specific navigation (board/chat, task details, environment learn). Sidebar state is preserved via \texttt{localStorage}.
+
+\noindent\textbf{Kanban Board and Task View.} Within each environment, tasks are displayed on a Kanban board. Selecting a task reveals the full task description, acceptance criteria, submission history, and PR review results including scores, verdict, summary, and identified issues.
+
+\noindent\textbf{Learning Interface.} The \texttt{/learn} route provides direct access to the Learning Agent. Students submit prompts and receive streamed multi-modal responses---text narration, visual canvas renderings, and code blocks---on a persistent canvas that supports session resumption.
+
+\noindent\textbf{PM Agent Chat.} Embedded in each environment workspace, the PM Agent chat supports session switching, conversation history display, and markdown-rendered replies with tool usage hints. Messages are rendered using \texttt{react-markdown} with \texttt{remark-gfm} for formatted technical content.
+
+\subsection{Company Interface}
+
+\noindent\textbf{Onboarding Gate.} Companies must complete onboarding before accessing the dashboard. Incomplete profiles trigger a redirect to the onboarding flow.
+
+\noindent\textbf{Environment Creation.} The creation interface supports AI Mode and Manual Mode. In AI Mode, companies enter a project description prompt and optionally upload a PDF specification; the backend generates a draft environment with a structured task series. In Manual Mode, companies directly define all fields. Both modes allow full editing before saving.
+
+\noindent\textbf{Analytics and Monitoring.} The company dashboard displays enrolled students, task completion rates, PR outcomes, and skill distributions. This enables data-driven talent assessment beyond traditional credentials.
+
+\section{Employment Ecosystem}
+\label{sec:ecosystem}
+
+The planned employment ecosystem phase completes the learning-to-employment pipeline by directly connecting student performance on the platform to real job opportunities.
+
+\subsection{Job Posting and Matching}
+
+Companies publish job openings specifying role, required tech stack, experience level, and eligibility criteria. Rather than resume-based screening, the matching algorithm scores candidate fit based on verified platform performance: task completion history, PR scores, skill assessments, and project portfolios generated directly from environment activity. Students whose profiles match job requirements receive personalized recommendations highlighting skill gaps and recommended learning paths to bridge them.
+
+\subsection{Student Analytics and Readiness Scoring}
+
+A comprehensive analytics layer aggregates student performance across multiple environments, computing holistic readiness scores across technical skills, collaboration behavior, consistency, and professional conduct. Machine learning models will analyze successful placement patterns to refine matching over time. Companies access anonymized aggregate analytics showing talent pipeline distributions, trending skills, and candidate preparedness indicators, enabling more efficient and objective hiring decisions.
+
+\begin{table}[htbp]
+\caption{Summary of CareerSETU Agent Responsibilities}
+\label{tab:agents}
+\centering
+\begin{tabular}{p{2.2cm}p{3.2cm}p{4.5cm}}
+\toprule
+\textbf{Agent} & \textbf{Primary Role} & \textbf{Key Capability} \\
+\midrule
+Learning Agent & On-demand teaching & Two-phase LLM pipeline, WebSocket streaming, TTS narration \\
+PM Agent & Task guidance and progression & Conversational, tool-calling, session-persistent \\
+Code Reviewer Agent & PR evaluation and task gating & LLM scoring, HMAC-verified webhooks, sequential task unlock \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Results and Discussion}
+\label{sec:results}
+
+\subsection{Implemented Components}
+
+The core platform components have been successfully implemented and integrated. The multi-agent backend is operational with all three agents communicating through the shared Supabase instance. The student-facing frontend supports full task progression from environment discovery through PR submission and review feedback display. The company-facing frontend supports environment creation in both AI and manual modes, with task management and student monitoring capabilities.
+
+The Learning Agent's two-phase pipeline has demonstrated effective pedagogical delivery, streaming structured multi-modal content including diagrams, code illustrations, and narration to the student canvas interface. The Code Reviewer Agent successfully processes GitHub webhook events, evaluates pull request diffs against task criteria, and enforces the sequential task lifecycle. The PM Agent maintains coherent conversational sessions with context awareness spanning student profile, task state, environment policies, and prior review feedback.
+
+\subsection{Observed Benefits}
+
+The platform's design addresses several key limitations of traditional approaches to industry preparation:
+
+\begin{itemize}
+    \item \textbf{Scalability.} AI-driven mentorship and evaluation scale to arbitrary numbers of students without proportional increases in human mentor time.
+    \item \textbf{Objectivity.} Code review scores and skill assessments are derived from verifiable repository analysis rather than subjective evaluation.
+    \item \textbf{Accessibility.} Students in regions with limited industry exposure gain access to simulated professional environments and mentorship quality equivalent to top-tier internship programs.
+    \item \textbf{Authenticity.} The use of real industry tools---GitHub, pull requests, Kanban boards, and tech-stack-specific environments---ensures that skills developed on the platform transfer directly to professional settings.
+\end{itemize}
+
+\subsection{Limitations and Future Work}
+
+The current implementation does not yet include the full employment ecosystem (job posting, matching, and analytics), which is planned for the next development phase. Testing and formal user studies have not yet been conducted; performance optimization and acceptance testing are scheduled phases. The learning agent's visual rendering pipeline, while functional, requires further refinement for complex multi-step lessons. Future work will also explore adaptive difficulty tuning, peer collaboration features within environments, and integration of richer performance metrics into the matching algorithm using machine learning models trained on placement outcomes.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+CareerSETU presents a novel approach to engineering career preparation by embedding students in AI-augmented simulations of real industry work environments. The platform's multi-agent architecture---combining a pedagogical Learning Agent, a contextual PM Agent, and an automated Code Reviewer Agent---provides students with scalable, objective, and authentic mentorship across the full software development lifecycle. By grounding performance evaluation in verifiable code contributions rather than static credentials, and by connecting learning outcomes directly to employment opportunities through verified metrics, CareerSETU creates a merit-based bridge between technical education and the workplace.
+
+The successful implementation of core components demonstrates the platform's technical feasibility. Future work will complete the employment ecosystem, conduct formal user studies, and refine the matching algorithms through data-driven learning, advancing CareerSETU's broader vision of transforming engineering education into a practical, industry-aligned, and equitable experience.
+
+\begin{credits}
+\subsubsection{\ackname} The authors wish to thank Dr. M. S. Krupashankara, Principal, and Dr. J. A. Laxminarayana, Head of the Computer Engineering Department, Goa College of Engineering, for their support and encouragement throughout this project. The authors also thank the teaching and non-teaching staff of the Computer Engineering Department for their cooperation and assistance.
+\end{credits}
+
+\begin{thebibliography}{10}
+
+\bibitem{b1}
+UNESCO: AI and Education: Guidance for Policymakers. UNESCO, Paris (2021)
+
+\bibitem{b2}
+Stone, D.L., Deadrick, D.L., Lukaszewski, K.M., Johnson, R.: The influence of technology on the future of human resource management. Hum. Resour. Manag. Rev. \textbf{25}(2), 216--231 (2015)
+
+\bibitem{b3}
+Kiryakova, G., Angelova, N., Yordanova, L.: Gamification in education. In: Proc. 9th Int. Balkan Educ. Sci. Conf. (2014)
+
+\bibitem{b4}
+Singh, S., Jadhav, I., Waghmare, V., Ramesh, R.: Artificial intelligent recruitment system. Int. J. Eng. Appl. Sci. Technol. \textbf{5}(3), 241--244 (2020)
+
+\bibitem{b5}
+Parry, E., Battista, V.: The impact of emerging technologies on work: a review of the evidence and implications for the human resource function. Emerald Open Res. \textbf{1}, 5 (2019)
+
+\bibitem{b6}
+Hill, J., Ford, W.R., Farreras, I.G.: Real conversations with artificial intelligence: a comparison between human--human online conversations and human--chatbot conversations. Comput. Human Behav. \textbf{49}, 245--250 (2015)
+
+\bibitem{b7}
+F\o lstad, A., Brandtz\ae g, P.B.: Chatbots and the new world of HCI. Interactions \textbf{24}(4), 38--42 (2017)
+
+\bibitem{b8}
+Sheth, B.: Chat bots are the new HR managers. Strateg. HR Rev. \textbf{17}(3), 162--163 (2018)
+
+\bibitem{b9}
+Cappelli, P., Tambe, P., Yakubovich, V.: Artificial intelligence in human resources management: challenges and a path forward. SSRN Electron. J. (2018)
+
+\bibitem{b10}
+Kamath, U., et al.: Deep Learning for NLP and Speech Recognition, pp. 141--174. Springer (2019)
+
+\end{thebibliography}
+
+\end{document}
